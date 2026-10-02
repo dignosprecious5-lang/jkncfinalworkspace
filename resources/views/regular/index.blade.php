@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Regular')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/project-list.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/overview-registry.css') }}">
+@endpush
+
 @section('content')
 @php
     $phaseBadgeClasses = [
@@ -105,17 +110,17 @@
     <div class="mx-auto max-w-[1600px]">
         <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <h1 class="text-3xl font-semibold tracking-tight text-gray-900">Regular</h1>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">All Regular Services</h1>
                 <p class="mt-1 max-w-3xl text-sm text-gray-500">
-                    Regular and retainer deals automatically open here, with RSAT, approvals, execution, reporting, delivery, and continuation tracked inside one record.
+                    Central overview of every regular service from Work Order and RSAT through Review, NTP, Execution, RSAT Reporting, Delivery, transmittal, and formal completion.
                 </p>
             </div>
             <button
                 type="button"
-                class="inline-flex h-11 items-center justify-center rounded-full bg-[#102d79] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#0d255f]"
+                class="inline-flex h-11 items-center justify-center rounded-xl bg-[#102d79] px-5 text-sm font-bold text-white shadow-sm hover:bg-[#0d255f] transition"
                 onclick="window.jkncSlideOver.open(document.getElementById('regularManualCreateDrawer'))"
             >
-                Create Regular
+                + Create Regular
             </button>
         </div>
 
@@ -125,7 +130,7 @@
         @if (session('error'))
             <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
         @endif
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 <p class="font-semibold">Create Regular was not saved.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
@@ -136,7 +141,7 @@
             </div>
         @endif
 
-        @if (!empty($catalogWarnings ?? []))
+        @if (! empty($catalogWarnings))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
                     <p>{{ $warning }}</p>
@@ -144,105 +149,252 @@
             </div>
         @endif
 
-        <div class="mb-6 grid gap-3 xl:grid-cols-5">
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">All Regular</p>
-                <p class="mt-2 text-3xl font-bold text-gray-900">{{ $stats['all'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">RSAT</p>
-                <p class="mt-2 text-3xl font-bold text-indigo-700">{{ $stats['rsat'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In Progress</p>
-                <p class="mt-2 text-3xl font-bold text-blue-700">{{ $stats['in_progress'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active</p>
-                <p class="mt-2 text-3xl font-bold text-amber-700">{{ $stats['active'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Completed</p>
-                <p class="mt-2 text-3xl font-bold text-emerald-700">{{ $stats['completed'] }}</p>
-            </div>
+        {{-- ORDO STAGE FILTER GRID --}}
+        <div class="stage-filter-grid mb-4" id="stageFilters" aria-label="Filter regular services by lifecycle stage">
+            <button type="button" class="stage-filter-card active" data-stage="all" onclick="filterRegularStage('all', this)">
+                <span>All Regular</span>
+                <strong>{{ $stats['all'] }}</strong>
+                <small>Total records</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="RSAT" onclick="filterRegularStage('RSAT', this)">
+                <span>Work Order / RSAT</span>
+                <strong>{{ $stats['rsat'] }}</strong>
+                <small>Setup & initiation</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="In Progress" onclick="filterRegularStage('In Progress', this)">
+                <span>Execution / In Progress</span>
+                <strong>{{ $stats['in_progress'] }}</strong>
+                <small>Active operational</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Active" onclick="filterRegularStage('Active', this)">
+                <span>Active Lifecycle</span>
+                <strong>{{ $stats['active'] }}</strong>
+                <small>Pending & ongoing</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Completed" onclick="filterRegularStage('Completed', this)">
+                <span>Completed</span>
+                <strong>{{ $stats['completed'] }}</strong>
+                <small>Archived & closed</small>
+            </button>
         </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 px-5 py-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 class="text-xl font-semibold text-gray-900">Regular Registry</h2>
-                        <p class="mt-1 text-sm text-gray-500">This list is now backed by saved regular engagements instead of placeholder data.</p>
+        {{-- REGULAR MANAGEMENT REGISTRY CARD --}}
+        <div class="card rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div class="card-head flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-5 border-b border-gray-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Regular Management Registry</h2>
+                    <p class="mt-1 text-xs text-slate-500">Current ownership, lifecycle position, health, schedule, and completion status for each regular service.</p>
+                </div>
+                <div class="registry-head-actions flex items-center gap-2">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+                        <input
+                            id="q"
+                            type="text"
+                            placeholder="Search regular service, reference, business, or client..."
+                            class="field h-10 w-72 sm:w-80 rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-3 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                            oninput="filterRegularRows()"
+                        >
                     </div>
-                    <div class="flex items-center gap-2">
-                        <form id="regularsSearchForm" method="GET" action="{{ route('regular.index') }}" class="flex items-center gap-2">
-                            <div class="relative">
-                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-                                <input
-                                    id="regularsSearchInput"
-                                    type="text"
-                                    name="search"
-                                    value="{{ $search ?? '' }}"
-                                    placeholder="Search regulars..."
-                                    autocomplete="off"
-                                    class="h-9 w-56 rounded-lg border border-gray-200 pl-8 pr-3 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                >
-                            </div>
-                        </form>
-                        <button id="openRegularDeleteSelectedModal" type="button" class="hidden h-9 rounded-md border border-red-200 bg-white px-3 text-sm text-red-600 hover:bg-red-50">Delete Selected</button>
+                    <div class="relative">
+                        <button
+                            class="registry-menu-button flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition"
+                            id="registryMenuButton"
+                            type="button"
+                            onclick="document.getElementById('registryMenu').classList.toggle('open')"
+                            aria-label="Registry options"
+                        >
+                            <i class="fas fa-ellipsis-v text-xs"></i>
+                        </button>
+                        <div class="registry-menu" id="registryMenu">
+                            <button type="button" onclick="exportRegularTable('csv')" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
+                                <i class="fas fa-file-excel text-emerald-600"></i> Download CSV / Excel
+                            </button>
+                            <button type="button" onclick="window.print()" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
+                                <i class="fas fa-file-pdf text-rose-600"></i> Download / Print PDF
+                            </button>
+                            <div class="registry-menu-divider"></div>
+                            <strong>Quick Actions</strong>
+                            <button id="openRegularDeleteSelectedModal" type="button" class="hidden text-xs font-semibold text-rose-600 hover:bg-rose-50 p-2 rounded-lg text-left">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete Selected
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            @if(($search ?? '') !== '')
-                <div class="px-5 py-2 text-sm text-gray-500">Showing results for <span class="font-semibold text-gray-900">"{{ $search }}"</span>. <a href="{{ route('regular.index') }}" class="text-blue-600 hover:underline">Clear search</a></div>
-            @endif
+            {{-- FILTER TOOLBAR --}}
+            <div class="registry-filters">
+                <label>
+                    From Date
+                    <input type="date" id="filterFrom" onchange="filterRegularRows()">
+                </label>
+                <label>
+                    To Date
+                    <input type="date" id="filterTo" onchange="filterRegularRows()">
+                </label>
+                <label>
+                    Current Stage
+                    <select id="filterStage" onchange="filterRegularRows()">
+                        <option value="">All stages</option>
+                        <option value="RSAT">RSAT</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="For NTP Approval">For NTP Approval</option>
+                        <option value="Execution">Execution</option>
+                        <option value="Reporting">Reporting</option>
+                        <option value="Delivery">Delivery</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </label>
+                <label>
+                    Health
+                    <select id="filterHealth" onchange="filterRegularRows()">
+                        <option value="">All health statuses</option>
+                        <option value="On Track">On Track</option>
+                        <option value="Needs Attention">Needs Attention</option>
+                        <option value="At Risk">At Risk</option>
+                    </select>
+                </label>
+                <label>
+                    Progress
+                    <select id="filterProgress" onchange="filterRegularRows()">
+                        <option value="">All progress</option>
+                        <option value="not-started">0% Not started</option>
+                        <option value="active">1%–99% In Progress</option>
+                        <option value="completed">100% Completed</option>
+                    </select>
+                </label>
+                <label>
+                    Regular Lead
+                    <select id="filterLead" onchange="filterRegularRows()">
+                        <option value="">All regular leads</option>
+                        @foreach ($employeeRecords as $emp)
+                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>
+                    Lead Associate
+                    <select id="filterAssociate" onchange="filterRegularRows()">
+                        <option value="">All associates</option>
+                        @foreach ($employeeRecords as $emp)
+                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <button class="btn inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" type="button" id="clearRegistryFilters" onclick="resetRegularFilters()">
+                    Clear Filters
+                </button>
+            </div>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+            {{-- RESULT BAR --}}
+            <div class="registry-result-bar">
+                <span id="registryResultCount">{{ $regulars->count() }} regular services</span>
+                <span id="activeRegistryFilter">All lifecycle stages</span>
+            </div>
+
+            {{-- REGISTRY TABLE --}}
+            <div class="table-wrap overflow-x-auto">
+                <table class="min-w-full text-xs" id="regularRegistryTable">
+                    <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
                         <tr>
-                            <th class="px-4 py-3 text-left font-medium w-10">
-                                <input id="regularSelectAll" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <th class="px-4 py-3 text-left w-10" data-column="select">
+                                <input id="regularSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                             </th>
-                            <th class="px-4 py-3 text-left font-medium">Regular</th>
-                            <th class="px-4 py-3 text-left font-medium">Deal</th>
-                            <th class="px-4 py-3 text-left font-medium">Company</th>
-                            <th class="px-4 py-3 text-left font-medium">Phase</th>
-                            <th class="px-4 py-3 text-left font-medium">Owner</th>
-                            <th class="px-4 py-3 text-left font-medium">Target</th>
-                            <th class="px-4 py-3 text-right font-medium">Action</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="project">REGULAR / REFERENCE</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="business">BUSINESS / CLIENT</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="stage">CURRENT STAGE</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="health">HEALTH</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="progress">PROGRESS</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="target">TARGET COMPLETION</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="lead">REGULAR LEAD</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="associate">LEAD ASSOCIATE</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="assigned">ASSIGNED PERSONS</th>
+                            <th class="px-4 py-3 text-right font-bold uppercase tracking-wider" data-column="action">ACTION</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
+                    <tbody class="divide-y divide-slate-100 bg-white text-slate-700" id="rows">
                         @forelse ($regulars as $regular)
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3">
-                                    <input type="checkbox" name="regular_checkbox" value="{{ $regular->id }}" class="regular-row-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            @php
+                                $contactPerson = trim(collect([$regular->contact?->first_name, $regular->contact?->last_name])->filter()->implode(' ')) ?: ($regular->client_name ?: 'Client not recorded');
+                                $businessName = $regular->company?->company_name ?: ($regular->business_name ?: 'No Business Recorded');
+                                $isCompleted = $regular->status === 'Completed';
+                                $progress = $isCompleted ? 100 : (in_array($regular->status, ['Execution', 'In Progress']) ? 65 : (in_array($regular->status, ['Reporting', 'Delivery']) ? 85 : 25));
+                                $health = $isCompleted ? 'Completed' : 'On Track';
+                                $targetDate = $regular->target_completion_date ? \Carbon\Carbon::parse($regular->target_completion_date)->format('Y-m-d') : '';
+                                $regularLead = $regular->assigned_project_manager ?: ($regular->assigned_consultant ?: 'Unassigned');
+                                $leadAssociate = $regular->assigned_associate ?: 'Unassigned';
+                            @endphp
+                            <tr class="regular-data-row hover:bg-slate-50/80 transition"
+                                data-title="{{ strtolower($regular->name) }}"
+                                data-ref="{{ strtolower($regular->project_code) }}"
+                                data-deal="{{ strtolower($regular->deal?->deal_code ?? '') }}"
+                                data-business="{{ strtolower($businessName) }}"
+                                data-client="{{ strtolower($contactPerson) }}"
+                                data-stage="{{ $regular->status }}"
+                                data-health="{{ $health }}"
+                                data-progress="{{ $progress }}"
+                                data-lead="{{ $regularLead }}"
+                                data-associate="{{ $leadAssociate }}"
+                                data-target="{{ $targetDate }}">
+                                <td class="px-4 py-3.5" data-column="select">
+                                    <input type="checkbox" name="regular_checkbox" value="{{ $regular->id }}" class="regular-row-checkbox h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                                 </td>
-                                <td class="px-4 py-3">
-                                    <p class="font-medium text-gray-900">{{ $regular->name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $regular->project_code }}</p>
+                                <td class="px-4 py-3.5" data-column="project">
+                                    <div class="font-bold text-slate-900">{{ $regular->name }}</div>
+                                    <div class="text-[11px] text-slate-500 font-medium">{{ $regular->project_code }} · {{ $regular->deal?->deal_code ?? 'No Deal reference' }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-gray-600">{{ $regular->deal?->deal_code ?? '-' }}</td>
-                                <td class="px-4 py-3 text-gray-600">{{ $regular->company?->company_name ?: ($regular->business_name ?: '-') }}</td>
-                                <td class="px-4 py-3">
-                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium {{ $phaseBadgeClasses[$regular->status] ?? 'bg-gray-100 text-gray-700 border border-gray-200' }}">{{ $regular->status }}</span>
+                                <td class="px-4 py-3.5" data-column="business">
+                                    <strong class="font-bold text-slate-900 block">{{ $businessName }}</strong>
+                                    <div class="text-[11px] text-slate-500">{{ $contactPerson }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-gray-600">{{ $regular->assigned_project_manager ?: '-' }}</td>
-                                <td class="px-4 py-3 text-gray-600">{{ optional($regular->target_completion_date)->format('M d, Y') ?: '-' }}</td>
-                                <td class="px-4 py-3 text-right">
-                                    <a href="{{ route('regular.show', $regular) }}" class="inline-flex h-9 items-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">View</a>
+                                <td class="px-4 py-3.5" data-column="stage">
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold {{ $phaseBadgeClasses[$regular->status] ?? 'bg-slate-100 text-slate-700 border border-slate-200' }}">
+                                        {{ $regular->status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5" data-column="health">
+                                    <span class="inline-flex items-center gap-1.5 font-bold {{ $isCompleted ? 'text-emerald-700' : 'text-blue-700' }}">
+                                        <span class="h-2 w-2 rounded-full {{ $isCompleted ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
+                                        {{ $health }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5" data-column="progress">
+                                    <div class="registry-progress">
+                                        <div class="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1">
+                                            <span>{{ $progress }}%</span>
+                                        </div>
+                                        <div class="h-1.5 w-24 rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full bg-blue-600 rounded-full" style="width: {{ $progress }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="target">
+                                    {{ $regular->target_completion_date ? \Carbon\Carbon::parse($regular->target_completion_date)->format('M d, Y') : 'Not set' }}
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="lead">
+                                    {{ $regularLead }}
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="associate">
+                                    {{ $leadAssociate }}
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="assigned">
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                                        <i class="fas fa-users text-[10px] text-slate-400"></i>
+                                        {{ $regularLead !== 'Unassigned' ? $regularLead : 'Team' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5 text-right" data-column="action">
+                                    <a href="{{ route('regular.show', $regular) }}" class="btn sm inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-800 transition">
+                                        Open Regular <i class="fas fa-arrow-right text-[10px]"></i>
+                                    </a>
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="8" class="px-4 py-12 text-center text-sm text-gray-500">
-                                    @if(($search ?? '') !== '')
-                                        No regular engagements found matching <span class="font-semibold">"{{ $search }}"</span>.
-                                    @else
-                                        No regular engagements have created regular records yet.
-                                    @endif
+                            <tr id="noRecordsRow">
+                                <td colspan="11" class="px-4 py-12 text-center text-sm text-slate-400">
+                                    <i class="fas fa-folder-open text-3xl text-slate-300 block mb-2"></i>
+                                    No regular engagements have been recorded yet.
                                 </td>
                             </tr>
                         @endforelse
@@ -995,7 +1147,7 @@
         initEmployeeSearchPickers();
         syncSelections();
         renderRegularTemplatePreview();
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             window.jkncSlideOver?.open(document.getElementById('regularManualCreateDrawer'));
         @endif
 
@@ -1099,5 +1251,139 @@
         deleteOverlay?.addEventListener('click', closeRegularDeleteModal);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRegularDeleteModal(); });
     })();
+
+    let currentSelectedStage = 'all';
+
+    window.filterRegularStage = function(stage, btn) {
+        currentSelectedStage = stage;
+        document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const stageSelect = document.getElementById('filterStage');
+        if (stageSelect) {
+            stageSelect.value = stage === 'all' ? '' : stage;
+        }
+        filterRegularRows();
+    };
+
+    window.filterRegularRows = function() {
+        const q = (document.getElementById('q')?.value || '').toLowerCase().trim();
+        const fromDate = document.getElementById('filterFrom')?.value || '';
+        const toDate = document.getElementById('filterTo')?.value || '';
+        const stage = document.getElementById('filterStage')?.value || (currentSelectedStage === 'all' ? '' : currentSelectedStage);
+        const health = document.getElementById('filterHealth')?.value || '';
+        const progress = document.getElementById('filterProgress')?.value || '';
+        const lead = document.getElementById('filterLead')?.value || '';
+        const associate = document.getElementById('filterAssociate')?.value || '';
+
+        const rows = document.querySelectorAll('.regular-data-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const title = row.getAttribute('data-title') || '';
+            const ref = row.getAttribute('data-ref') || '';
+            const deal = row.getAttribute('data-deal') || '';
+            const business = row.getAttribute('data-business') || '';
+            const client = row.getAttribute('data-client') || '';
+            const rowStage = row.getAttribute('data-stage') || '';
+            const rowHealth = row.getAttribute('data-health') || '';
+            const rowProgress = parseInt(row.getAttribute('data-progress') || '0', 10);
+            const rowLead = row.getAttribute('data-lead') || '';
+            const rowAssociate = row.getAttribute('data-associate') || '';
+            const rowTarget = row.getAttribute('data-target') || '';
+
+            let match = true;
+
+            if (q) {
+                const combined = `${title} ${ref} ${deal} ${business} ${client}`.toLowerCase();
+                if (!combined.includes(q)) match = false;
+            }
+
+            if (stage && stage !== 'all') {
+                if (stage === 'Active') {
+                    if (!['RSAT', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'].includes(rowStage)) match = false;
+                } else if (stage === 'RSAT') {
+                    if (!['RSAT', 'Work Order'].includes(rowStage)) match = false;
+                } else if (stage === 'In Progress') {
+                    if (!['In Progress', 'Execution'].includes(rowStage)) match = false;
+                } else {
+                    if (rowStage.toLowerCase() !== stage.toLowerCase()) match = false;
+                }
+            }
+
+            if (health && rowHealth !== health) match = false;
+
+            if (progress) {
+                if (progress === 'not-started' && rowProgress !== 0) match = false;
+                if (progress === 'active' && (rowProgress <= 0 || rowProgress >= 100)) match = false;
+                if (progress === 'completed' && rowProgress < 100) match = false;
+            }
+
+            if (lead && !rowLead.toLowerCase().includes(lead.toLowerCase())) match = false;
+            if (associate && !rowAssociate.toLowerCase().includes(associate.toLowerCase())) match = false;
+
+            if (fromDate && rowTarget && rowTarget < fromDate) match = false;
+            if (toDate && rowTarget && rowTarget > toDate) match = false;
+
+            if (match) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const countEl = document.getElementById('registryResultCount');
+        if (countEl) countEl.textContent = `${visibleCount} regular service${visibleCount === 1 ? '' : 's'}`;
+
+        const filterEl = document.getElementById('activeRegistryFilter');
+        if (filterEl) {
+            filterEl.textContent = stage && stage !== 'all' ? `Filtered by stage: ${stage}` : (q ? `Filtered by keyword: "${q}"` : 'All lifecycle stages');
+        }
+    };
+
+    window.resetRegularFilters = function() {
+        if (document.getElementById('q')) document.getElementById('q').value = '';
+        if (document.getElementById('filterFrom')) document.getElementById('filterFrom').value = '';
+        if (document.getElementById('filterTo')) document.getElementById('filterTo').value = '';
+        if (document.getElementById('filterStage')) document.getElementById('filterStage').value = '';
+        if (document.getElementById('filterHealth')) document.getElementById('filterHealth').value = '';
+        if (document.getElementById('filterProgress')) document.getElementById('filterProgress').value = '';
+        if (document.getElementById('filterLead')) document.getElementById('filterLead').value = '';
+        if (document.getElementById('filterAssociate')) document.getElementById('filterAssociate').value = '';
+        
+        currentSelectedStage = 'all';
+        document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
+        document.querySelector('.stage-filter-card[data-stage="all"]')?.classList.add('active');
+
+        filterRegularRows();
+    };
+
+    window.exportRegularTable = function(format) {
+        const rows = document.querySelectorAll('.regular-data-row');
+        let csv = 'REGULAR,REFERENCE,BUSINESS,CLIENT,STAGE,HEALTH,PROGRESS,TARGET,LEAD\n';
+        rows.forEach(r => {
+            if (r.style.display !== 'none') {
+                const title = `"${(r.getAttribute('data-title') || '').replace(/"/g, '""')}"`;
+                const ref = `"${(r.getAttribute('data-ref') || '').replace(/"/g, '""')}"`;
+                const business = `"${(r.getAttribute('data-business') || '').replace(/"/g, '""')}"`;
+                const client = `"${(r.getAttribute('data-client') || '').replace(/"/g, '""')}"`;
+                const stage = `"${(r.getAttribute('data-stage') || '').replace(/"/g, '""')}"`;
+                const health = `"${(r.getAttribute('data-health') || '').replace(/"/g, '""')}"`;
+                const progress = `${r.getAttribute('data-progress') || '0'}%`;
+                const target = `"${(r.getAttribute('data-target') || '').replace(/"/g, '""')}"`;
+                const lead = `"${(r.getAttribute('data-lead') || '').replace(/"/g, '""')}"`;
+                csv += `${title},${ref},${business},${client},${stage},${health},${progress},${target},${lead}\n`;
+            }
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `regular_registry_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 </script>
 @endsection

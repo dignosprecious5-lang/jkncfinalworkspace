@@ -1,6 +1,10 @@
 @extends('layouts.app')
 @section('title', 'Project')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/overview-registry.css') }}">
+@endpush
+
 @section('content')
 @php
     $phaseBadgeClasses = [
@@ -138,7 +142,7 @@
             </div>
         @endif
 
-        @if (!empty($catalogWarnings ?? []))
+        @if (! empty($catalogWarnings ?? []))
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 @foreach ($catalogWarnings as $warning)
                     <p>{{ $warning }}</p>
@@ -146,106 +150,240 @@
             </div>
         @endif
 
-        <div class="mb-6 grid gap-3 xl:grid-cols-5">
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">All Projects</p>
-                <p class="mt-2 text-3xl font-bold text-gray-900">{{ $stats['all'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">SOW</p>
-                <p class="mt-2 text-3xl font-bold text-indigo-700">{{ $stats['start'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">In Progress</p>
-                <p class="mt-2 text-3xl font-bold text-blue-700">{{ $stats['in_progress'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active</p>
-                <p class="mt-2 text-3xl font-bold text-amber-700">{{ $stats['active'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Completed</p>
-                <p class="mt-2 text-3xl font-bold text-emerald-700">{{ $stats['completed'] }}</p>
-            </div>
+        {{-- ORDO STAGE FILTER GRID --}}
+        <div class="stage-filter-grid mb-4" id="stageFilters" aria-label="Filter projects by lifecycle stage">
+            <button type="button" class="stage-filter-card active" data-stage="all" onclick="filterProjectStage('all', this)">
+                <span>All Projects</span>
+                <strong>{{ $stats['all'] }}</strong>
+                <small>Total project records</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="SOW" onclick="filterProjectStage('SOW', this)">
+                <span>Work Order / SOW</span>
+                <strong>{{ $stats['start'] }}</strong>
+                <small>Setup & scoping</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="In Progress" onclick="filterProjectStage('In Progress', this)">
+                <span>Execution / In Progress</span>
+                <strong>{{ $stats['in_progress'] }}</strong>
+                <small>Active milestone delivery</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Active" onclick="filterProjectStage('Active', this)">
+                <span>Active Lifecycle</span>
+                <strong>{{ $stats['active'] }}</strong>
+                <small>Ongoing projects</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Completed" onclick="filterProjectStage('Completed', this)">
+                <span>Completed</span>
+                <strong>{{ $stats['completed'] }}</strong>
+                <small>COC approved & closed</small>
+            </button>
         </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 px-5 py-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 class="text-xl font-semibold text-gray-900">Project Registry</h2>
-                        <p class="mt-1 text-sm text-gray-500">This list is now backed by approved deals instead of placeholder data.</p>
+        {{-- PROJECT MANAGEMENT REGISTRY CARD --}}
+        <div class="card rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div class="card-head flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-5 border-b border-gray-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Project Management Registry</h2>
+                    <p class="mt-1 text-xs text-slate-500">Current ownership, lifecycle position, health, schedule, and completion status for each project engagement.</p>
+                </div>
+                <div class="registry-head-actions flex items-center gap-2">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+                        <input
+                            id="q"
+                            type="text"
+                            placeholder="Search project title, reference, business, or client..."
+                            class="field h-10 w-72 sm:w-80 rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-3 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                            oninput="filterProjectRows()"
+                        >
                     </div>
-                    <div class="flex items-center gap-2">
-                        <form id="projectsSearchForm" method="GET" action="{{ route('project.index') }}" class="flex items-center gap-2">
-                            <div class="relative">
-                                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-                                <input
-                                    id="projectsSearchInput"
-                                    type="text"
-                                    name="search"
-                                    value="{{ $search ?? '' }}"
-                                    placeholder="Search projects..."
-                                    autocomplete="off"
-                                    class="h-9 w-56 rounded-lg border border-gray-200 pl-8 pr-3 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                >
-                            </div>
-                        </form>
-                        <button id="openProjectDeleteSelectedModal" type="button" class="hidden h-9 rounded-md border border-red-200 bg-white px-3 text-sm text-red-600 hover:bg-red-50">Delete Selected</button>
+                    <div class="relative">
+                        <button
+                            class="registry-menu-button flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition"
+                            id="registryMenuButton"
+                            type="button"
+                            onclick="document.getElementById('registryMenu').classList.toggle('open')"
+                            aria-label="Registry options"
+                        >
+                            <i class="fas fa-ellipsis-v text-xs"></i>
+                        </button>
+                        <div class="registry-menu" id="registryMenu">
+                            <button type="button" onclick="exportProjectTable('csv')" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
+                                <i class="fas fa-file-excel text-emerald-600"></i> Download CSV / Excel
+                            </button>
+                            <button type="button" onclick="window.print()" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
+                                <i class="fas fa-file-pdf text-rose-600"></i> Download / Print PDF
+                            </button>
+                            <div class="registry-menu-divider"></div>
+                            <strong>Quick Actions</strong>
+                            <button id="openProjectDeleteSelectedModal" type="button" class="hidden text-xs font-semibold text-rose-600 hover:bg-rose-50 p-2 rounded-lg text-left">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete Selected
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            @if(($search ?? '') !== '')
-                <div class="px-5 py-2 text-sm text-gray-500">Showing results for <span class="font-semibold text-gray-900">"{{ $search }}"</span>. <a href="{{ route('project.index') }}" class="text-blue-600 hover:underline">Clear search</a></div>
-            @endif
+            {{-- FILTER TOOLBAR --}}
+            <div class="registry-filters">
+                <label>
+                    From Date
+                    <input type="date" id="filterFrom" onchange="filterProjectRows()">
+                </label>
+                <label>
+                    To Date
+                    <input type="date" id="filterTo" onchange="filterProjectRows()">
+                </label>
+                <label>
+                    Current Stage
+                    <select id="filterStage" onchange="filterProjectRows()">
+                        <option value="">All stages</option>
+                        <option value="SOW">SOW / Scope</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="For NTP Approval">For NTP Approval</option>
+                        <option value="Execution">Execution</option>
+                        <option value="Reporting">Reporting</option>
+                        <option value="Delivery">Delivery</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </label>
+                <label>
+                    Health
+                    <select id="filterHealth" onchange="filterProjectRows()">
+                        <option value="">All health statuses</option>
+                        <option value="On Track">On Track</option>
+                        <option value="Needs Attention">Needs Attention</option>
+                        <option value="At Risk">At Risk</option>
+                    </select>
+                </label>
+                <label>
+                    Progress
+                    <select id="filterProgress" onchange="filterProjectRows()">
+                        <option value="">All progress</option>
+                        <option value="not-started">0% Not started</option>
+                        <option value="active">1%–99% In Progress</option>
+                        <option value="completed">100% Completed</option>
+                    </select>
+                </label>
+                <label>
+                    Project Lead
+                    <select id="filterLead" onchange="filterProjectRows()">
+                        <option value="">All project leads</option>
+                        @foreach ($employeeRecords as $emp)
+                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>
+                    Lead Associate
+                    <select id="filterAssociate" onchange="filterProjectRows()">
+                        <option value="">All associates</option>
+                        @foreach ($employeeRecords as $emp)
+                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <button class="btn inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" type="button" id="clearRegistryFilters" onclick="resetProjectFilters()">
+                    Clear Filters
+                </button>
+            </div>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-gray-600 border-b border-gray-200">
+            {{-- RESULT BAR --}}
+            <div class="registry-result-bar">
+                <span id="registryResultCount">{{ $projects->count() }} projects</span>
+                <span id="activeRegistryFilter">All lifecycle stages</span>
+            </div>
+
+            {{-- REGISTRY TABLE --}}
+            <div class="table-wrap overflow-x-auto">
+                <table class="min-w-full text-xs" id="projectRegistryTable">
+                    <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
                         <tr>
-                            <th class="px-4 py-3 text-left font-medium w-10">
-                                <input id="projectSelectAll" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <th class="px-4 py-3 text-left w-10" data-column="select">
+                                <input id="projectSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                             </th>
-                            <th class="px-4 py-3 text-left font-medium">Project</th>
-                            <th class="px-4 py-3 text-left font-medium">Deal</th>
-                            <th class="px-4 py-3 text-left font-medium">Company</th>
-                            <th class="px-4 py-3 text-left font-medium">Phase</th>
-                            <th class="px-4 py-3 text-left font-medium">Owner</th>
-                            <th class="px-4 py-3 text-left font-medium">Target</th>
-                            <th class="px-4 py-3 text-right font-medium">Action</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="project">PROJECT / REFERENCE</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="business">BUSINESS / CLIENT</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="stage">CURRENT STAGE</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="health">HEALTH</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="progress">PROGRESS</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="target">TARGET COMPLETION</th>
+                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="lead">PROJECT LEAD</th>
+                            <th class="px-4 py-3 text-right font-bold uppercase tracking-wider" data-column="action">ACTION</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white text-gray-700">
+                    <tbody class="divide-y divide-slate-100 bg-white text-slate-700" id="rows">
                         @forelse ($projects as $project)
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3">
-                                    <input type="checkbox" name="project_checkbox" value="{{ $project->id }}" class="project-row-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            @php
+                                $contactPerson = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' ')) ?: ($project->client_name ?: 'Client not recorded');
+                                $businessName = $project->company?->company_name ?: ($project->business_name ?: 'No Business Recorded');
+                                $isCompleted = $project->status === 'Completed';
+                                $progress = $isCompleted ? 100 : (in_array($project->status, ['Execution', 'In Progress']) ? 70 : (in_array($project->status, ['Reporting', 'Delivery']) ? 90 : 30));
+                                $health = $isCompleted ? 'Completed' : 'On Track';
+                                $targetDate = $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('Y-m-d') : '';
+                                $phaseLabel = in_array($project->status, ['Start', 'SOW']) ? 'SOW' : $project->status;
+                            @endphp
+                            <tr class="project-data-row hover:bg-slate-50/80 transition"
+                                data-title="{{ strtolower($project->name) }}"
+                                data-ref="{{ strtolower($project->project_code) }}"
+                                data-deal="{{ strtolower($project->deal?->deal_code ?? '') }}"
+                                data-business="{{ strtolower($businessName) }}"
+                                data-client="{{ strtolower($contactPerson) }}"
+                                data-stage="{{ $phaseLabel }}"
+                                data-health="{{ $health }}"
+                                data-progress="{{ $progress }}"
+                                data-lead="{{ $project->assigned_project_manager ?: ($project->assigned_consultant ?: '') }}"
+                                data-associate="{{ $project->assigned_associate ?: '' }}"
+                                data-target="{{ $targetDate }}">
+                                <td class="px-4 py-3.5" data-column="select">
+                                    <input type="checkbox" name="project_checkbox" value="{{ $project->id }}" class="project-row-checkbox h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                                 </td>
-                                <td class="px-4 py-3">
-                                    <p class="font-medium text-gray-900">{{ $project->name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $project->project_code }}</p>
+                                <td class="px-4 py-3.5" data-column="project">
+                                    <div class="font-bold text-slate-900">{{ $project->name }}</div>
+                                    <div class="text-[11px] text-slate-500 font-medium">{{ $project->project_code }} · {{ $project->deal?->deal_code ?? 'No Deal reference' }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-gray-600">{{ $project->deal?->deal_code ?? '-' }}</td>
-                                <td class="px-4 py-3 text-gray-600">{{ $project->company?->company_name ?: ($project->business_name ?: '-') }}</td>
-                                <td class="px-4 py-3">
-                                    @php($phaseLabel = $project->status === 'Start' ? 'SOW' : $project->status)
-                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium {{ $phaseBadgeClasses[$phaseLabel] ?? 'bg-gray-100 text-gray-700 border border-gray-200' }}">{{ $phaseLabel }}</span>
+                                <td class="px-4 py-3.5" data-column="business">
+                                    <strong class="font-bold text-slate-900 block">{{ $businessName }}</strong>
+                                    <div class="text-[11px] text-slate-500">{{ $contactPerson }}</div>
                                 </td>
-                                <td class="px-4 py-3 text-gray-600">{{ $project->assigned_project_manager ?: '-' }}</td>
-                                <td class="px-4 py-3 text-gray-600">{{ optional($project->target_completion_date)->format('M d, Y') ?: '-' }}</td>
-                                <td class="px-4 py-3 text-right">
-                                    <a href="{{ route('project.show', $project) }}" class="inline-flex h-9 items-center rounded-full border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">View</a>
+                                <td class="px-4 py-3.5" data-column="stage">
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold {{ $phaseBadgeClasses[$phaseLabel] ?? 'bg-slate-100 text-slate-700 border border-slate-200' }}">
+                                        {{ $phaseLabel }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5" data-column="health">
+                                    <span class="inline-flex items-center gap-1.5 font-bold {{ $isCompleted ? 'text-emerald-700' : 'text-blue-700' }}">
+                                        <span class="h-2 w-2 rounded-full {{ $isCompleted ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
+                                        {{ $health }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3.5" data-column="progress">
+                                    <div class="registry-progress">
+                                        <div class="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1">
+                                            <span>{{ $progress }}%</span>
+                                        </div>
+                                        <div class="h-1.5 w-24 rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full bg-blue-600 rounded-full" style="width: {{ $progress }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="target">
+                                    {{ $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('M d, Y') : 'Not set' }}
+                                </td>
+                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="lead">
+                                    {{ $project->assigned_project_manager ?: ($project->assigned_consultant ?: 'Unassigned') }}
+                                </td>
+                                <td class="px-4 py-3.5 text-right" data-column="action">
+                                    <a href="{{ route('project.show', $project) }}" class="btn sm inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-800 transition">
+                                        Open Project <i class="fas fa-arrow-right text-[10px]"></i>
+                                    </a>
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="8" class="px-4 py-12 text-center text-sm text-gray-500">
-                                    @if(($search ?? '') !== '')
-                                        No projects found matching <span class="font-semibold">"{{ $search }}"</span>.
-                                    @else
-                                        No approved project engagements have created project records yet.
-                                    @endif
+                            <tr id="noRecordsRow">
+                                <td colspan="9" class="px-4 py-12 text-center text-sm text-slate-400">
+                                    <i class="fas fa-folder-open text-3xl text-slate-300 block mb-2"></i>
+                                    No project engagements have been recorded yet.
                                 </td>
                             </tr>
                         @endforelse
@@ -1450,5 +1588,139 @@
         deleteOverlay?.addEventListener('click', closeProjectDeleteModal);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProjectDeleteModal(); });
     })();
+
+    let currentSelectedProjectStage = 'all';
+
+    window.filterProjectStage = function(stage, btn) {
+        currentSelectedProjectStage = stage;
+        document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const stageSelect = document.getElementById('filterStage');
+        if (stageSelect) {
+            stageSelect.value = stage === 'all' ? '' : stage;
+        }
+        filterProjectRows();
+    };
+
+    window.filterProjectRows = function() {
+        const q = (document.getElementById('q')?.value || '').toLowerCase().trim();
+        const fromDate = document.getElementById('filterFrom')?.value || '';
+        const toDate = document.getElementById('filterTo')?.value || '';
+        const stage = document.getElementById('filterStage')?.value || (currentSelectedProjectStage === 'all' ? '' : currentSelectedProjectStage);
+        const health = document.getElementById('filterHealth')?.value || '';
+        const progress = document.getElementById('filterProgress')?.value || '';
+        const lead = document.getElementById('filterLead')?.value || '';
+        const associate = document.getElementById('filterAssociate')?.value || '';
+
+        const rows = document.querySelectorAll('.project-data-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const title = row.getAttribute('data-title') || '';
+            const ref = row.getAttribute('data-ref') || '';
+            const deal = row.getAttribute('data-deal') || '';
+            const business = row.getAttribute('data-business') || '';
+            const client = row.getAttribute('data-client') || '';
+            const rowStage = row.getAttribute('data-stage') || '';
+            const rowHealth = row.getAttribute('data-health') || '';
+            const rowProgress = parseInt(row.getAttribute('data-progress') || '0', 10);
+            const rowLead = row.getAttribute('data-lead') || '';
+            const rowAssociate = row.getAttribute('data-associate') || '';
+            const rowTarget = row.getAttribute('data-target') || '';
+
+            let match = true;
+
+            if (q) {
+                const combined = `${title} ${ref} ${deal} ${business} ${client}`.toLowerCase();
+                if (!combined.includes(q)) match = false;
+            }
+
+            if (stage && stage !== 'all') {
+                if (stage === 'Active') {
+                    if (!['Start', 'SOW', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'].includes(rowStage)) match = false;
+                } else if (stage === 'SOW') {
+                    if (!['Start', 'SOW', 'Work Order'].includes(rowStage)) match = false;
+                } else if (stage === 'In Progress') {
+                    if (!['In Progress', 'Execution'].includes(rowStage)) match = false;
+                } else {
+                    if (rowStage.toLowerCase() !== stage.toLowerCase()) match = false;
+                }
+            }
+
+            if (health && rowHealth !== health) match = false;
+
+            if (progress) {
+                if (progress === 'not-started' && rowProgress !== 0) match = false;
+                if (progress === 'active' && (rowProgress <= 0 || rowProgress >= 100)) match = false;
+                if (progress === 'completed' && rowProgress < 100) match = false;
+            }
+
+            if (lead && !rowLead.toLowerCase().includes(lead.toLowerCase())) match = false;
+            if (associate && !rowAssociate.toLowerCase().includes(associate.toLowerCase())) match = false;
+
+            if (fromDate && rowTarget && rowTarget < fromDate) match = false;
+            if (toDate && rowTarget && rowTarget > toDate) match = false;
+
+            if (match) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const countEl = document.getElementById('registryResultCount');
+        if (countEl) countEl.textContent = `${visibleCount} project${visibleCount === 1 ? '' : 's'}`;
+
+        const filterEl = document.getElementById('activeRegistryFilter');
+        if (filterEl) {
+            filterEl.textContent = stage && stage !== 'all' ? `Filtered by stage: ${stage}` : (q ? `Filtered by keyword: "${q}"` : 'All lifecycle stages');
+        }
+    };
+
+    window.resetProjectFilters = function() {
+        if (document.getElementById('q')) document.getElementById('q').value = '';
+        if (document.getElementById('filterFrom')) document.getElementById('filterFrom').value = '';
+        if (document.getElementById('filterTo')) document.getElementById('filterTo').value = '';
+        if (document.getElementById('filterStage')) document.getElementById('filterStage').value = '';
+        if (document.getElementById('filterHealth')) document.getElementById('filterHealth').value = '';
+        if (document.getElementById('filterProgress')) document.getElementById('filterProgress').value = '';
+        if (document.getElementById('filterLead')) document.getElementById('filterLead').value = '';
+        if (document.getElementById('filterAssociate')) document.getElementById('filterAssociate').value = '';
+        
+        currentSelectedProjectStage = 'all';
+        document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
+        document.querySelector('.stage-filter-card[data-stage="all"]')?.classList.add('active');
+
+        filterProjectRows();
+    };
+
+    window.exportProjectTable = function(format) {
+        const rows = document.querySelectorAll('.project-data-row');
+        let csv = 'PROJECT,REFERENCE,BUSINESS,CLIENT,STAGE,HEALTH,PROGRESS,TARGET,LEAD\n';
+        rows.forEach(r => {
+            if (r.style.display !== 'none') {
+                const title = `"${(r.getAttribute('data-title') || '').replace(/"/g, '""')}"`;
+                const ref = `"${(r.getAttribute('data-ref') || '').replace(/"/g, '""')}"`;
+                const business = `"${(r.getAttribute('data-business') || '').replace(/"/g, '""')}"`;
+                const client = `"${(r.getAttribute('data-client') || '').replace(/"/g, '""')}"`;
+                const stage = `"${(r.getAttribute('data-stage') || '').replace(/"/g, '""')}"`;
+                const health = `"${(r.getAttribute('data-health') || '').replace(/"/g, '""')}"`;
+                const progress = `${r.getAttribute('data-progress') || '0'}%`;
+                const target = `"${(r.getAttribute('data-target') || '').replace(/"/g, '""')}"`;
+                const lead = `"${(r.getAttribute('data-lead') || '').replace(/"/g, '""')}"`;
+                csv += `${title},${ref},${business},${client},${stage},${health},${progress},${target},${lead}\n`;
+            }
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `project_registry_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 </script>
 @endsection

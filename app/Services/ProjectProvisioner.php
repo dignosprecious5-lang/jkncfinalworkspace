@@ -146,7 +146,10 @@ class ProjectProvisioner
         }
 
         if ($isRegular || $isHybrid) {
-            $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid, shell: $shell);
+            $regularWorkspace = $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid, shell: $shell);
+            if (! $projectWorkspace) {
+                $projectWorkspace = $regularWorkspace;
+            }
         }
 
         return $projectWorkspace;

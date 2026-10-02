@@ -410,12 +410,47 @@ class RegularController extends Controller
             ? $this->regularRsatTemplateQuery()->orderBy('name')->get()
             : collect();
         $rsatAutoReportSettings = $this->regularAutoReportSettings($regular);
-        $tab = in_array((string) $request->query('tab', 'rsat'), ['rsat', 'report'], true)
-            ? (string) $request->query('tab', 'rsat')
-            : 'rsat';
+        $allowedTabs = [
+            'dashboard', 'work-order', 'rsat', 'review', 'ntp', 
+            'execution', 'report', 'delivery', 'attachments', 
+            'time-aht', 'client-actions', 'history'
+        ];
+        $tab = in_array((string) $request->query('tab', 'dashboard'), $allowedTabs, true)
+            ? (string) $request->query('tab', 'dashboard')
+            : 'dashboard';
+        $cycleState = app(\App\Services\RegularCycleService::class)->getCycleState($regular);
+
+        // Workspace Metrics
+        $reqs = collect($rsat->engagement_requirements ?? []);
+        $totalTasks = $reqs->count();
+        $completedTasks = $reqs->where('status', 'completed')->count();
+        $inProgressTasks = $reqs->where('status', 'in_progress')->count();
+        $openTasks = $reqs->where('status', 'open')->count();
+        $progressPct = $totalTasks > 0 ? (int) round(($completedTasks / $totalTasks) * 100) : 0;
+
+        $metadata = (array) ($regular->metadata ?? []);
+        $deliverables = collect($metadata['deliverables'] ?? [
+            ['id' => 'deliv-1', 'name' => 'Monthly Compliance & Retainer Report', 'ready' => $completedTasks > 0],
+            ['id' => 'deliv-2', 'name' => 'Regulatory Filing Confirmation & Receipts', 'ready' => $completedTasks === $totalTasks && $totalTasks > 0],
+            ['id' => 'deliv-3', 'name' => 'Transmittal Letter & Official Endorsement', 'ready' => false],
+        ]);
+        $clientActions = collect($metadata['client_actions'] ?? [
+            ['id' => 'ca-1', 'subject' => 'Review and acknowledge monthly retainer progress report', 'done' => false],
+            ['id' => 'ca-2', 'subject' => 'Provide missing tax certificates / BIR confirmation', 'done' => true],
+        ]);
+        $timeMetrics = (array) ($metadata['time_tracking'] ?? [
+            'total_seconds' => max(3600, $completedTasks * 1800 + $inProgressTasks * 900),
+            'aht_seconds' => $completedTasks > 0 ? (int) round(($completedTasks * 1800) / $completedTasks) : 1800,
+        ]);
+
         $regularLocked = $this->isRegularCompleted($regular);
 
-        return view('regular.show', compact('regular', 'rsat', 'report', 'generatedReports', 'ntpRecord', 'rsatTemplates', 'tab', 'rsatAutoReportSettings', 'regularLocked'));
+        return view('regular.show', compact(
+            'regular', 'rsat', 'report', 'generatedReports', 'ntpRecord', 
+            'rsatTemplates', 'tab', 'rsatAutoReportSettings', 'regularLocked', 
+            'cycleState', 'totalTasks', 'completedTasks', 'inProgressTasks', 
+            'openTasks', 'progressPct', 'deliverables', 'clientActions', 'timeMetrics'
+        ));
     }
 
     public function updateRsatAutoReportSettings(Request $request, Project $regular): RedirectResponse
@@ -2024,6 +2059,49 @@ class RegularController extends Controller
             ->all();
     }
 
+    public function advanceCycle(Request $request, Project $regular): RedirectResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        $this->abortIfRegularCompleted($regular);
+
+        $validated = $request->validate([
+            'recurrence' => ['nullable', 'string', 'in:Monthly,Quarterly,Semi-Annual,Annual'],
+            'next_period' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'reset_approvals' => ['nullable', 'boolean'],
+            'reset_all_requirements' => ['nullable', 'boolean'],
+        ]);
+
+        $service = app(\App\Services\RegularCycleService::class);
+        $result = $service->advanceCycle($regular, $validated);
+
+        return redirect()
+            ->route('regular.show', ['regular' => $regular->id, 'tab' => 'rsat'])
+            ->with('success', "Advanced to Cycle {$result['new_cycle']} ({$result['new_period']}). Prior cycle archived to history.");
+    }
+
+    public function toggleTask(Request $request, Project $regular): \Illuminate\Http\JsonResponse
+    {
+        abort_unless($this->isRegularEngagement($regular->engagement_type), 404);
+        
+        $index = (int) $request->input('index');
+        $status = $request->input('status', 'completed');
+        
+        $rsat = $regular->sow;
+        if (! $rsat) {
+            return response()->json(['success' => false, 'message' => 'RSAT not found.'], 404);
+        }
+
+        $reqs = (array) ($rsat->engagement_requirements ?? []);
+        if (isset($reqs[$index])) {
+            $reqs[$index]['status'] = $status;
+            $rsat->update(['engagement_requirements' => $reqs]);
+            return response()->json(['success' => true, 'status' => $status]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Item not found.'], 404);
+    }
+
     private function currentEmployeeDisplayName(Request $request): ?string
     {
         $user = $request->user();
@@ -2036,3 +2114,4 @@ class RegularController extends Controller
         return filled($employee?->full_name) ? $employee->full_name : ($user->name ?: null);
     }
 }
+

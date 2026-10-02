@@ -1,11 +1,30 @@
 @extends('layouts.app')
 @section('title', $project->project_title ?: 'Project Details')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/project-workspace.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/dashboard-execution.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/delivery-completion.css') }}">
+@endpush
+
 @section('content')
 @php
     $fmt = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->format('M d, Y') : '-';
     $contactName = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' ')) ?: ($project->client_name ?: '-');
-    $tabs = ['sow' => 'Scope of Work', 'report' => 'SOW Report'];
+    $tabs = [
+        'dashboard' => 'Dashboard',
+        'work-order' => 'Work Order',
+        'sow' => 'Scope of Work',
+        'review' => 'Review',
+        'ntp' => 'NTP',
+        'execution' => 'Execution',
+        'report' => 'SOW Report',
+        'coc' => 'Delivery & COC',
+        'attachments' => 'Attachments',
+        'time-aht' => 'Time / AHT',
+        'client-actions' => 'Client Actions',
+        'history' => 'History & Updates',
+    ];
     $sowWithin = collect($sow?->within_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $sowOut = collect($sow?->out_of_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
     $repWithin = collect($report?->within_scope_items ?? [])->whenEmpty(fn () => collect([['main_task_description' => '', 'sub_task_description' => '', 'responsible' => '', 'duration' => '', 'start_date' => '', 'end_date' => '', 'status' => '', 'remarks' => '']]));
@@ -195,32 +214,459 @@
     }
 </style>
 
+<style>
+    .project-workspace {
+        background: #f4f7fb;
+    }
+    .workspace-breadcrumb {
+        background: #fff;
+        border: 1px solid #e3e8f0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 14px rgba(27, 45, 78, 0.04);
+        font-size: 11px;
+        color: #64748b;
+    }
+    .workspace-breadcrumb a {
+        color: #1e3a8a;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .workspace-head {
+        background: #fff;
+        border: 1px solid #e3e8f0;
+        border-radius: 14px;
+        padding: 18px 20px 16px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+        margin-bottom: 12px;
+    }
+    .workspace-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 18px;
+    }
+    .eyebrow {
+        font-size: 9px;
+        letter-spacing: 2px;
+        color: #76839a;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .workspace-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 6px 0 4px;
+    }
+    .refline {
+        font-size: 11px;
+        color: #64748b;
+    }
+    .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .chip {
+        border: 1px solid #dce3ed;
+        border-radius: 999px;
+        padding: 7px 13px;
+        background: #fff;
+        color: #59667a;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    .chip strong {
+        color: #1e293b;
+        margin-left: 4px;
+    }
+    .primary-tabs {
+        display: flex;
+        gap: 3px;
+        flex-wrap: nowrap;
+        margin-top: 16px;
+        padding: 4px;
+        border: 1px solid #e6ebf3;
+        border-radius: 12px;
+        background: #f8fafc;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .primary-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .ptab {
+        min-height: 34px;
+        flex: 1 1 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #52627a;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        padding: 0 14px;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: all 140ms ease;
+    }
+    .ptab:hover {
+        border-color: #d5dfef;
+        background: #fff;
+        color: #102d79;
+    }
+    .ptab.active {
+        border-color: #102d79;
+        background: #102d79;
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(16, 45, 121, 0.25);
+    }
+    .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 20px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+        display: grid;
+        grid-template-columns: 1fr 220px;
+        gap: 20px;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .life-title strong {
+        font-size: 11px;
+        font-weight: 700;
+        color: #26354f;
+    }
+    .life-title span {
+        font-size: 8px;
+        color: #8b96a8;
+        background: #f6f8fb;
+        border: 1px solid #e8edf4;
+        border-radius: 999px;
+        padding: 4px 8px;
+    }
+    .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+    }
+    .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 6%;
+        right: 6%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+    }
+    .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 6%;
+        width: 68%;
+        height: 3px;
+        background: linear-gradient(90deg, #102d79, #3b82f6);
+        border-radius: 999px;
+        z-index: 1;
+    }
+    .life .stage {
+        flex: 1 1 0;
+        min-width: 80px;
+        min-height: 64px;
+        padding: 0 4px;
+        border: 0;
+        background: transparent;
+        color: #8290a3;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+        text-decoration: none;
+    }
+    .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        font-size: 11px;
+        font-weight: 800;
+        color: #7d899a;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+        box-shadow: 0 2px 7px rgba(16, 24, 40, 0.04);
+    }
+    .life .stage small {
+        font-size: 8px;
+        line-height: 1.2;
+        color: #7f8a9b;
+        text-align: center;
+        font-weight: 600;
+    }
+    .life .stage.done b {
+        color: #fff;
+        border-color: #102d79;
+        background: #102d79;
+    }
+    .life .stage.done small {
+        color: #334155;
+        font-weight: 700;
+    }
+    .life .stage.current b {
+        color: #102d79;
+        border: 3px solid #102d79;
+        background: #fff;
+        box-shadow: 0 0 0 5px #eef3ff, 0 3px 9px rgba(16, 45, 121, 0.16);
+    }
+    .life .stage.current small {
+        color: #102d79;
+        font-weight: 800;
+    }
+    .life-side {
+        border-left: 1px solid #eef2f7;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .life-side-kicker {
+        font-size: 8px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #8b96a8;
+    }
+    .life-side-stage {
+        font-size: 18px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 2px;
+    }
+    .life-side-pct {
+        font-size: 11px;
+        font-weight: 700;
+        color: #1e3a8a;
+        margin-top: 2px;
+    }
+    .life-side-health {
+        font-size: 9px;
+        color: #64748b;
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .life-side-tag {
+        font-weight: 700;
+        color: #166534;
+    }
+    .command-card {
+        background: #fff;
+        border: 1px solid #e2e7ef;
+        border-radius: 12px;
+        box-shadow: 0 5px 18px rgba(25,42,72,.045);
+        overflow: hidden;
+    }
+    .command-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid #e7ebf1;
+    }
+    .command-head h2 {
+        margin: 0;
+        color: #22314a;
+        font-size: 15px;
+        font-weight: 700;
+    }
+    .command-head p {
+        margin: 3px 0 0;
+        color: #7a8799;
+        font-size: 10px;
+    }
+    .command-body {
+        padding: 16px 18px;
+    }
+    .overview-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: 14px;
+    }
+    .overview-panel {
+        padding: 14px;
+        background: #f8f9fc;
+        border: 1px solid #e8ecf2;
+        border-radius: 9px;
+    }
+    .overview-panel h4 {
+        margin: 0 0 10px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: #6d798a;
+    }
+    .overview-panel dl {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+    }
+    .overview-panel dl div {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px dashed #dfe5ed;
+        padding-bottom: 7px;
+    }
+    .overview-panel dt {
+        color: #7a8797;
+        font-size: 11px;
+    }
+    .overview-panel dd {
+        margin: 0;
+        text-align: right;
+        font-weight: 700;
+        font-size: 11px;
+        color: #1e293b;
+    }
+    .overview-panel a {
+        color: #244fba;
+        text-decoration: none;
+    }
+    .overview-panel a:hover {
+        text-decoration: underline;
+    }
+    @media (max-width: 1100px) {
+        .lifecycle { grid-template-columns: 1fr; }
+        .life-side { border-left: 0; border-top: 1px solid #eef2f7; padding-left: 0; padding-top: 14px; }
+        .project-work-grid { grid-template-columns: 1fr; }
+        .project-quick-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
 <div class="project-workspace p-6">
-    <div class="mx-auto max-w-[1600px] space-y-4">
-        <div class="project-top-card rounded-2xl px-5 py-4 text-sm text-gray-600">
-            <a href="{{ route('project.index') }}" class="hover:text-blue-700"><i class="fas fa-arrow-left mr-1"></i>Project</a>
-            <span class="mx-1">/</span><span class="font-medium text-gray-900">{{ $project->project_code }}</span>
+    <div class="mx-auto max-w-[1600px] space-y-3">
+        <!-- BREADCRUMB -->
+        <div class="workspace-breadcrumb">
+            &larr; <a href="{{ route('project.index') }}">Project</a> &nbsp;/&nbsp;
+            <strong>{{ $project->project_code }}</strong>
         </div>
-        <div class="project-top-card rounded-2xl px-5 py-5">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+
+        <!-- WORKSPACE HEAD -->
+        <section class="workspace-head">
+            <div class="workspace-top">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Project Workspace</p>
-                    <h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ $project->name }}</h1>
-                    <p class="mt-2 text-sm text-gray-500">{{ $project->project_code }} - {{ $project->deal?->deal_code ?? 'No linked deal code' }}</p>
+                    <div class="eyebrow">PROJECT WORKSPACE</div>
+                    <div class="workspace-title">{{ $project->name ?: ($project->deal?->deal_title ?: 'Project Workspace') }}</div>
+                    <div class="refline">
+                        {{ $project->project_code }} &middot; {{ $project->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $project->starts()->latest()->first()?->attachments['service_memo_ref'] ?? ('SM-' . $project->project_code) }}
+                    </div>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <span class="project-pill"><span class="text-slate-400">Business</span> {{ $project->business_name ?: '-' }}</span>
-                    <span class="project-pill"><span class="text-slate-400">Client</span> {{ $contactName }}</span>
-                    <span class="project-pill"><span class="text-slate-400">Planned Start</span> {{ $fmt($project->planned_start_date) }}</span>
-                    <span class="project-pill"><span class="text-slate-400">Target Completion</span> {{ $fmt($project->target_completion_date) }}</span>
+                <div class="chips">
+                    <span class="chip">Business <strong>{{ $project->business_name ?: ($project->company?->company_name ?: '-') }}</strong></span>
+                    <span class="chip">Client <strong>{{ $contactName }}</strong></span>
+                    <span class="chip">Planned Start <strong>{{ $fmt($project->planned_start_date) }}</strong></span>
+                    <span class="chip">Target Completion <strong>{{ $fmt($project->target_completion_date) }}</strong></span>
                 </div>
             </div>
-            <div class="mt-5 flex flex-wrap gap-2">
-                @foreach ($tabs as $key => $label)
-                    <a href="{{ route('project.show', ['project' => $project->id, 'tab' => $key]) }}" class="project-tab-link {{ $tab === $key ? 'active' : '' }}">{{ $label }}</a>
-                @endforeach
+            <div class="primary-tabs">
+                <a class="ptab {{ $tab === 'dashboard' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'dashboard']) }}">PROJECT DASHBOARD</a>
+                <a class="ptab {{ $tab === 'work-order' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'work-order']) }}">WORK ORDER</a>
+                <a class="ptab {{ $tab === 'sow' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'sow']) }}">SCOPE OF WORK</a>
+                <a class="ptab {{ $tab === 'review' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'review']) }}">REVIEW</a>
+                <a class="ptab {{ $tab === 'ntp' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'ntp']) }}">NTP</a>
+                <a class="ptab {{ $tab === 'execution' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'execution']) }}">EXECUTION</a>
+                <a class="ptab {{ $tab === 'report' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'report']) }}">SOW REPORT</a>
+                <a class="ptab {{ $tab === 'coc' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'coc']) }}">DELIVERY &amp; COC</a>
+                <a class="ptab {{ $tab === 'attachments' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'attachments']) }}">ATTACHMENT</a>
+                <a class="ptab {{ $tab === 'history' ? 'active' : '' }}" href="{{ route('project.show', ['project' => $project->id, 'tab' => 'history']) }}">HISTORY</a>
+            </div>
+        </section>
+
+        @php
+            $stageNames = ['Work Order', 'SOW', 'Review', 'NTP', 'Execution'];
+            $currentStageIdx = match($tab) {
+                'work-order' => 0,
+                'sow' => 1,
+                'review' => 2,
+                'ntp' => 3,
+                'execution' => 4,
+                'report' => 4,
+                'coc' => 4,
+                default => ($progressPct >= 100 ? 4 : ($progressPct > 0 ? 4 : ($ntpApproved ? 3 : ($sow?->approval_status === 'approved' ? 2 : 0))))
+            };
+        @endphp
+
+        <!-- MODERN PROJECT LIFECYCLE STEPPER -->
+        <div class="lifecycle">
+            <div class="lifecycle-main">
+                <div class="life-title">
+                    <strong>Project Lifecycle</strong>
+                    <span>Policy-controlled process</span>
+                </div>
+                <div class="life">
+                    @foreach($stageNames as $i => $sname)
+                        @php
+                            $isDone = $i < $currentStageIdx;
+                            $isCurrent = $i === $currentStageIdx;
+                            $tabTarget = match($i) {
+                                0 => 'work-order',
+                                1 => 'sow',
+                                2 => 'review',
+                                3 => 'ntp',
+                                4 => 'execution',
+                            };
+                        @endphp
+                        <a href="{{ route('project.show', ['project' => $project->id, 'tab' => $tabTarget]) }}" class="stage {{ $isDone ? 'done' : ($isCurrent ? 'current' : '') }}">
+                            <b>
+                                @if($isDone)
+                                    <i class="fas fa-check"></i>
+                                @else
+                                    {{ $i + 1 }}
+                                @endif
+                            </b>
+                            <small>{{ $sname }}</small>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            <div class="life-side">
+                <small class="life-side-kicker">CURRENT STAGE</small>
+                <div class="life-side-stage">{{ $stageNames[$currentStageIdx] ?? 'Execution' }}</div>
+                <div class="life-side-pct">{{ $progressPct }}% Complete</div>
+                <div class="life-side-health">Status <span class="life-side-tag">On Track</span></div>
             </div>
         </div>
+
         @if (session('success'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('success') }}</div>
         @endif
@@ -250,7 +696,27 @@
                 <div class="project-linked-actions"></div>
             </div>
         </div>
-        @if ($tab === 'sow')
+        @if ($tab === 'dashboard')
+            @include('project.partials.dashboard-tab')
+        @elseif ($tab === 'work-order')
+            @include('project.partials.work-order-tab')
+        @elseif ($tab === 'review')
+            @include('project.partials.review-tab')
+        @elseif ($tab === 'ntp')
+            @include('project.partials.ntp-tab')
+        @elseif ($tab === 'execution')
+            @include('project.partials.execution-tab')
+        @elseif ($tab === 'coc')
+            @include('project.partials.coc-tab')
+        @elseif ($tab === 'attachments')
+            @include('project.partials.attachments-tab')
+        @elseif ($tab === 'time-aht')
+            @include('project.partials.time-aht-tab')
+        @elseif ($tab === 'client-actions')
+            @include('project.partials.client-actions-tab')
+        @elseif ($tab === 'history')
+            @include('project.partials.history-tab')
+        @elseif ($tab === 'sow')
             <div class="project-work-grid">
                 <aside class="project-quick-actions rounded-2xl px-4 py-4 xl:sticky xl:top-6">
                     <p class="project-quick-title">Quick Actions</p>

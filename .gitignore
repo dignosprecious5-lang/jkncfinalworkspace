@@ -27,3 +27,5 @@ Thumbs.db
 /laravel
 /database/*.sqlite
 /storage/framework/views/*
+/scratch
+

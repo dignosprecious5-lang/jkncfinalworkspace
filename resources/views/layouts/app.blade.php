@@ -1377,7 +1377,7 @@
         @endif
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 min-w-0 overflow-y-auto">
+        <main class="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-gray-50">
             @yield('content')
         </main>
 

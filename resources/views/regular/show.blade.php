@@ -1,5 +1,12 @@
 @extends('layouts.app')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/css/project-workspace.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/dashboard-execution.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/delivery-completion.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/rsat-form.css') }}">
+@endpush
+
 @section('content')
 @php
     $fmt = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->format('M d, Y') : '-';
@@ -49,10 +56,415 @@
 @endphp
 
 <style>
+    :root {
+        --navy: #102d79;
+        --navy2: #1e3a8a;
+        --line: #e2e8f0;
+        --soft: #64748b;
+    }
     .rsat-workspace {
         background:
-            radial-gradient(circle at top left, rgba(13, 70, 140, 0.08), transparent 28%),
-            linear-gradient(180deg, #f2f6fc 0%, #fbfcfe 26%, #fbfcfe 100%);
+            radial-gradient(circle at top left, rgba(13, 70, 140, 0.05), transparent 28%),
+            linear-gradient(180deg, #f4f7fb 0%, #fbfcfe 26%, #fbfcfe 100%);
+        min-height: 100vh;
+    }
+    .workspace-breadcrumb {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px 18px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+        font-size: 12px;
+        color: #64748b;
+    }
+    .workspace-breadcrumb a {
+        color: #102d79;
+        font-weight: 700;
+        text-decoration: none;
+    }
+    .workspace-head {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 20px 22px 18px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+    .workspace-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+    }
+    .eyebrow {
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: #76839a;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .workspace-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 6px 0 4px;
+    }
+    .refline {
+        font-size: 12px;
+        color: #64748b;
+    }
+    .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .chip {
+        border: 1px solid #dce3ed;
+        border-radius: 999px;
+        padding: 7px 13px;
+        background: #fff;
+        color: #59667a;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    .chip strong {
+        color: #1e293b;
+        margin-left: 4px;
+    }
+    .primary-tabs {
+        display: flex;
+        gap: 4px;
+        flex-wrap: nowrap;
+        margin-top: 18px;
+        padding: 4px;
+        border: 1px solid #e6ebf3;
+        border-radius: 12px;
+        background: #f8fafc;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .primary-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .ptab {
+        min-height: 36px;
+        flex: 1 1 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #52627a;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        padding: 0 14px;
+        text-decoration: none;
+        white-space: nowrap;
+        transition: all 140ms ease;
+    }
+    .ptab:hover {
+        border-color: #d5dfef;
+        background: #fff;
+        color: #102d79;
+    }
+    .ptab.active {
+        border-color: #102d79;
+        background: #102d79;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(16, 45, 121, 0.2);
+    }
+    /* Stepper Lifecycle Card */
+    .lifecycle {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+        display: flex;
+        gap: 20px;
+        align-items: stretch;
+    }
+    .lifecycle-main {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    .life-title strong {
+        font-size: 12px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .life-title span {
+        font-size: 9px;
+        color: #8b96a8;
+        background: #f6f8fb;
+        border: 1px solid #e8edf4;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-weight: 600;
+    }
+    .life {
+        display: flex;
+        align-items: flex-start;
+        position: relative;
+        padding: 0 10px;
+    }
+    .life::before {
+        content: "";
+        position: absolute;
+        top: 18px;
+        left: 8%;
+        right: 8%;
+        height: 3px;
+        background: #e2e8f0;
+        border-radius: 999px;
+        z-index: 0;
+    }
+    .life .stage {
+        flex: 1 1 0;
+        min-width: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        position: relative;
+        z-index: 2;
+        gap: 6px;
+    }
+    .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        color: #64748b;
+        background: #fff;
+        border: 2px solid #cbd5e1;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+        transition: all 0.15s ease;
+    }
+    .life .stage small {
+        font-size: 9px;
+        color: #64748b;
+        font-weight: 600;
+        text-align: center;
+    }
+    .life .stage.done b {
+        background: #102d79;
+        border-color: #102d79;
+        color: #fff;
+    }
+    .life .stage.done small {
+        color: #102d79;
+        font-weight: 700;
+    }
+    .life .stage.current b {
+        background: #fff;
+        border: 3px solid #102d79;
+        color: #102d79;
+        box-shadow: 0 0 0 5px #eef3ff, 0 3px 9px rgba(16, 45, 121, 0.18);
+    }
+    .life .stage.current small {
+        color: #102d79;
+        font-weight: 800;
+    }
+    .life-side {
+        width: 170px;
+        flex: 0 0 170px;
+        border-left: 1px solid #e2e8f0;
+        padding-left: 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .life-side-kicker {
+        font-size: 9px;
+        letter-spacing: 1px;
+        font-weight: 800;
+        color: #94a3b8;
+        text-transform: uppercase;
+    }
+    .life-side-stage {
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 2px 0 3px;
+    }
+    .life-side-pct {
+        font-size: 11px;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 5px;
+    }
+    .life-side-health {
+        font-size: 11px;
+        color: #64748b;
+    }
+    .life-side-tag {
+        display: inline-block;
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        padding: 2px 7px;
+        font-size: 9px;
+        font-weight: 700;
+        margin-left: 4px;
+    }
+    /* Command Overview Card */
+    .command-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+        overflow: hidden;
+    }
+    .command-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 20px;
+        border-bottom: 1px solid #eef2f6;
+    }
+    .command-head h2 {
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+    }
+    .command-head p {
+        font-size: 11px;
+        color: #64748b;
+        margin: 2px 0 0;
+    }
+    .command-body {
+        padding: 18px 20px;
+    }
+    .overview-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr 1.15fr;
+        gap: 14px;
+    }
+    .overview-panel {
+        padding: 14px;
+        background: #f8fafc;
+        border: 1px solid #e8ecf4;
+        border-radius: 10px;
+    }
+    .overview-panel h4 {
+        margin: 0 0 10px;
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+    }
+    .overview-panel dl {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+    }
+    .overview-panel dl div {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px dashed #e2e8f0;
+        padding-bottom: 6px;
+        font-size: 11px;
+    }
+    .overview-panel dt {
+        color: #64748b;
+    }
+    .overview-panel dd {
+        margin: 0;
+        text-align: right;
+    }
+    .attention-card { border-left: 5px solid #df404b; }
+    .attention-list { display: grid; gap: 9px; }
+    .attention-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #edd1d4; background: #fff7f7; border-radius: 9px; }
+    .attention-item.warning { border-color: #f0d2a8; background: #fff9f0; }
+    .attention-item.good { border-color: #bde2d1; background: #f1faf6; }
+    .severity { padding: 4px 8px; border-radius: 999px; background: #df404b; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
+    .warning .severity { background: #d68118; }
+    .good .severity { background: #17845d; }
+    .attention-item strong { display: block; font-size: 12px; color: #0f172a; }
+    .attention-item small { color: #64748b; font-size: 10px; }
+    .attention-item a { font-weight: 800; color: #102d79; font-size: 11px; text-decoration: none; }
+    .command-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .command-kpi { padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+    .command-kpi span { display: block; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .command-kpi strong { display: block; margin-top: 4px; font-size: 16px; font-weight: 800; color: #0f172a; }
+    .command-kpi small { font-size: 9px; color: #94a3b8; }
+    .tone-good { color: #166534 !important; }
+    .tone-warning { color: #b45309 !important; }
+    .tone-critical { color: #dc2626 !important; }
+    .command-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .current-stage { background: linear-gradient(135deg, #102d79, #1e40af); color: #fff; }
+    .current-stage .command-head { border-color: rgba(255,255,255,.15); }
+    .current-stage .command-head h2, .current-stage .command-head p { color: #fff; }
+    .current-stage .command-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .stage-hero span { font-size: 9px; opacity: .8; font-weight: 700; letter-spacing: 0.05em; }
+    .stage-hero strong { display: block; font-size: 22px; margin: 2px 0 6px; font-weight: 800; }
+    .stage-status { display: inline-block; padding: 3px 8px; background: rgba(255,255,255,.18); border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .time-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .time-list div { padding: 8px; background: rgba(255,255,255,.1); border-radius: 6px; }
+    .time-list span { display: block; font-size: 8px; opacity: .8; font-weight: 700; }
+    .time-list strong { font-size: 12px; }
+    .pending-box { grid-column: 1/-1; padding: 10px 12px; background: #fff; color: #1e293b; border-radius: 8px; font-size: 11px; }
+    .stage-link { float: right; color: #102d79; font-weight: 800; text-decoration: none; }
+    .now-grid { display: grid; gap: 8px; margin: 0; }
+    .now-grid div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; font-size: 11px; }
+    .now-grid span { color: #64748b; }
+    .now-grid strong { text-align: right; font-weight: 700; color: #0f172a; }
+    .indicator-key { display: flex; gap: 10px; flex-wrap: wrap; font-size: 10px; font-weight: 700; }
+    .performance-table { width: 100%; border-collapse: collapse; }
+    .performance-table th, .performance-table td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 11px; }
+    .performance-table th { background: #f8fafc; color: #64748b; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; font-weight: 800; }
+    .perf { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 9px; font-weight: 800; }
+    .perf.good { background: #dcfce7; color: #166534; }
+    .perf.warning { background: #fef3c7; color: #92400e; }
+    .perf.bad { background: #fee2e2; color: #991b1b; }
+    .summary-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .summary-links a { display: block; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; text-decoration: none; transition: all 0.15s ease; }
+    .summary-links a:hover { border-color: #102d79; transform: translateY(-1px); }
+    .summary-links span { display: block; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+    .summary-links strong { display: block; font-size: 16px; margin-top: 4px; color: #0f172a; }
+    .activity-list { display: grid; }
+    .activity-row { display: grid; grid-template-columns: 120px 16px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; align-items: center; font-size: 11px; }
+    .activity-row time { color: #64748b; font-size: 10px; }
+    .activity-row i { width: 8px; height: 8px; background: #102d79; border-radius: 50%; display: inline-block; }
+    .table-scroll { overflow-x: auto; }
+    .execution-kpis, .execution-report-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; }
+    .execution-kpi { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+    .execution-kpi span { display: block; color: #64748b; font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .execution-kpi strong { display: block; margin-top: 3px; color: #0f172a; font-size: 15px; font-weight: 800; }
+    .execution-kpi small { display: block; margin-top: 2px; color: #94a3b8; font-size: 8px; }
+    .execution-kpi.good strong { color: #166534; }
+    .execution-progress-wrap { margin: 12px 0; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+    .execution-progress-wrap > div:first-child { display: flex; justify-content: space-between; color: #475569; font-size: 11px; font-weight: 600; }
+    .execution-progress { height: 8px; margin-top: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+    .execution-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #102d79, #3b82f6); transition: width .25s; }
+    .execution-report-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; margin-top: 14px; }
+    .execution-report-list { display: grid; gap: 8px; }
+    .execution-report-item { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fafbfc; }
+    .execution-report-item strong { font-size: 11px; color: #0f172a; }
+    .execution-report-item p { grid-column: 1/-1; margin: 0; color: #64748b; font-size: 10px; line-height: 1.4; }
+    .execution-report-item time { font-size: 9px; color: #94a3b8; }
+    .execution-report-item.good { border-color: #bbf7d0; background: #f0fdf4; }
+    .execution-report-item.warning { border-color: #fde68a; background: #fffbeb; }
+    @media(max-width:900px){
+        .overview-grid, .command-two, .execution-report-grid { grid-template-columns: 1fr; }
     }
     .rsat-top-card {
         border: 1px solid #d8e1ee;
@@ -419,29 +831,96 @@
 </style>
 
 <div class="rsat-workspace p-6">
-    <div class="mx-auto max-w-[1600px] space-y-4">
-        <div class="rsat-top-card rounded-2xl px-5 py-4 text-sm text-gray-600">
-            <a href="{{ route('regular.index') }}" class="hover:text-blue-700"><i class="fas fa-arrow-left mr-1"></i>Regular</a>
-            <span class="mx-1">/</span><span class="font-medium text-gray-900">{{ $regular->project_code }}</span>
+    <div class="mx-auto max-w-[1600px] space-y-3">
+        <!-- BREADCRUMB -->
+        <div class="workspace-breadcrumb">
+            &larr; <a href="{{ route('regular.index') }}">Regular</a> &nbsp;/&nbsp;
+            <strong>{{ $regular->project_code }}</strong>
         </div>
 
-        <div class="rsat-top-card rounded-2xl px-5 py-5">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+        <!-- WORKSPACE HEAD -->
+        <section class="workspace-head">
+            <div class="workspace-top">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Regular Annex Forms</p>
-                    <h1 class="mt-2 text-2xl font-semibold text-gray-900">{{ $regular->name }}</h1>
-                    <p class="mt-2 text-sm text-gray-500">{{ $regular->project_code }} - {{ $regular->deal?->deal_code ?? 'No linked deal code' }}</p>
+                    <div class="eyebrow">REGULAR WORKSPACE</div>
+                    <div class="workspace-title">{{ $regular->name ?: ($regular->deal?->deal_title ?: 'Regular Retainer') }}</div>
+                    <div class="refline">
+                        {{ $regular->project_code }} &middot; {{ $regular->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $rsatAttachments['service_memo_ref'] ?? ('SM-' . $regular->project_code) }}
+                    </div>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <span class="rsat-pill"><span class="label">Business</span> {{ $regular->business_name ?: '-' }}</span>
-                    <span class="rsat-pill"><span class="label">Client</span> {{ $contactName }}</span>
-                    <span class="rsat-pill"><span class="label">Planned Start</span> {{ $fmt($regular->planned_start_date) }}</span>
-                    <span class="rsat-pill"><span class="label">Target Completion</span> {{ $fmt($regular->target_completion_date) }}</span>
+                <div class="chips">
+                    <span class="chip">Business <strong>{{ $regular->business_name ?: ($regular->company?->company_name ?: '-') }}</strong></span>
+                    <span class="chip">Client <strong>{{ $contactName }}</strong></span>
+                    <span class="chip">Planned Start <strong>{{ $fmt($regular->planned_start_date) }}</strong></span>
+                    <span class="chip">Target Completion <strong>{{ $fmt($regular->target_completion_date) }}</strong></span>
                 </div>
             </div>
-            <div class="mt-5 flex flex-wrap gap-2">
-                <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'rsat']) }}" class="rsat-tab-link {{ $tab === 'rsat' ? 'active' : '' }}">RSAT Form</a>
-                <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'report']) }}" class="rsat-tab-link {{ $tab === 'report' ? 'active' : '' }}">RSAT Report</a>
+            <div class="primary-tabs">
+                <a class="ptab {{ $tab === 'dashboard' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'dashboard']) }}">REGULAR DASHBOARD</a>
+                <a class="ptab {{ $tab === 'work-order' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'work-order']) }}">WORK ORDER</a>
+                <a class="ptab {{ $tab === 'rsat' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'rsat']) }}">RSAT</a>
+                <a class="ptab {{ $tab === 'review' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'review']) }}">REVIEW</a>
+                <a class="ptab {{ $tab === 'ntp' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'ntp']) }}">NTP</a>
+                <a class="ptab {{ $tab === 'execution' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'execution']) }}">EXECUTION</a>
+                <a class="ptab {{ $tab === 'report' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'report']) }}">RSAT REPORT</a>
+                <a class="ptab {{ $tab === 'delivery' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'delivery']) }}">DELIVERY &amp; COMPLETION</a>
+                <a class="ptab {{ $tab === 'attachments' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'attachments']) }}">ATTACHMENT</a>
+                <a class="ptab {{ $tab === 'history' ? 'active' : '' }}" href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => 'history']) }}">HISTORY</a>
+            </div>
+        </section>
+
+        @php
+            $stageNames = ['Work Order', 'Plan', 'Review', 'NTP', 'Execution'];
+            $currentStageIdx = match($tab) {
+                'work-order' => 0,
+                'rsat' => 1,
+                'review' => 2,
+                'ntp' => 3,
+                'execution' => 4,
+                'report' => 4,
+                'delivery' => 4,
+                default => ($progressPct >= 100 ? 4 : ($progressPct > 0 ? 4 : ($ntpApproved ? 3 : ($rsat?->approved_at ? 2 : 0))))
+            };
+        @endphp
+
+        <!-- MODERN REGULAR LIFECYCLE STEPPER -->
+        <div class="lifecycle">
+            <div class="lifecycle-main">
+                <div class="life-title">
+                    <strong>Regular Lifecycle</strong>
+                    <span>Policy-controlled process</span>
+                </div>
+                <div class="life">
+                    @foreach($stageNames as $i => $sname)
+                        @php
+                            $isDone = $i < $currentStageIdx;
+                            $isCurrent = $i === $currentStageIdx;
+                            $tabTarget = match($i) {
+                                0 => 'work-order',
+                                1 => 'rsat',
+                                2 => 'review',
+                                3 => 'ntp',
+                                4 => 'execution',
+                            };
+                        @endphp
+                        <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => $tabTarget]) }}" class="stage {{ $isDone ? 'done' : ($isCurrent ? 'current' : '') }}">
+                            <b>
+                                @if($isDone)
+                                    <i class="fas fa-check"></i>
+                                @else
+                                    {{ $i + 1 }}
+                                @endif
+                            </b>
+                            <small>{{ $sname }}</small>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            <div class="life-side">
+                <small class="life-side-kicker">CURRENT STAGE</small>
+                <div class="life-side-stage">{{ $stageNames[$currentStageIdx] ?? 'Execution' }}</div>
+                <div class="life-side-pct">{{ $progressPct }}% Complete</div>
+                <div class="life-side-health">Status <span class="life-side-tag">On Track</span></div>
             </div>
         </div>
 
@@ -476,7 +955,29 @@
             </div>
         </div>
 
-        @if ($tab === 'rsat')
+        @if ($tab === 'dashboard')
+            @include('regular.partials.dashboard-tab')
+        @elseif ($tab === 'work-order')
+            @include('regular.partials.work-order-tab')
+        @elseif ($tab === 'review')
+            @include('regular.partials.review-tab')
+        @elseif ($tab === 'ntp')
+            @include('regular.partials.ntp-tab')
+        @elseif ($tab === 'execution')
+            @include('regular.partials.execution-tab')
+        @elseif ($tab === 'delivery')
+            @include('regular.partials.delivery-tab')
+        @elseif ($tab === 'attachments')
+            @include('regular.partials.attachments-tab')
+        @elseif ($tab === 'time-aht')
+            @include('regular.partials.time-aht-tab')
+        @elseif ($tab === 'client-actions')
+            @include('regular.partials.client-actions-tab')
+        @elseif ($tab === 'history')
+            @include('regular.partials.history-tab')
+        @elseif ($tab === 'report')
+            @include('regular.partials.sow-report-tab')
+        @elseif ($tab === 'rsat')
         <div class="rsat-work-grid" data-tab-panel="rsat">
             <aside class="rsat-quick-actions rounded-2xl px-4 py-4 xl:sticky xl:top-6">
                 <p class="rsat-quick-title">Quick Actions</p>
@@ -829,99 +1330,6 @@
         </div>
         @endif
 
-        <div class="space-y-5 {{ $tab !== 'report' ? 'hidden' : '' }}" data-tab-panel="report">
-            @if (! $regularLocked)
-            <div id="regularReportSelectionBar" class="hidden rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                <div class="flex items-center gap-2 text-sm">
-                    <span class="font-medium text-slate-800"><span id="regularReportSelectedCount">0</span> selected</span>
-                    <button id="regularReportOpenDeleteModal" type="button" class="h-8 rounded-md border border-red-200 bg-white px-3 text-red-600 hover:bg-red-50">Delete Selected</button>
-                    <button id="regularReportClearSelection" type="button" class="ml-auto text-slate-700 hover:underline">Clear</button>
-                </div>
-            </div>
-            @endif
-
-            <section class="rsat-top-card rounded-2xl px-6 py-5">
-                <div class="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Report Registry</p>
-                        <h2 class="mt-2 text-3xl font-semibold text-gray-900">RSAT Reports</h2>
-                        <p class="mt-2 text-sm text-slate-500">Generated RSAT reports are recorded here from the RSAT form tab.</p>
-                    </div>
-                    <div class="flex flex-wrap gap-3 text-sm">
-                        <span class="rsat-pill"><span class="text-slate-400">Total Reports</span> {{ $generatedReports->count() }}</span>
-                        <span class="rsat-pill"><span class="text-slate-400">Latest Report</span> {{ $generatedReports->first()?->report_number ?: '-' }}</span>
-                    </div>
-                </div>
-            </section>
-
-            <section class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-                <div class="border-b border-slate-200 px-6 py-4">
-                    <div class="relative max-w-md">
-                        <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
-                        <input
-                            id="regularReportSearch"
-                            type="text"
-                            placeholder="Search report number or status..."
-                            autocomplete="off"
-                            class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        >
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
-                        <thead class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            <tr>
-                                @if (! $regularLocked)<th class="w-10 px-3 py-4 text-left"><input id="regularReportSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300"></th>@endif
-                                <th class="px-6 py-4 text-left">Report No.</th>
-                                <th class="px-6 py-4 text-left">Date of Reporting</th>
-                                <th class="px-6 py-4 text-left">Date Sent to Client</th>
-                                <th class="px-6 py-4 text-left">Date Approved</th>
-                                <th class="px-6 py-4 text-left">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="regularReportTableBody" class="divide-y divide-slate-100 bg-white">
-                            @forelse ($generatedReports as $item)
-                                @php
-                                    $isApproved = $item->client_response_status === 'approved' && $item->client_approved_at;
-                                    $statusLabel = $isApproved ? 'Approved' : 'Pending';
-                                    $statusClass = $isApproved
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-200';
-                                    $previewUrl = route('regular.report.preview', ['regular' => $regular->id, 'report' => $item->id]);
-                                @endphp
-                                <tr
-                                    class="cursor-pointer text-slate-700 transition hover:bg-slate-50"
-                                    data-report-search="{{ \Illuminate\Support\Str::lower(implode(' ', array_filter([$item->report_number, $statusLabel, optional($item->date_prepared)->format('M d, Y'), optional($item->client_approved_at)->format('M d, Y')])) ) }}"
-                                    onclick="window.location='{{ $previewUrl }}'"
-                                >
-                                    @if (! $regularLocked)<td class="px-3 py-4" onclick="event.stopPropagation()">
-                                        <input type="checkbox" value="{{ $item->id }}" class="regular-report-row-checkbox h-4 w-4 rounded border-slate-300">
-                                    </td>@endif
-                                    <td class="px-6 py-4">
-                                        <span class="font-semibold text-blue-700 hover:text-blue-800">{{ $item->report_number ?: 'Report-'.$item->id }}</span>
-                                    </td>
-                                    <td class="px-6 py-4">{{ optional($item->date_prepared)->format('M d, Y') ?: '-' }}</td>
-                                    <td class="px-6 py-4">{{ optional($item->created_at)->format('M d, Y') ?: '-' }}</td>
-                                    <td class="px-6 py-4">{{ optional($item->client_approved_at)->format('M d, Y') ?: '-' }}</td>
-                                    <td class="px-6 py-4">
-                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium {{ $statusClass }}">
-                                            {{ $statusLabel }}
-                                        </span>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $regularLocked ? 5 : 6 }}" class="px-6 py-12 text-center text-sm text-slate-500">
-                                        No generated RSAT reports yet. Use <span class="font-semibold text-slate-700">Generate RSAT Report</span> in the RSAT Form tab.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </div>
     </div>
 </div>
 
@@ -1039,6 +1447,135 @@
         </button>
     </div>
 </template>
+
+<!-- ADVANCE CYCLE MODAL -->
+<div id="advance-cycle-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Advance Operational Cycle</h3>
+                <p class="text-xs text-slate-500">Archive Cycle {{ $cycleState['cycle_number'] ?? 1 }} and start the next period</p>
+            </div>
+            <button type="button" onclick="document.getElementById('advance-cycle-modal').classList.add('hidden')" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ route('regular.cycle.advance', $regular->id) }}" method="POST" class="mt-5 space-y-4">
+            @csrf
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">Recurrence Frequency</label>
+                <select name="recurrence" class="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                    <option value="Monthly" @selected(($cycleState['recurrence'] ?? 'Monthly') === 'Monthly')>Monthly</option>
+                    <option value="Quarterly" @selected(($cycleState['recurrence'] ?? '') === 'Quarterly')>Quarterly</option>
+                    <option value="Semi-Annual" @selected(($cycleState['recurrence'] ?? '') === 'Semi-Annual')>Semi-Annual</option>
+                    <option value="Annual" @selected(($cycleState['recurrence'] ?? '') === 'Annual')>Annual</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">Target Next Period Label (Optional override)</label>
+                <input type="text" name="next_period" placeholder="e.g. November 2026 or Q4 2026" class="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                <p class="mt-1 text-[11px] text-slate-500">Leave blank to automatically calculate based on selected frequency.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">Cycle Completion Notes</label>
+                <textarea name="notes" rows="2" placeholder="Summary notes for this cycle archive..." class="mt-1.5 block w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 shadow-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"></textarea>
+            </div>
+
+            <div class="space-y-2 rounded-xl bg-slate-50 p-3.5 text-xs text-slate-700">
+                <label class="flex items-center gap-2 font-medium">
+                    <input type="checkbox" name="reset_approvals" value="1" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Reset RSAT internal approvals for the new cycle period</span>
+                </label>
+                <label class="flex items-center gap-2 font-medium">
+                    <input type="checkbox" name="reset_all_requirements" value="1" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <span>Re-open completed tasks as recurring action items</span>
+                </label>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('advance-cycle-modal').classList.add('hidden')" class="rounded-xl border border-slate-300 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-blue-800 shadow-md transition">
+                    <i class="fas fa-check"></i> Advance to Cycle {{ ($cycleState['cycle_number'] ?? 1) + 1 }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- CYCLE HISTORY MODAL -->
+<div id="cycle-history-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-100 p-5">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Operational Cycle Archives</h3>
+                <p class="text-xs text-slate-500">Historical snapshots and records for {{ $regular->project_code }}</p>
+            </div>
+            <button type="button" onclick="document.getElementById('cycle-history-modal').classList.add('hidden')" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+            @forelse(($cycleState['history'] ?? []) as $hist)
+                <div class="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition hover:bg-slate-50">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="inline-flex items-center rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-extrabold text-blue-900">
+                                Cycle {{ $hist['cycle_number'] ?? '-' }}
+                            </span>
+                            <span class="font-bold text-sm text-slate-900">{{ $hist['period'] ?? '-' }}</span>
+                            <span class="text-xs text-slate-500">({{ $hist['recurrence'] ?? 'Monthly' }})</span>
+                        </div>
+                        <span class="text-xs text-slate-500">
+                            Completed {{ !empty($hist['completed_at']) ? \Carbon\Carbon::parse($hist['completed_at'])->format('M d, Y h:i A') : '-' }} by {{ $hist['completed_by'] ?? 'Operator' }}
+                        </span>
+                    </div>
+
+                    @if(!empty($hist['notes']))
+                        <p class="mt-2.5 text-xs italic text-slate-600 bg-white rounded-lg border border-slate-100 p-2.5">
+                            "{{ $hist['notes'] }}"
+                        </p>
+                    @endif
+
+                    <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div class="rounded-lg bg-white p-2.5 border border-slate-100">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block">RSAT Status</span>
+                            <span class="font-semibold text-slate-700 capitalize">{{ $hist['rsat_snapshot']['status'] ?? 'Completed' }}</span>
+                        </div>
+                        <div class="rounded-lg bg-white p-2.5 border border-slate-100">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block">NTP Status</span>
+                            <span class="font-semibold text-slate-700 capitalize">{{ $hist['ntp_snapshot']['status'] ?? 'Approved' }}</span>
+                        </div>
+                        <div class="rounded-lg bg-white p-2.5 border border-slate-100">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block">Transmittal Ref</span>
+                            <span class="font-semibold text-slate-700">{{ $hist['transmittal_ref'] ?? 'N/A' }}</span>
+                        </div>
+                        <div class="rounded-lg bg-white p-2.5 border border-slate-100">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block">Reports Filed</span>
+                            <span class="font-semibold text-slate-700">{{ $hist['reports_count'] ?? 0 }} Report(s)</span>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="py-12 text-center text-slate-400 text-sm">
+                    <i class="fas fa-history text-3xl mb-2 block text-slate-300"></i>
+                    No archived cycles yet. Cycle 1 is currently active.
+                </div>
+            @endforelse
+        </div>
+
+        <div class="border-t border-slate-100 p-4 flex justify-end">
+            <button type="button" onclick="document.getElementById('cycle-history-modal').classList.add('hidden')" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {

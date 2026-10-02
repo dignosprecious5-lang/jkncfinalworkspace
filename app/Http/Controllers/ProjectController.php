@@ -451,17 +451,52 @@ class ProjectController extends Controller
         $sowTemplates = Schema::hasTable('form_templates')
             ? $this->projectSowTemplateQuery()->orderBy('name')->get()
             : collect();
-        $tab = in_array((string) $request->query('tab', 'sow'), ['sow', 'report'], true)
-            ? (string) $request->query('tab', 'sow')
-            : 'sow';
+        $allowedTabs = [
+            'dashboard', 'work-order', 'sow', 'review', 'ntp', 
+            'execution', 'report', 'coc', 'attachments', 
+            'time-aht', 'client-actions', 'history'
+        ];
+        $tab = in_array((string) $request->query('tab', 'dashboard'), $allowedTabs, true)
+            ? (string) $request->query('tab', 'dashboard')
+            : 'dashboard';
         $projectLocked = $this->isProjectCompleted($project);
         $cocGenerated = !empty(data_get($project->metadata ?? [], 'coc.generated_at'));
 
-        if ($tab === 'sow') {
+        if (in_array($tab, ['sow', 'coc', 'dashboard'], true)) {
             [, $coc] = $this->buildProjectCocPreviewData($project);
         }
 
-        return view('project.show', compact('project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 'tab', 'coc', 'sowAutoReportSettings', 'projectLocked', 'cocGenerated'));
+        // Workspace Metrics
+        $withinScope = collect($sow?->within_scope_items ?? []);
+        $outScope = collect($sow?->out_of_scope_items ?? []);
+        $allScopeItems = $withinScope->concat($outScope);
+        $totalTasks = $allScopeItems->count();
+        $completedTasks = $allScopeItems->where('status', 'Completed')->count();
+        $inProgressTasks = $allScopeItems->where('status', 'In Progress')->count();
+        $openTasks = $allScopeItems->whereIn('status', ['Open', 'Pending', ''])->count();
+        $progressPct = $totalTasks > 0 ? (int) round(($completedTasks / $totalTasks) * 100) : 0;
+
+        $metadata = (array) ($project->metadata ?? []);
+        $deliverables = collect($metadata['deliverables'] ?? [
+            ['id' => 'pdeliv-1', 'name' => 'Project Kickoff & Milestone Plan', 'ready' => true],
+            ['id' => 'pdeliv-2', 'name' => 'Scope Execution & Intermediary Deliverables', 'ready' => $completedTasks > 0],
+            ['id' => 'pdeliv-3', 'name' => 'Certificate of Completion (COC) & Transmittal Package', 'ready' => $cocGenerated],
+        ]);
+        $clientActions = collect($metadata['client_actions'] ?? [
+            ['id' => 'pca-1', 'subject' => 'Sign and upload approved Notice to Proceed (NTP)', 'done' => (bool) $ntpRecord?->client_approved_at],
+            ['id' => 'pca-2', 'subject' => 'Acknowledge milestone delivery & endorse Certificate of Completion', 'done' => (bool) $cocGenerated],
+        ]);
+        $timeMetrics = (array) ($metadata['time_tracking'] ?? [
+            'total_seconds' => max(7200, $completedTasks * 3600 + $inProgressTasks * 1800),
+            'aht_seconds' => $completedTasks > 0 ? (int) round(($completedTasks * 3600) / $completedTasks) : 3600,
+        ]);
+
+        return view('project.show', compact(
+            'project', 'start', 'sow', 'report', 'ntpRecord', 'sowTemplates', 
+            'tab', 'coc', 'sowAutoReportSettings', 'projectLocked', 'cocGenerated',
+            'totalTasks', 'completedTasks', 'inProgressTasks', 'openTasks', 
+            'progressPct', 'deliverables', 'clientActions', 'timeMetrics'
+        ));
     }
 
     public function updateSowAutoReportSettings(Request $request, Project $project): RedirectResponse
@@ -3166,6 +3201,29 @@ class ProjectController extends Controller
         return filled($employee?->full_name) ? $employee->full_name : ($user->name ?: null);
     }
 
+    public function toggleTask(Request $request, Project $project): \Illuminate\Http\JsonResponse
+    {
+        $scopeType = $request->input('scope_type', 'within'); // 'within' or 'out'
+        $index = (int) $request->input('index');
+        $status = $request->input('status', 'Completed');
+
+        $sow = $project->sow;
+        if (! $sow) {
+            return response()->json(['success' => false, 'message' => 'SOW not found.'], 404);
+        }
+
+        $itemsKey = $scopeType === 'out' ? 'out_of_scope_items' : 'within_scope_items';
+        $items = (array) ($sow->$itemsKey ?? []);
+
+        if (isset($items[$index])) {
+            $items[$index]['status'] = $status;
+            $sow->update([$itemsKey => $items]);
+            return response()->json(['success' => true, 'status' => $status]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Item not found.'], 404);
+    }
+
     private function canReviewStart(Request $request): bool
     {
         $user = $request->user();
@@ -3175,3 +3233,4 @@ class ProjectController extends Controller
             && ($user->hasPermission('access_admin_dashboard') || $user->hasPermission('approve_townhall'));
     }
 }
+

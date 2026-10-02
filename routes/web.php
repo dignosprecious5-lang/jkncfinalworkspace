@@ -456,6 +456,25 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
+    Route::get('/deals/quick-purchase', [DealController::class, 'quickPurchase'])->name('deals.quick-purchase');
+    Route::post('/deals/quick-purchase', [DealController::class, 'storeQuickPurchase'])->name('deals.quick-purchase.store');
+    Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
+    Route::post('/contacts/quick-store', [DealController::class, 'quickStoreContact'])->name('contacts.quick-store');
+    Route::post('/accounts/quick-store', [DealController::class, 'quickStoreAccount'])->name('accounts.quick-store');
+    Route::get('/deals/autocomplete', [DealController::class, 'autocomplete'])->name('deals.autocomplete');
+    Route::post('/deals/{id}/stage-workflow', [DealController::class, 'saveStageWorkflow'])->name('deals.stage-workflow.save');
+    Route::get('/deals/{id}/histories', [DealController::class, 'getHistories'])->name('deals.histories');
+    Route::post('/deals/{id}/notes', [DealController::class, 'storeNote'])->name('deals.notes.store');
+    Route::post('/deals/{id}/inquiries', [DealController::class, 'storeInquiry'])->name('deals.inquiries.store');
+    Route::delete('/deals/{id}/inquiries/{inquiryId}', [DealController::class, 'destroyInquiry'])->name('deals.inquiries.destroy');
+    Route::post('/deals/{id}/consultations', [DealController::class, 'storeConsultation'])->name('deals.consultations.store');
+    Route::delete('/deals/{id}/consultations/{consultationId}', [DealController::class, 'destroyConsultation'])->name('deals.consultations.destroy');
+    Route::post('/deals/{id}/line-items', [DealController::class, 'storeLineItem'])->name('deals.line-items.store');
+    Route::delete('/deals/{id}/line-items/{itemId}', [DealController::class, 'destroyLineItem'])->name('deals.line-items.destroy');
+    Route::get('/deals/{id}/regular', [DealController::class, 'regular'])->name('deals.regular');
+    Route::get('/deals/{id}/project', [DealController::class, 'project'])->name('deals.project');
+    Route::post('/deals/{id}/project/scope', [DealController::class, 'saveScope'])->name('deals.project.scope.save');
+    Route::post('/deals/{id}/proposal', [DealController::class, 'storeProposal'])->name('deals.proposal.store');
     Route::post('/deals/preview', [DealController::class, 'preview'])->name('deals.preview');
     Route::get('/deals/preview', [DealController::class, 'previewPage'])->name('deals.preview.show');
     Route::post('/deals/draft', [DealController::class, 'saveDraft'])->name('deals.draft');
@@ -466,7 +485,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::patch('/deals/stages/{stage}', [DealController::class, 'updateStage'])->name('deals.stages.update');
     Route::patch('/deals/stages/{stage}/move', [DealController::class, 'moveStage'])->name('deals.stages.move');
     Route::delete('/deals/stages/{stage}', [DealController::class, 'destroyStage'])->name('deals.stages.destroy');
-    Route::patch('/deals/{id}/stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update');
+    Route::patch('/deals/{id}/stage', [DealController::class, 'updateStage'])->name('deals.stage.update');
     Route::post('/deals/{id}/update-stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update.post');
     Route::put('/deals/{id}', [DealController::class, 'update'])->name('deals.update');
     Route::delete('/deals/{id}', [DealController::class, 'destroy'])->name('deals.destroy');
@@ -530,11 +549,14 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::post('/project/{project}/report/{report}/manual-approve', [ProjectController::class, 'manualApproveReport'])->name('project.report.manual-approve');
     Route::delete('/project/{project}/report/bulk-delete', [ProjectController::class, 'bulkDestroyGeneratedReports'])->name('project.report.bulk-delete');
     Route::post('/project/{project}/report', [ProjectController::class, 'updateReport'])->name('project.report.update');
+    Route::post('/project/{project}/task/toggle', [ProjectController::class, 'toggleTask'])->name('project.task.toggle');
 
     Route::get('/regular', [RegularController::class, 'index'])->name('regular.index');
     Route::delete('/regular/bulk-delete', [RegularController::class, 'bulkDelete'])->name('regular.bulk-delete');
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
+    Route::post('/regular/{regular}/cycle/advance', [RegularController::class, 'advanceCycle'])->name('regular.cycle.advance');
+    Route::post('/regular/{regular}/task/toggle', [RegularController::class, 'toggleTask'])->name('regular.task.toggle');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');
     Route::post('/regular/{regular}/rsat/manual-approve', [RegularController::class, 'manualApproveRsat'])->name('regular.rsat.manual-approve');
     Route::post('/regular/{regular}/rsat/auto-report-settings', [RegularController::class, 'updateRsatAutoReportSettings'])->name('regular.rsat.auto-settings');
