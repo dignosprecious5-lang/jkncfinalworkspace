@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORDO Project V3 — Existing Layout Integration Mockup</title>
+<style>
+:root{
+  --bg:#f8fafc;--surface:#fff;--line:#e7ecf3;--line2:#eef2f6;--text:#182033;--muted:#667085;
+  --soft:#98a2b3;--blue:#1f3b86;--blue2:#3158e6;--blue-soft:#eaf2ff;--green:#2d8a61;--green-soft:#eaf8f0;
+  --amber:#b76d19;--amber-soft:#fff6e8;--red:#c94a4a;--red-soft:#fff0f0;--purple:#7357cf;--purple-soft:#f3efff;
+  --shadow:0 1px 3px rgba(16,24,40,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:13px}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.shell{min-height:100vh;display:grid;grid-template-columns:255px 1fr;grid-template-rows:70px 1fr}
+.topbar{grid-column:1/-1;grid-row:1;background:#fff;border-bottom:1px solid var(--line);display:grid;grid-template-columns:255px 1fr 200px;align-items:center;position:sticky;top:0;z-index:20}
+.brand{padding-left:24px;font-family:Georgia,serif;font-size:16px;line-height:.9;color:#111827}
+.brand-sub{display:flex;align-items:center;gap:4px}
+.brandmark{width:12px;height:12px;border:1.5px solid #4d6cd8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;color:#4d6cd8}
+.searchwrap{display:flex;justify-content:center}
+.search{width:min(520px,48vw);height:36px;border-radius:22px;background:#f2f4f7;display:flex;align-items:center;gap:8px;padding:0 15px;color:#9aa3b0}
+.userbar{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding-right:18px}
+.avatar{width:32px;height:32px;border-radius:50%;background:#f0f2f6;display:flex;align-items:center;justify-content:center;color:#5d6775}
+.bell{font-size:18px;color:#667085}
+.sidebar{grid-column:1;grid-row:2;background:#fff;border-right:1px solid var(--line);padding:14px 10px 22px;overflow:auto}
+.enterprise{display:flex;align-items:center;justify-content:space-between;padding:0 10px 14px}
+.enterprise strong{font-size:12px}.enterprise small{display:block;color:#98a2b3;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav-row{width:100%;height:46px;border:0;background:transparent;border-radius:10px;display:flex;align-items:center;gap:11px;padding:0 12px;color:#475467;text-align:left}
+.nav-row:hover{background:#f7f9fc}
+.nav-row.active-parent{background:#eaf2ff;color:var(--blue2);font-weight:700}
+.nav-icon{width:28px;height:28px;border-radius:8px;background:#f3f5f8;display:flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto}
+.active-parent .nav-icon{background:#dbe8ff}
+.chev{margin-left:auto}
+.ops-children{display:block;padding-left:38px;margin-top:-2px}
+.child-row{height:38px;border:0;background:transparent;color:#667085;width:100%;text-align:left;padding:0 11px;border-left:1px solid #edf0f4}
+.child-row:hover{color:var(--blue2)}
+.child-row.project-parent{display:flex;align-items:center;justify-content:space-between}
+.child-row.project-parent.active{color:var(--blue2);font-weight:700;background:#edf4ff;border-radius:7px;border-left-color:transparent}
+.project-submenu{max-height:0;overflow:hidden;opacity:0;transform:translateY(-4px);transition:max-height .24s ease,opacity .2s ease,transform .2s ease;margin-left:8px;border-left:1px solid #e9edf4}
+.project-submenu.open{max-height:320px;opacity:1;transform:translateY(0)}
+.project-submenu button{height:34px;width:100%;border:0;background:transparent;text-align:left;padding:0 12px 0 18px;color:#7a8492;font-size:12px}
+.project-submenu button:hover{color:var(--blue2);background:#fafcff}
+.project-submenu button.active{color:var(--blue2);font-weight:700;background:#f2f6ff}
+.project-submenu .mgmt-only.hidden{display:none}
+.main{grid-column:2;grid-row:2;padding:24px 28px 40px;min-width:0}
+.screen{display:none}.screen.active{display:block}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
+.page-head h1{margin:0 0 5px;font-size:27px;font-weight:650}
+.page-head p{margin:0;color:var(--muted);font-size:12px;max-width:760px;line-height:1.45}
+.btn{height:36px;border:1px solid #dfe5ee;background:#fff;border-radius:22px;color:#475467;padding:0 13px;font-size:11px;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;padding:0 19px}
+.btn.sm{height:30px;border-radius:8px;padding:0 9px;font-size:10px}
+.btn.warn{background:#fff8ea;color:#9a5e0e;border-color:#f0d9ad}
+.btn.green{background:var(--green);border-color:var(--green);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.kpi label{display:block;font-size:9px;color:#667085;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px}
+.kpi strong{font-size:27px}
+.kpi small{display:block;color:#98a2b3;margin-top:4px;font-size:9px}
+.kpi.blue strong{color:#3f46d9}.kpi.green strong{color:var(--green)}.kpi.amber strong{color:#b35e13}.kpi.red strong{color:var(--red)}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.card-head h2{margin:0;font-size:16px}.card-head p{margin:5px 0 0;color:#7b8493;font-size:11px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field{height:34px;border:1px solid #e0e5ed;border-radius:8px;padding:0 10px;background:#fff;color:#475467;font-size:10px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th{background:#fbfcfd;border-bottom:1px solid var(--line);font-size:9px;color:#667085;text-align:left;padding:11px 13px;white-space:nowrap}
+td{border-bottom:1px solid var(--line2);padding:12px 13px;font-size:10px;color:#475467;vertical-align:middle}
+tr:hover td{background:#fcfdff}
+.row-title{font-weight:700;color:#202b43;font-size:11px}.row-sub{font-size:8px;color:#98a2b3;margin-top:3px}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:8px;font-weight:700;background:#f2f4f7;color:#667085}
+.badge.blue{background:#eaf2ff;color:#3158e6}.badge.green{background:#eaf8f0;color:#2d8a61}.badge.amber{background:#fff6e7;color:#b36a16}.badge.red{background:#fff0f0;color:#c94343}.badge.purple{background:#f3efff;color:#7357cf}
+.process-card{padding:15px 18px}
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 9px}
+.section-title h2{margin:0;font-size:15px}.section-title p{margin:3px 0 0;color:#7b8493;font-size:10px}
+.process{display:grid;grid-template-columns:repeat(9,minmax(90px,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stage{border:0;border-right:1px solid var(--line);background:#fff;min-height:72px;padding:10px 5px;text-align:center;color:#667085}
+.stage:last-child{border-right:0}.stage:hover{background:#fafcff}
+.stage strong{display:block;font-size:18px;color:#27344f}.stage small{display:block;margin-top:4px;font-size:8px}
+.stage.current{background:#eef3ff;color:#3158e6}.stage.current strong{color:#3158e6}.stage.done{background:#f1faf5;color:#2d8a61}.stage.done strong{color:#2d8a61}
+.two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
+.list{display:flex;flex-direction:column}.item{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line2)}.item:last-child{border-bottom:0}
+.dot{width:8px;height:8px;border-radius:50%;background:#3158e6;margin-top:5px;flex:0 0 auto}.item-main{flex:1}.item-title{font-weight:700;font-size:10px}.item-meta{font-size:9px;color:#98a2b3;margin-top:3px}
+.project-top{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.project-row{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.project-row h1{font-size:22px;margin:0}.meta-line{font-size:10px;color:#667085;margin-top:5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.chip{border:1px solid var(--line);border-radius:999px;padding:6px 9px;background:#fbfcfe;color:#475467;font-size:9px}
+.timerbox{display:flex;align-items:center;gap:5px;padding:6px;border:1px solid var(--line);border-radius:9px;background:#fbfcfe;flex-wrap:wrap}
+.clock{min-width:76px;text-align:center;font-variant-numeric:tabular-nums;font-weight:800}
+.workbtn{height:28px;border:1px solid #dce3ed;border-radius:6px;background:#fff;color:#475467;font-size:9px;padding:0 7px}
+.workbtn.start{background:#edf9f2;color:#16834d;border-color:#cdebd9}.workbtn.pause{background:#fff8e9;color:#ad6d0e;border-color:#f3dfb5}.workbtn.stop{background:#fff1f1;color:#c23d3d;border-color:#f2cccc}
+.pkpis{display:grid;grid-template-columns:repeat(8,minmax(105px,1fr));gap:8px;margin-bottom:12px}
+.pkpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px}.pkpi label{display:block;font-size:7px;color:#98a2b3;font-weight:800;text-transform:uppercase}.pkpi strong{display:block;font-size:14px;margin-top:5px}
+.next{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #d3dcf5;background:#f7f9ff;border-radius:10px;padding:12px;margin-bottom:12px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow:auto;margin-bottom:14px}
+.tab{height:38px;border:0;background:transparent;color:#667085;padding:0 10px;border-bottom:2px solid transparent;white-space:nowrap}.tab.active{color:#3158e6;border-bottom-color:#3158e6;font-weight:700}
+.panel{display:none}.panel.active{display:block}
+.workspace-card{padding:15px 18px}
+.workstream{border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:10px}
+.ws-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:#f8faff;border-bottom:1px solid var(--line)}
+.ws-head strong{font-size:11px}
+.taskrow{display:grid;grid-template-columns:minmax(240px,1.45fr) 130px 85px 105px 125px auto;align-items:center;min-height:48px;border-bottom:1px solid var(--line2)}
+.taskrow:last-child{border-bottom:0}.taskcell{padding:7px 10px;font-size:9px;min-width:0}.taskname{font-weight:700;color:#2a3750}
+.progress{height:6px;border-radius:999px;background:#edf1f6;overflow:hidden}.progress i{display:block;height:100%;background:#3158e6}
+.file-row{display:grid;grid-template-columns:1.5fr 150px 100px 130px auto;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.reportgrid{display:grid;grid-template-columns:.9fr 1.1fr;gap:12px}
+.preview{border:1px solid #ccd6e6;border-top:5px solid var(--blue);background:#fff;border-radius:5px;padding:18px;font-family:Georgia,serif;min-height:430px}
+.preview h2{text-align:center;margin:0 0 15px}.preview h3{font-size:13px;border-bottom:1px solid #dfe5ee;padding-bottom:5px}.preview p,.preview li{font-size:11px;line-height:1.45}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}.form-group label{font-size:9px;font-weight:700;color:#667085}.form-group input,.form-group select,.form-group textarea{border:1px solid #dfe5ee;border-radius:7px;padding:8px;font-size:10px}.form-group textarea{min-height:75px;resize:vertical}
+.checkline{display:flex;gap:8px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:12px}.setting-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.switch{appearance:none;width:40px;height:22px;border-radius:999px;background:#d9dee7;position:relative}.switch:checked{background:#3158e6}.switch:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;left:3px;top:3px}.switch:checked:after{left:21px}
+.policy{border-left:4px solid var(--blue);background:#f7f9ff;border-radius:7px;padding:10px 12px;margin-bottom:8px}
+.modal{display:none;position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:80;align-items:center;justify-content:center;padding:18px;overflow:auto}.modal.open{display:flex}
+.modalbox{width:min(760px,100%);background:#fff;border-radius:12px;padding:18px}.modalbox h3{margin:0 0 12px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.outline{display:grid;grid-template-columns:1fr 1fr;gap:12px}.outline textarea{min-height:220px;font-family:monospace}
+.hidden{display:none!important}.small{font-size:9px;color:#667085}.actions{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:1200px){.kpis{grid-template-columns:repeat(3,1fr)}.pkpis{grid-template-columns:repeat(4,1fr)}.process{overflow:auto;grid-template-columns:repeat(9,110px)}.two-col,.reportgrid{grid-template-columns:1fr}}
+@media(max-width:820px){.shell{grid-template-columns:1fr;grid-template-rows:64px auto 1fr}.topbar{grid-template-columns:1fr auto}.searchwrap{display:none}.sidebar{grid-column:1;grid-row:2;border-right:0;border-bottom:1px solid var(--line);padding:7px;display:flex;overflow:auto}.enterprise{display:none}.nav{flex-direction:row}.nav-row{width:auto;white-space:nowrap}.ops-children{padding:0;display:flex}.child-row{border-left:0;width:auto;white-space:nowrap}.project-submenu{position:absolute;background:#fff;border:1px solid var(--line);z-index:20;margin-top:38px;margin-left:0;min-width:180px}.main{grid-column:1;grid-row:3;padding:14px 10px 30px}.kpis{grid-template-columns:1fr 1fr}.pkpis{grid-template-columns:1fr 1fr}.project-row{flex-direction:column}.taskrow{grid-template-columns:1fr auto}.taskrow .taskcell:nth-child(2),.taskrow .taskcell:nth-child(3),.taskrow .taskcell:nth-child(4),.taskrow .taskcell:nth-child(5){grid-column:1}.taskrow .taskcell:last-child{grid-column:2;grid-row:1}.settings,.outline{grid-template-columns:1fr}.file-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">John Kelly<div class="brand-sub"><span class="brandmark">C</span><span>Company</span></div></div>
+    <div class="searchwrap"><div class="search">⌕&nbsp;&nbsp; Search</div></div>
+    <div class="userbar"><span class="bell">♧</span><div class="avatar">J</div></div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="enterprise"><div><strong>Enterprise Menu</strong><small>Navigation</small></div><span>»</span></div>
+    <div class="nav">
+      <button class="nav-row"><span class="nav-icon">♙</span>Admin</button>
+      <button class="nav-row"><span class="nav-icon">⚑</span>Town Hall</button>
+      <button class="nav-row"><span class="nav-icon">▤</span>Corporate</button>
+      <button class="nav-row"><span class="nav-icon">▧</span>Policies</button>
+      <button class="nav-row"><span class="nav-icon">▥</span>Finance</button>
+      <button class="nav-row"><span class="nav-icon">♟</span>Human Capital</button>
+      <button class="nav-row"><span class="nav-icon">◎</span>Marketing<span class="chev">›</span></button>
+      <button class="nav-row"><span class="nav-icon">⌁</span>Sales<span class="chev">›</span></button>
+      <button class="nav-row"><span class="nav-icon">▣</span>Accounts<span class="chev">›</span></button>
+
+      <button class="nav-row active-parent" id="operationsBtn"><span class="nav-icon">⌘</span>Operations<span class="chev">⌄</span></button>
+      <div class="ops-children">
+        <button class="child-row">Activities</button>
+        <button class="child-row">Regular</button>
+        <button class="child-row project-parent active" id="projectMenuBtn">Project <span id="projectMenuArrow">⌄</span></button>
+        <div class="project-submenu open" id="projectSubmenu">
+          <button class="project-sub active" data-screen="overview">Overview</button>
+          <button class="project-sub" data-screen="forme">For Me</button>
+          <button class="project-sub" data-screen="collab">Collaborative</button>
+          <button class="project-sub mgmt-only" data-screen="all">All Projects</button>
+          <button class="project-sub" data-screen="reports">Reports</button>
+          <button class="project-sub mgmt-only" data-screen="settings">Settings</button>
+        </div>
+        <button class="child-row">Transmittal</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- OVERVIEW -->
+    <section class="screen active" id="screen-overview">
+      <div class="page-head">
+        <div><h1 id="overviewTitle">Project</h1><p id="overviewDesc">Approved project and hybrid deals automatically open here, with SOW, NTP, execution, reporting, delivery, and completion tracked inside one record.</p></div>
+        <div class="actions">
+          <select class="field" id="roleScope"><option value="management">Management View</option><option value="ordinary">Ordinary User View</option></select>
+          <button class="btn primary mgmt-only" id="createProject">Create Project</button>
+        </div>
+      </div>
+      <div class="kpis" id="overviewKpis"></div>
+
+      <div class="card process-card">
+        <div class="section-title" style="margin-top:0"><div><h2>Project Process</h2><p>The policy stages are the dashboard. Every movement becomes data.</p></div></div>
+        <div class="process" id="overviewProcess"></div>
+      </div>
+
+      <div class="section-title"><div><h2 id="overviewSectionTitle">Project Registry</h2><p id="overviewSectionDesc">Company-wide project view for authorized management.</p></div><button class="btn sm mgmt-only" data-screen-jump="all">View All Projects</button></div>
+      <div class="card">
+        <div class="card-head"><div><h2 id="registryTitle">Project Registry</h2><p id="registryDesc">Operational projects with live stage, health and next action.</p></div><input class="field" placeholder="Search projects..."></div>
+        <div class="table-wrap"><table><thead><tr><th>PROJECT</th><th>CLIENT / BUSINESS</th><th>STAGE</th><th>MY ROLE / LEAD</th><th>PROGRESS</th><th>TARGET</th><th>HEALTH</th><th>ACTION</th></tr></thead><tbody id="overviewTable"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- FOR ME -->
+    <section class="screen" id="screen-forme">
+      <div class="page-head"><div><h1>For Me</h1><p>My accountable projects, my tasks, handling time, AHT and next actions.</p></div></div>
+      <div class="kpis">
+        <div class="kpi blue"><label>My Active Projects</label><strong>6</strong><small>3 lead · 3 support</small></div>
+        <div class="kpi amber"><label>Needs My Action</label><strong>3</strong><small>1 review · 2 tasks</small></div>
+        <div class="kpi"><label>My Handling Time</label><strong>38h 24m</strong><small>This month</small></div>
+        <div class="kpi"><label>My Task AHT</label><strong>1h 06m</strong><small>Average handling</small></div>
+        <div class="kpi green"><label>On-Time</label><strong>92%</strong><small>My completed work</small></div>
+      </div>
+      <div class="card process-card"><div class="section-title" style="margin-top:0"><div><h2>My Project Process</h2><p>Only projects assigned to me.</p></div></div><div class="process" id="myProcess"></div></div>
+      <div class="section-title"><div><h2>My Projects</h2></div></div>
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>PROJECT</th><th>MY ROLE</th><th>STAGE</th><th>PROGRESS</th><th>HANDLING</th><th>NEXT ACTION</th><th></th></tr></thead><tbody id="myProjects"></tbody></table></div></div>
+    </section>
+
+    <!-- COLLAB -->
+    <section class="screen" id="screen-collab">
+      <div class="page-head"><div><h1>Collaborative</h1><p>Projects I share with other people, including handoffs, dependencies and work waiting on me or others.</p></div></div>
+      <div class="kpis">
+        <div class="kpi blue"><label>Shared Projects</label><strong>8</strong></div>
+        <div class="kpi amber"><label>Waiting on Me</label><strong>3</strong></div>
+        <div class="kpi"><label>Waiting on Others</label><strong>4</strong></div>
+        <div class="kpi red"><label>Blocked Handoffs</label><strong>1</strong></div>
+        <div class="kpi"><label>Avg Handoff</label><strong>2h 11m</strong></div>
+      </div>
+      <div class="two-col">
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Waiting on Me</h2></div><div class="list">
+          <div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">Review transfer document draft</div><div class="item-meta">PROJ-2026-120 · Rubeca → John · due today</div></div><button class="btn sm open-project" data-id="120">Open</button></div>
+          <div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">Approve BIR filing package</div><div class="item-meta">PROJ-2026-113 · Associate → Consultant</div></div><button class="btn sm open-project" data-id="113">Open</button></div>
+        </div></div>
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Waiting on Others</h2></div><div class="list">
+          <div class="item"><div class="dot" style="background:var(--amber)"></div><div class="item-main"><div class="item-title">Signed SPA</div><div class="item-meta">Waiting on client · 1d 7h</div></div></div>
+          <div class="item"><div class="dot" style="background:var(--purple)"></div><div class="item-main"><div class="item-title">BIR computation</div><div class="item-meta">Third-party waiting · 2d 4h</div></div></div>
+        </div></div>
+      </div>
+      <div class="section-title"><h2>Collaborative Projects</h2></div>
+      <div class="card"><div class="table-wrap"><table><thead><tr><th>PROJECT</th><th>MY ROLE</th><th>LEAD</th><th>PEOPLE</th><th>STAGE</th><th>HANDOFF</th><th></th></tr></thead><tbody id="collabTable"></tbody></table></div></div>
+    </section>
+
+    <!-- ALL PROJECTS -->
+    <section class="screen" id="screen-all">
+      <div class="page-head"><div><h1>All Projects</h1><p>Complete organization-wide Project Registry. This is only visible to authorized management.</p></div><button class="btn primary" id="createProject2">Create Project</button></div>
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Project Registry</h2><p>All projects across the organization.</p></div>
+          <div class="toolbar"><input class="field" id="allSearch" placeholder="Search projects..."><select class="field" id="allStage"><option value="">All Stages</option><option>SOW</option><option>Execution</option><option>Reporting</option><option>Completed</option></select><button class="btn sm" id="exportAll">Export</button></div>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>PROJECT</th><th>DEAL</th><th>COMPANY</th><th>STAGE</th><th>LEAD / ASSIGNMENT</th><th>PROGRESS</th><th>TARGET</th><th>HEALTH</th><th></th></tr></thead><tbody id="allTable"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="screen" id="screen-reports">
+      <div class="page-head"><div><h1>Reports</h1><p id="reportScope">Full Project portfolio reports for authorized management.</p></div><button class="btn primary" id="downloadReportSummary">Download Summary</button></div>
+      <div class="kpis">
+        <div class="kpi"><label>Project AHT</label><strong>16h 42m</strong></div>
+        <div class="kpi"><label>Avg Cycle Time</label><strong>18.6d</strong></div>
+        <div class="kpi green"><label>On-Time</label><strong>87%</strong></div>
+        <div class="kpi"><label>Client Waiting</label><strong>3.4d</strong></div>
+        <div class="kpi green"><label>First Pass</label><strong>91%</strong></div>
+      </div>
+      <div class="settings" id="reportCards"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="screen" id="screen-settings">
+      <div class="page-head"><div><h1>Project Settings</h1><p>Keep policy gates locked while allowing thresholds, visibility, templates and assignment behavior to be configured.</p></div><button class="btn primary" id="saveSettings">Save Settings</button></div>
+      <div class="settings">
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Access & Visibility</h2></div>
+          <div class="setting-row"><span>Ordinary user personal Overview</span><input class="switch" type="checkbox" checked disabled></div>
+          <div class="setting-row"><span>For Me</span><input class="switch" type="checkbox" checked disabled></div>
+          <div class="setting-row"><span>Collaborative</span><input class="switch" type="checkbox" checked disabled></div>
+          <div class="setting-row"><span>Management organizational Overview</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>Management All Projects</span><input class="switch" type="checkbox" checked></div>
+        </div>
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Time & AHT</h2></div>
+          <div class="setting-row"><span>Project Direct Timer</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>Task / Child Task Timer</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>One active timer per user</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>Manual time requires reason</span><input class="switch" type="checkbox" checked></div>
+        </div>
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Task Features</h2></div>
+          <div class="setting-row"><span>Quick Add</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>Bulk Outline Builder</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>Duplicate Task / Workstream</span><input class="switch" type="checkbox" checked></div>
+          <div class="setting-row"><span>SOW Templates</span><input class="switch" type="checkbox" checked></div>
+        </div>
+        <div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Policy-Controlled Gates</h2></div>
+          <div class="policy"><strong>No Service Memo / Work Order → No valid Project registration</strong></div>
+          <div class="policy"><strong>No approved SOW / NTP → No Execution</strong></div>
+          <div class="policy"><strong>No Report → No Delivery</strong></div>
+          <div class="policy"><strong>No Transmittal → No Completion</strong></div>
+          <div class="policy"><strong>No COC → No Closure</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECT WORKSPACE -->
+    <section class="screen" id="screen-project">
+      <div class="project-top">
+        <div class="project-row">
+          <div>
+            <button class="btn sm" id="backBtn">← Project</button>
+            <h1 id="pTitle" style="margin-top:10px"></h1>
+            <div class="meta-line" id="pRefs"></div>
+            <div class="chips" id="pChips"></div>
+          </div>
+          <div class="timerbox">
+            <span class="small" id="pTimerState">Project Direct</span>
+            <span class="clock" id="pClock">00:00:00</span>
+            <button class="workbtn start" id="pStart">▶ Start</button>
+            <button class="workbtn pause" id="pPause">Ⅱ Pause</button>
+            <button class="workbtn stop" id="pStop">■ Stop</button>
+          </div>
+        </div>
+        <div class="section-title"><div><h2>Project Lifecycle</h2><p>Same policy process, now inside the individual workspace.</p></div></div>
+        <div class="process" id="pProcess"></div>
+      </div>
+
+      <div class="pkpis" id="pKpis"></div>
+      <div class="next" id="pNext"></div>
+
+      <div class="card workspace-card">
+        <div class="tabs" id="pTabs">
+          <button class="tab active" data-panel="dashboard">Dashboard</button>
+          <button class="tab" data-panel="scope">SOW / Scope</button>
+          <button class="tab" data-panel="execution">Execution</button>
+          <button class="tab" data-panel="deliverables">Deliverables</button>
+          <button class="tab" data-panel="client">Client Actions</button>
+          <button class="tab" data-panel="reports">Reports</button>
+          <button class="tab" data-panel="files">Files & Evidence</button>
+          <button class="tab" data-panel="time">Time</button>
+          <button class="tab" data-panel="updates">Updates</button>
+          <button class="tab" data-panel="history">History</button>
+          <button class="tab" data-panel="completion">Delivery & Completion</button>
+        </div>
+
+        <div class="panel active" id="panel-dashboard">
+          <div class="two-col">
+            <div><div class="section-title" style="margin-top:0"><h2>Execution Snapshot</h2></div><div id="dashStreams"></div></div>
+            <div><div class="section-title" style="margin-top:0"><h2>Authority & Assignment</h2></div><div class="list" id="authority"></div><div class="section-title"><h2>Recent Activity</h2></div><div class="list" id="recent"></div></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-scope">
+          <div class="actions" style="margin-bottom:12px">
+            <button class="btn sm primary" id="quickAdd">+ Quick Task</button>
+            <button class="btn sm" id="bulkAdd">Bulk Add / Outline</button>
+            <button class="btn sm" id="templateBtn">Use Template</button>
+            <button class="btn sm" id="dupStream">Duplicate Workstream</button>
+            <button class="btn sm" id="sowPreview">Preview SOW</button>
+          </div>
+          <div id="scopeStreams"></div>
+        </div>
+
+        <div class="panel" id="panel-execution">
+          <div class="section-title" style="margin-top:0"><div><h2>Execute Approved SOW</h2><p>Task Manager V2 behavior: Start, Pause, Stop, Done, timers, files and audit trail.</p></div></div>
+          <div id="executionStreams"></div>
+        </div>
+
+        <div class="panel" id="panel-deliverables">
+          <div class="section-title" style="margin-top:0"><div><h2>Deliverables</h2><p>Required outputs are managed separately from Tasks.</p></div><button class="btn sm" id="addDeliverable">+ Add Deliverable</button></div><div id="deliverables"></div>
+        </div>
+
+        <div class="panel" id="panel-client">
+          <div class="section-title" style="margin-top:0"><div><h2>Client Actions</h2><p>Portal, secure no-login link, email evidence and manual/wet signatures.</p></div><button class="btn sm primary" id="addClientAction">+ Client Action</button></div><div id="clientActions"></div>
+        </div>
+
+        <div class="panel" id="panel-reports">
+          <div class="reportgrid">
+            <div>
+              <div class="section-title" style="margin-top:0"><div><h2>Final SOW Report Builder</h2><p>Execution items and evidence marked for client reporting are assembled here.</p></div></div>
+              <div id="reportItems"></div>
+              <div class="form-group"><label>Key Issues & Observations</label><textarea id="rIssues">Client execution copies were received in batches; required transfer documentation is progressing.</textarea></div>
+              <div class="form-group"><label>Recommendations</label><textarea id="rRecommendations">Maintain the updated corporate records with the closing package.</textarea></div>
+              <div class="form-group"><label>Summary & Way Forward</label><textarea id="rWay">Complete remaining BIR and corporate record steps, then transmit the final package and issue the COC.</textarea></div>
+              <div class="actions"><button class="btn sm" id="refreshReport">Refresh Preview</button><button class="btn sm primary" id="approveReport">Generate / Approve SOW Report</button></div>
+            </div>
+            <div class="preview" id="reportPreview"></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-files">
+          <div class="section-title" style="margin-top:0"><div><h2>Files & Evidence</h2><p>Attach documents at the stage where they are produced or received.</p></div><button class="btn sm primary" id="addFile">+ Upload / Evidence</button></div><div id="files"></div>
+        </div>
+
+        <div class="panel" id="panel-time">
+          <div class="kpis" id="timeKpis"></div>
+          <div class="two-col"><div class="card process-card"><div class="section-title" style="margin-top:0"><h2>By Person</h2></div><div id="timePeople"></div></div><div class="card process-card"><div class="section-title" style="margin-top:0"><h2>Timer Sessions</h2></div><div id="timeSessions"></div></div></div>
+        </div>
+
+        <div class="panel" id="panel-updates">
+          <div class="form-group"><label>Internal Project Update</label><textarea id="updateText" placeholder="Add progress update, coordination note or internal comment..."></textarea></div><button class="btn sm primary" id="postUpdate">Post Update</button><div class="list" id="updates"></div>
+        </div>
+
+        <div class="panel" id="panel-history"><div class="list" id="history"></div></div>
+
+        <div class="panel" id="panel-completion">
+          <div class="two-col">
+            <div><div class="section-title" style="margin-top:0"><div><h2>Completion Readiness</h2><p>Policy gates remain enforced.</p></div></div><div id="completionChecks"></div><div class="actions" style="margin-top:12px"><button class="btn sm" id="transmittalBtn">Generate Transmittal</button><button class="btn sm green" id="cocBtn">Issue COC</button><button class="btn sm primary" id="closeProjectBtn">Close Project</button></div></div>
+            <div><div class="section-title" style="margin-top:0"><h2>Client Completion Package</h2></div><div class="card process-card" id="clientPackage"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODALS -->
+<div class="modal" id="outlineModal"><div class="modalbox"><h3>Bulk Add / Outline Builder</h3><p class="small">Paste an indented outline to add Tasks quickly.</p><div class="outline"><textarea id="outlineInput">BIR Processing
+  Prepare ONETT documents
+  Compute documentary stamp tax
+  Submit transfer documents
+  Follow up eCAR
+Closing
+  Update Stock and Transfer Book
+  Prepare final report</textarea><div class="card process-card"><strong>Preview</strong><div id="outlinePreview" class="small" style="line-height:1.8;margin-top:8px"></div></div></div><div class="modal-actions"><button class="btn sm close-modal">Cancel</button><button class="btn sm primary" id="importOutline">Import</button></div></div></div>
+
+<div class="modal" id="templateModal"><div class="modalbox"><h3>Project / SOW Templates</h3><div class="settings"><div class="card process-card"><strong>Share Transfer — Standard</strong><p class="small">Corporate review, transfer documentation, BIR, records update and closing.</p><button class="btn sm primary template-use">Use Template</button></div><div class="card process-card"><strong>SEC Registration — Standard</strong><p class="small">Drafting, signatures, filing, monitoring and closing.</p><button class="btn sm primary template-use">Use Template</button></div></div><div class="modal-actions"><button class="btn sm close-modal">Close</button></div></div></div>
+
+<div class="modal" id="fileModal"><div class="modalbox"><h3>Add File / Evidence</h3><form id="fileForm"><div class="form-group"><label>Name</label><input id="fileName" value="Executed Deed of Assignment.pdf"></div><div class="form-group"><label>Classification</label><select id="fileClass"><option>Internal Working File</option><option>Supporting Evidence</option><option>Client Report Item</option><option>Deliverable</option><option>Appendix</option><option>Final Delivery</option></select></div><div class="form-group"><label>Stage</label><select id="fileStage"><option>Execution</option><option>SOW</option><option>Review</option><option>NTP</option><option>Reporting</option><option>Delivery</option><option>Completion</option></select></div><label class="checkline"><input id="includeReport" type="checkbox" checked><span>Include in Client Report</span></label><label class="checkline"><input id="linkRecords" type="checkbox" checked><span>Link to Records Management</span></label><div class="modal-actions"><button type="button" class="btn sm close-modal">Cancel</button><button class="btn sm primary" type="submit">Add Evidence</button></div></form></div></div>
+
+<div class="modal" id="clientModal"><div class="modalbox"><h3>Create Client Action</h3><form id="clientForm"><div class="form-group"><label>Type</label><select id="clientType"><option>Approve / Sign</option><option>Upload Requirement</option><option>Confirm Completion</option><option>Review / Comment</option></select></div><div class="form-group"><label>Subject</label><input id="clientSubject" value="Confirm project completion and final delivery"></div><p class="small">Available channels: Client Portal · Secure Link · Recorded Email · Manual / Wet Signature</p><div class="modal-actions"><button type="button" class="btn sm close-modal">Cancel</button><button class="btn sm primary" type="submit">Create Action</button></div></form></div></div>
+
+<div class="modal" id="stageModal"><div class="modalbox"><h3 id="stageTitle"></h3><div id="stageBody" class="small" style="line-height:1.7"></div><div class="modal-actions"><button class="btn sm close-modal">Close</button></div></div></div>
+
+<div class="modal" id="createModal"><div class="modalbox"><h3>Create Project</h3><div class="policy"><strong>Normal route:</strong> Approved CASA / START / Service Memo. Manual Project is a controlled exception.</div><div class="form-group"><label>Create From</label><select><option>Approved START / Service Memo</option><option>Manual / Exceptional</option></select></div><div class="form-group"><label>SOW Template</label><select><option>Resolve from Service Master</option><option>Share Transfer — Standard</option></select></div><div class="modal-actions"><button class="btn sm close-modal">Cancel</button><button class="btn sm primary close-modal">Create & Open</button></div></div></div>
+
+<script>
+(function(){
+const stages=['Work Order','SOW','Review','NTP','Execution','Reporting','Presentation','Delivery','Completion'];
+const projects=[
+{id:120,ref:'PROJ-2026-120',deal:'CONDEAL-2026-065',start:'START-2026-018',memo:'SM-2026-087',title:'Transfer of Share From Dany and Ronald to X10',client:'May Flor D. Dabatos',business:'X10 REAL ESTATE CORPORATION',stage:'Execution',progress:64,target:'Sep 18, 2026',health:'On Track',myRole:'Lead Consultant',lead:'John Kelly Abalde',people:4,next:'Review transfer document draft',elapsed:'11d 7h',handling:'21h 42m',aht:'1h 13m',waiting:'3d 8h'},
+{id:119,ref:'PROJ-2026-119',deal:'CONDEAL-2026-066',start:'START-2026-019',memo:'SM-2026-088',title:'Transfer Shares Ronald to Stephan',client:'Stephan Tenten',business:'Individual',stage:'SOW',progress:18,target:'Sep 18, 2026',health:'On Track',myRole:'Consultant',lead:'Lyndon Earl Rio',people:3,next:'Complete SOW dates',elapsed:'4d 2h',handling:'5h 30m',aht:'55m',waiting:'8h'},
+{id:118,ref:'PROJ-2026-118',deal:'CONDEAL-2026-054',start:'START-2026-014',memo:'SM-2026-074',title:'Transfer Shares Mandaluyong and Makati',client:'Doc Willy Dublin',business:'Sanarex Med Group Inc.',stage:'Execution',progress:52,target:'Sep 11, 2026',health:'Needs Attention',myRole:'Lead Consultant',lead:'John Kelly Abalde',people:5,next:'Client signed documents',elapsed:'14d 6h',handling:'19h 10m',aht:'1h 21m',waiting:'5d 3h'},
+{id:115,ref:'PROJ-2026-115',deal:'CONDEAL-2026-061',start:'START-2026-011',memo:'SM-2026-071',title:'SEC Registration',client:'Chris Anderson',business:'Clear Path',stage:'Reporting',progress:88,target:'Sep 11, 2026',health:'On Track',myRole:'Lead Consultant',lead:'John Kelly Abalde',people:3,next:'Approve SOW Report',elapsed:'21d',handling:'27h 40m',aht:'1h 33m',waiting:'6d 1h'},
+{id:113,ref:'PROJ-2026-113',deal:'CONDEAL-2026-034',start:'START-2026-010',memo:'SM-2026-070',title:'BIR and LGU Business Closure',client:'X10',business:'X10 REAL ESTATE CORPORATION',stage:'Execution',progress:48,target:'Sep 11, 2026',health:'At Risk',myRole:'Consultant',lead:'Lyndon Earl Rio',people:4,next:'Approve BIR filing package',elapsed:'18d',handling:'23h 10m',aht:'1h 17m',waiting:'7d'},
+{id:110,ref:'PROJ-2026-110',deal:'CONDEAL-2026-036',start:'START-2026-006',memo:'SM-2026-058',title:'Tax Clearance',client:'Criminology Anti Crime Agency',business:'Criminology Anti Crime Agency, Inc.',stage:'Completed',progress:100,target:'Aug 07, 2026',health:'Completed',myRole:'Lead Consultant',lead:'Lyndon Earl Rio',people:3,next:'Closed',elapsed:'17d 3h',handling:'15h 22m',aht:'58m',waiting:'6d 8h',coc:'COC-2026-044'}
+];
+const streams=[
+{id:'ws1',name:'Share Transfer Documentation',tasks:[
+{id:'t1',title:'Review existing corporate and share ownership records',assignee:'Rubeca Potayre',est:'1h',status:'Completed',seconds:2880,report:true},
+{id:'t2',title:'Verify shares to be transferred by Dany and Ronald',assignee:'Rubeca Potayre',est:'1h',status:'Completed',seconds:3180,report:true},
+{id:'t3',title:'Prepare applicable share transfer documents',assignee:'Rubeca Potayre',est:'2h',status:'In Progress',seconds:4200,report:true},
+{id:'t4',title:'Coordinate execution and signing of transfer documents',assignee:'John Kelly Abalde',est:'2h',status:'Pending Client',seconds:1800,report:true},
+{id:'t5',title:'Facilitate notarization of applicable documents',assignee:'Rubeca Potayre',est:'1h',status:'Ready',seconds:0,report:true}]},
+{id:'ws2',name:'BIR Share Transfer Processing',tasks:[
+{id:'t6',title:'Prepare and organize applicable BIR requirements',assignee:'Rubeca Potayre',est:'2h',status:'Ready',seconds:0,report:true},
+{id:'t7',title:'Prepare ONETT / documentary stamp requirements',assignee:'John Kelly Abalde',est:'2h',status:'Ready',seconds:0,report:true},
+{id:'t8',title:'Submit and monitor BIR share transfer processing',assignee:'Rubeca Potayre',est:'4h',status:'Ready',seconds:0,report:true}]}
+];
+const deliverables=[['Executed Deed(s) of Assignment','Ready'],['Notarized Share Transfer Documents','In Progress'],['BIR / eCAR Output','Pending'],['Updated Stock and Transfer Book','Pending'],['Final SOW Report','Pending'],['Final Client Closing Package','Pending']].map(x=>({name:x[0],status:x[1]}));
+const files=[{name:'Draft Deed of Assignment.pdf',class:'Internal Working File',stage:'Execution',report:false,record:'—'},{name:'Existing Stock and Transfer Book.pdf',class:'Supporting Evidence',stage:'Execution',report:true,record:'REC-2026-1841'},{name:'Signed SPA.pdf',class:'Client Report Item',stage:'Execution',report:true,record:'REC-2026-1847'}];
+const clientActions=[{subject:'Approve Notice to Proceed',type:'Approve / Sign',status:'Completed',method:'Manual / Wet Signature',date:'Aug 18, 2026'},{subject:'Upload signed share transfer documents',type:'Upload Requirement',status:'Pending',method:'Secure Link + Email',date:'Aug 24, 2026'}];
+const updates=[{text:'All transfer documentation drafts are ready for final review.',user:'Rubeca Potayre',at:'Aug 25, 2026 3:20 PM'},{text:'Client signed SPA received and linked to Records Management.',user:'John Kelly Abalde',at:'Aug 24, 2026 5:14 PM'}];
+const history=[{action:'Project created from issued Service Memo',at:'Aug 17, 2026 9:14 AM'},{action:'SOW v1.0 internally approved',at:'Aug 17, 2026 3:22 PM'},{action:'NTP approved from manual/wet-signed evidence',at:'Aug 18, 2026 10:31 AM'},{action:'Execution unlocked',at:'Aug 18, 2026 10:32 AM'},{action:'Supporting record linked: Signed SPA.pdf',at:'Aug 24, 2026 5:14 PM'}];
+const state={role:'management',current:120,last:'overview',projectTimer:{state:'stopped',seconds:0,startedAt:null},taskTimers:{},active:null,ticker:null};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const badge=s=>`<span class="badge ${s==='Completed'||s==='Ready'?'green':s==='Pending'||s==='Pending Client'?'amber':s==='In Progress'?'purple':s==='At Risk'||s==='Needs Attention'?'red':'blue'}">${esc(s)}</span>`;
+const cur=()=>projects.find(p=>p.id===state.current)||projects[0];
+const allTasks=()=>streams.flatMap(w=>w.tasks.map(t=>({...t,stream:w.name})));
+function fmt(sec){sec=Math.max(0,Math.floor(sec||0));let h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+function dur(sec){sec=Math.max(0,Math.floor(sec||0));let h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60);return h?`${h}h ${m}m`:`${m}m`}
+function openModal(id){$(id).classList.add('open')}
+function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
+function show(name){
+ document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));$('screen-'+name).classList.add('active');
+ document.querySelectorAll('.project-sub').forEach(x=>x.classList.toggle('active',x.dataset.screen===name));
+ if(name!=='project')state.last=name;
+}
+function setRole(){
+ state.role=$('roleScope').value;document.querySelectorAll('.mgmt-only').forEach(x=>x.classList.toggle('hidden',state.role!=='management'));
+ if(state.role==='ordinary'){
+   $('overviewTitle').textContent='My Project Overview';$('overviewDesc').textContent='My projects, my process, handling time, AHT, deadlines, quality and next actions.';
+   $('overviewSectionTitle').textContent='My Active Projects';$('overviewSectionDesc').textContent='Only projects where I am assigned.';
+   $('registryTitle').textContent='My Project Registry';$('registryDesc').textContent='My accountable and participating projects.';
+   $('reportScope').textContent='My personal Project reports and performance.';
+ }else{
+   $('overviewTitle').textContent='Project';$('overviewDesc').textContent='Approved project and hybrid deals automatically open here, with SOW, NTP, execution, reporting, delivery, and completion tracked inside one record.';
+   $('overviewSectionTitle').textContent='Project Registry';$('overviewSectionDesc').textContent='Company-wide project view for authorized management.';
+   $('registryTitle').textContent='Project Registry';$('registryDesc').textContent='Operational projects with live stage, health and next action.';
+   $('reportScope').textContent='Full Project portfolio reports for authorized management.';
+ }
+ renderOverview();
+ if(state.role==='ordinary'&&($('screen-all').classList.contains('active')||$('screen-settings').classList.contains('active')))show('overview');
+}
+function renderOverview(){
+ const personal=state.role==='ordinary';
+ const data=personal?[['My Active Projects','6','blue','assigned to me'],['Needs My Action','3','amber','review / task / follow-up'],['My Handling Time','38h 24m','','this month'],['My AHT','1h 06m','','task average'],['My On-Time','92%','green','completed work']]:
+ [['All Projects','31','','organization-wide'],['SOW','4','blue','planning / approval'],['Execution','15','blue','active execution'],['Needs Attention','5','amber','exceptions'],['Completed','10','green','this month']];
+ $('overviewKpis').innerHTML=data.map(x=>`<div class="kpi ${x[2]}"><label>${x[0]}</label><strong>${x[1]}</strong><small>${x[3]}</small></div>`).join('');
+ const counts=personal?[0,2,1,0,3,1,0,0,5]:[2,4,3,5,15,4,2,3,10];
+ $('overviewProcess').innerHTML=stages.map((s,i)=>`<button class="stage"><strong>${counts[i]}</strong><small>${s}</small></button>`).join('');
+ const rows=personal?projects.filter(p=>p.id!==110):projects;
+ $('overviewTable').innerHTML=rows.slice(0,8).map(p=>`<tr><td><div class="row-title">${esc(p.title)}</div><div class="row-sub">${p.ref} · ${p.deal}</div></td><td>${esc(p.business)}</td><td>${badge(p.stage)}</td><td>${personal?p.myRole:p.lead}</td><td>${p.progress}%</td><td>${p.target}</td><td>${badge(p.health)}</td><td><button class="btn sm open-project" data-id="${p.id}">View</button></td></tr>`).join('');
+ wireOpen();
+}
+function renderLists(){
+ $('myProcess').innerHTML=stages.map((s,i)=>`<button class="stage"><strong>${[0,2,1,0,3,1,0,0,5][i]}</strong><small>${s}</small></button>`).join('');
+ $('myProjects').innerHTML=projects.filter(p=>p.id!==110).map(p=>`<tr><td><div class="row-title">${p.title}</div><div class="row-sub">${p.ref}</div></td><td>${p.myRole}</td><td>${badge(p.stage)}</td><td>${p.progress}%</td><td>${p.handling}</td><td>${p.next}</td><td><button class="btn sm open-project" data-id="${p.id}">Open</button></td></tr>`).join('');
+ $('collabTable').innerHTML=projects.filter(p=>p.people>2&&p.id!==110).map(p=>`<tr><td><div class="row-title">${p.title}</div><div class="row-sub">${p.ref}</div></td><td>${p.myRole}</td><td>${p.lead}</td><td>${p.people}</td><td>${badge(p.stage)}</td><td>${p.next}</td><td><button class="btn sm open-project" data-id="${p.id}">Open</button></td></tr>`).join('');
+ wireOpen();
+}
+function renderAll(){
+ const q=$('allSearch').value.toLowerCase(),s=$('allStage').value;
+ $('allTable').innerHTML=projects.filter(p=>(!q||(p.title+p.business+p.ref).toLowerCase().includes(q))&&(!s||p.stage===s)).map(p=>`<tr><td><div class="row-title">${p.title}</div><div class="row-sub">${p.ref}</div></td><td>${p.deal}</td><td>${p.business}</td><td>${badge(p.stage)}</td><td>${p.lead}<div class="row-sub">+${Math.max(0,p.people-1)} involved</div></td><td>${p.progress}%</td><td>${p.target}</td><td>${badge(p.health)}</td><td><button class="btn sm open-project" data-id="${p.id}">View</button></td></tr>`).join('');
+ wireOpen();
+}
+function renderReports(){
+ const r=['Executive Project Portfolio','Project Registry','Project Status','Health & Exceptions','Schedule / TAT','SOW & Deliverables','Task & Activity','Workload & Assignment','Collaboration / Handoff','Pending Client','Project Change','Quality / Rework','Completion','Documents / Records','Time & AHT'];
+ $('reportCards').innerHTML=r.map(n=>`<div class="card process-card"><strong>${n}</strong><p class="small">Preview or export the current authorized data scope.</p><div class="actions"><button class="btn sm report-preview" data-r="${n}">Preview</button><button class="btn sm report-export" data-r="${n}">Export</button></div></div>`).join('');
+ document.querySelectorAll('.report-preview').forEach(b=>b.addEventListener('click',()=>alert(`${b.dataset.r}\n\nThis report inherits the current user scope and filters.`)));
+ document.querySelectorAll('.report-export').forEach(b=>b.addEventListener('click',()=>download(`${b.dataset.r}.csv`,`Report,Scope\n"${b.dataset.r}","${state.role}"`)));
+}
+function wireOpen(){document.querySelectorAll('.open-project').forEach(b=>b.addEventListener('click',()=>openProject(Number(b.dataset.id))))}
+function openProject(id){state.current=id;renderProject();show('project')}
+function renderProject(){
+ const p=cur();$('pTitle').textContent=p.title;$('pRefs').textContent=`${p.ref} · ${p.deal} · ${p.start} · ${p.memo}`;
+ $('pChips').innerHTML=[`Business: ${p.business}`,`Client: ${p.client}`,`My Role: ${p.myRole}`,`Lead: ${p.lead}`,`Target: ${p.target}`].map(x=>`<span class="chip">${esc(x)}</span>`).join('');
+ const idx=stages.indexOf(p.stage==='Completed'?'Completion':p.stage);
+ $('pProcess').innerHTML=stages.map((s,i)=>`<button class="stage ${i<idx?'done':i===idx?'current':''}" data-stage="${s}"><strong>${i<idx?'✓':i===idx?'●':'○'}</strong><small>${s}</small></button>`).join('');
+ document.querySelectorAll('#pProcess .stage').forEach(b=>b.addEventListener('click',()=>stageInfo(b.dataset.stage)));
+ updateProjectKpis();renderDashboard();renderScope();renderExecution();renderDeliverables();renderClientActions();renderFiles();renderTime();renderUpdates();renderHistory();renderReport();renderCompletion();
+ $('pNext').innerHTML=p.stage==='Completed'?`<div><strong>Project Completed</strong><div class="small">${p.coc||'COC issued'} · ${p.elapsed} cycle time</div></div><button class="btn sm" data-jump="completion">View Completion</button>`:`<div><strong>Next Required Action</strong><div>${p.next}</div><div class="small">Current stage: ${p.stage}</div></div><button class="btn sm primary" data-jump="${p.stage==='Reporting'?'reports':'execution'}">Open Action</button>`;
+ document.querySelectorAll('[data-jump]').forEach(b=>b.addEventListener('click',()=>switchPanel(b.dataset.jump)));
+}
+function updateProjectKpis(){
+ const p=cur(),done=allTasks().filter(t=>t.status==='Completed').length,total=allTasks().length;
+ $('pKpis').innerHTML=[['Overall Progress',p.id===120?Math.round(done/total*100)+'%':p.progress+'%'],['Handling Time',p.id===120?dur(projectHandling()):p.handling],['Project AHT',p.aht],['Elapsed Time',p.elapsed],['Waiting Time',p.waiting],['Tasks',p.id===120?`${done}/${total}`:'—'],['Deliverables',`${deliverables.filter(d=>d.status==='Ready').length}/${deliverables.length}`],['Schedule',p.health]].map(x=>`<div class="pkpi"><label>${x[0]}</label><strong>${x[1]}</strong></div>`).join('');
+}
+function renderDashboard(){
+ $('dashStreams').innerHTML=streams.map(w=>{let d=w.tasks.filter(t=>t.status==='Completed').length,p=Math.round(d/w.tasks.length*100);return `<div class="workstream"><div class="ws-head"><div><strong>${w.name}</strong><div class="small">${d}/${w.tasks.length} complete · ${dur(w.tasks.reduce((s,t)=>s+t.seconds,0))}</div></div><span class="badge blue">${p}%</span></div><div style="padding:12px"><div class="progress"><i style="width:${p}%"></i></div></div></div>`}).join('');
+ $('authority').innerHTML=[['Source Deal',cur().deal],['START',cur().start],['Service Memo',cur().memo],['Project Manager','John Kelly Abalde'],['Lead Consultant','John Kelly Abalde / Lyndon Earl Rio'],['Lead Associate','Rubeca Potayre']].map(x=>`<div class="item"><div class="item-main"><div class="item-title">${x[0]}</div><div class="item-meta">${x[1]}</div></div></div>`).join('');
+ $('recent').innerHTML=history.slice(0,4).map(h=>`<div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">${h.action}</div><div class="item-meta">${h.at}</div></div></div>`).join('');
+}
+function renderScope(){
+ $('scopeStreams').innerHTML=streams.map(w=>`<div class="workstream"><div class="ws-head"><div><strong>${w.name}</strong><div class="small">${w.tasks.length} tasks</div></div><div class="actions"><button class="btn sm dup-ws" data-ws="${w.id}">Duplicate</button><button class="btn sm add-task" data-ws="${w.id}">+ Task</button></div></div>${w.tasks.map(t=>`<div class="taskrow"><div class="taskcell"><div class="taskname">${t.title}</div><div class="small">${t.id}</div></div><div class="taskcell">${t.assignee}</div><div class="taskcell">${t.est}</div><div class="taskcell">${badge(t.status)}</div><div class="taskcell"><label class="small"><input class="reportflag" data-id="${t.id}" type="checkbox" ${t.report?'checked':''}> Client report</label></div><div class="taskcell"><button class="btn sm dup-task" data-id="${t.id}">Duplicate</button></div></div>`).join('')}</div>`).join('');
+ wireTaskTools();
+}
+function taskTimer(t){state.taskTimers[t.id]=state.taskTimers[t.id]||{state:'stopped',started:null};return state.taskTimers[t.id]}
+function getTaskSeconds(t){let tm=taskTimer(t);return t.seconds+(tm.state==='running'&&tm.started?Math.floor((Date.now()-tm.started)/1000):0)}
+function renderExecution(){
+ $('executionStreams').innerHTML=streams.map(w=>`<div class="workstream"><div class="ws-head"><div><strong>${w.name}</strong><div class="small">${w.tasks.filter(t=>t.status==='Completed').length}/${w.tasks.length} complete</div></div><span class="badge blue">${dur(w.tasks.reduce((s,t)=>s+getTaskSeconds(t),0))}</span></div>${w.tasks.map(t=>`<div class="taskrow"><div class="taskcell"><div class="taskname">${t.title}</div><div class="small">${t.assignee}</div></div><div class="taskcell">${t.est}</div><div class="taskcell">${badge(t.status)}</div><div class="taskcell"><strong>${dur(getTaskSeconds(t))}</strong></div><div class="taskcell"><div class="actions"><button class="workbtn start tstart" data-id="${t.id}">▶</button><button class="workbtn pause tpause" data-id="${t.id}">Ⅱ</button><button class="workbtn stop tstop" data-id="${t.id}">■</button><button class="workbtn tdone" data-id="${t.id}">✓</button></div></div><div class="taskcell"><button class="btn sm task-evidence">+ Evidence</button></div></div>`).join('')}</div>`).join('');
+ wireTimers();
+}
+function findTask(id){return streams.flatMap(x=>x.tasks).find(t=>t.id===id)}
+function findWs(id){return streams.find(x=>x.id===id)}
+function wireTaskTools(){
+ document.querySelectorAll('.dup-task').forEach(b=>b.addEventListener('click',()=>duplicateTask(b.dataset.id)));
+ document.querySelectorAll('.dup-ws').forEach(b=>b.addEventListener('click',()=>duplicateWs(b.dataset.ws)));
+ document.querySelectorAll('.add-task').forEach(b=>b.addEventListener('click',()=>quickTask(b.dataset.ws)));
+ document.querySelectorAll('.reportflag').forEach(c=>c.addEventListener('change',()=>{let t=findTask(c.dataset.id);if(t)t.report=c.checked;renderReport()}));
+}
+function duplicateTask(id){let t=findTask(id),w=streams.find(x=>x.tasks.includes(t));if(!t)return;w.tasks.push({...t,id:'t'+Date.now(),title:t.title+' (Copy)',status:'Ready',seconds:0});history.unshift({action:`Task duplicated: ${t.title}`,at:new Date().toLocaleString()});renderScope();renderExecution();updateProjectKpis()}
+function duplicateWs(id){let w=findWs(id)||streams[0];streams.push({id:'ws'+Date.now(),name:w.name+' (Copy)',tasks:w.tasks.map(t=>({...t,id:'t'+Math.random().toString(36).slice(2,8),status:'Ready',seconds:0}))});history.unshift({action:`Workstream duplicated: ${w.name}`,at:new Date().toLocaleString()});renderScope();renderExecution();renderDashboard();updateProjectKpis()}
+function quickTask(ws){let w=findWs(ws)||streams[0],title=prompt('Quick Task title');if(!title)return;w.tasks.push({id:'t'+Date.now(),title,assignee:'Unassigned',est:'1h',status:'Ready',seconds:0,report:true});history.unshift({action:`Quick Task added: ${title}`,at:new Date().toLocaleString()});renderScope();renderExecution();updateProjectKpis()}
+function stopActive(){if(!state.active)return;if(state.active.type==='project')stopProject(true);else{let t=findTask(state.active.id);if(t)stopTask(t,true)}state.active=null}
+function startTask(t){let tm=taskTimer(t);if(t.status==='Completed'||tm.state==='running')return;if(state.active)stopActive();tm.state='running';tm.started=Date.now();state.active={type:'task',id:t.id};t.status='In Progress';history.unshift({action:`Timer started: ${t.title}`,at:new Date().toLocaleString()});ensureTicker();renderExecution();renderTime();updateProjectKpis()}
+function pauseTask(t){let tm=taskTimer(t);if(tm.state!=='running')return;t.seconds+=Math.floor((Date.now()-tm.started)/1000);tm.state='paused';tm.started=null;state.active=null;history.unshift({action:`Timer paused: ${t.title}`,at:new Date().toLocaleString()});renderExecution();renderTime()}
+function stopTask(t,silent=false){let tm=taskTimer(t);if(tm.state==='running')t.seconds+=Math.floor((Date.now()-tm.started)/1000);tm.state='stopped';tm.started=null;if(state.active?.id===t.id)state.active=null;if(!silent)history.unshift({action:`Timer stopped: ${t.title}`,at:new Date().toLocaleString()});renderExecution();renderTime();updateProjectKpis()}
+function doneTask(t){stopTask(t,true);t.status='Completed';history.unshift({action:`Task completed: ${t.title}`,at:new Date().toLocaleString()});renderProject()}
+function wireTimers(){
+ document.querySelectorAll('.tstart').forEach(b=>b.addEventListener('click',()=>startTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tpause').forEach(b=>b.addEventListener('click',()=>pauseTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tstop').forEach(b=>b.addEventListener('click',()=>stopTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tdone').forEach(b=>b.addEventListener('click',()=>doneTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.task-evidence').forEach(b=>b.addEventListener('click',()=>openModal('fileModal')));
+}
+function projectSec(){let x=state.projectTimer;return x.seconds+(x.state==='running'&&x.startedAt?Math.floor((Date.now()-x.startedAt)/1000):0)}
+function projectHandling(){return projectSec()+allTasks().reduce((s,t)=>s+getTaskSeconds(t),0)}
+function startProject(){if(state.projectTimer.state==='running')return;if(state.active)stopActive();state.projectTimer.state='running';state.projectTimer.startedAt=Date.now();state.active={type:'project'};history.unshift({action:'Project direct timer started',at:new Date().toLocaleString()});ensureTicker();updateProjectTimer()}
+function pauseProject(){let x=state.projectTimer;if(x.state!=='running')return;x.seconds+=Math.floor((Date.now()-x.startedAt)/1000);x.state='paused';x.startedAt=null;state.active=null;history.unshift({action:'Project direct timer paused',at:new Date().toLocaleString()});updateProjectTimer();renderTime()}
+function stopProject(silent=false){let x=state.projectTimer;if(x.state==='running')x.seconds+=Math.floor((Date.now()-x.startedAt)/1000);x.state='stopped';x.startedAt=null;if(state.active?.type==='project')state.active=null;if(!silent)history.unshift({action:'Project direct timer stopped',at:new Date().toLocaleString()});updateProjectTimer();renderTime();updateProjectKpis()}
+function updateProjectTimer(){$('pClock').textContent=fmt(projectSec());$('pTimerState').textContent=state.projectTimer.state==='running'?'Project Work':state.projectTimer.state==='paused'?'Paused':'Project Direct'}
+function ensureTicker(){if(state.ticker)return;state.ticker=setInterval(()=>{updateProjectTimer();if($('screen-project').classList.contains('active')){if($('panel-execution').classList.contains('active'))renderExecution();if($('panel-time').classList.contains('active'))renderTime();updateProjectKpis()}},1000)}
+function renderDeliverables(){
+ $('deliverables').innerHTML=deliverables.map((d,i)=>`<div class="checkline"><div class="item-main"><div class="item-title">${d.name}</div><div class="item-meta">Required deliverable</div></div>${badge(d.status)}<button class="btn sm advance-delivery" data-i="${i}">Advance</button></div>`).join('');
+ document.querySelectorAll('.advance-delivery').forEach(b=>b.addEventListener('click',()=>{let d=deliverables[+b.dataset.i];d.status=d.status==='Pending'?'In Progress':'Ready';history.unshift({action:`Deliverable updated: ${d.name} → ${d.status}`,at:new Date().toLocaleString()});renderDeliverables();renderCompletion();updateProjectKpis()}));
+}
+function renderClientActions(){$('clientActions').innerHTML=clientActions.map(a=>`<div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">${a.subject}</div><div class="item-meta">${a.type} · ${a.method} · ${a.date}</div></div>${badge(a.status)}</div>`).join('')}
+function renderFiles(){$('files').innerHTML=files.map(f=>`<div class="file-row"><div><div class="item-title">${f.name}</div><div class="item-meta">${f.record}</div></div><div>${badge(f.class)}</div><div>${f.stage}</div><div>${f.report?'✓ Client Report':'Internal only'}</div><button class="btn sm">Preview</button></div>`).join('')}
+function renderTime(){
+ let direct=projectSec(),task=allTasks().reduce((s,t)=>s+getTaskSeconds(t),0),total=direct+task,completed=Math.max(1,allTasks().filter(t=>t.status==='Completed').length);
+ $('timeKpis').innerHTML=[['Estimated Handling','32h'],['Direct Project Time',dur(direct)],['Task Time',dur(task)],['Total Handling',dur(total)],['Current AHT',dur(total/completed)]].map(x=>`<div class="kpi"><label>${x[0]}</label><strong>${x[1]}</strong></div>`).join('');
+ let people={};allTasks().forEach(t=>people[t.assignee]=(people[t.assignee]||0)+getTaskSeconds(t));people['John Kelly Abalde']=(people['John Kelly Abalde']||0)+direct;
+ $('timePeople').innerHTML=Object.entries(people).map(([n,s])=>`<div class="checkline"><span style="flex:1">${n}</span><strong>${dur(s)}</strong></div>`).join('');
+ $('timeSessions').innerHTML=history.filter(h=>h.action.toLowerCase().includes('timer')).slice(0,8).map(h=>`<div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">${h.action}</div><div class="item-meta">${h.at}</div></div></div>`).join('')||'<div class="small">Start a Project or Task timer to create time sessions.</div>';
+}
+function renderUpdates(){$('updates').innerHTML=updates.map(u=>`<div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">${u.text}</div><div class="item-meta">${u.user} · ${u.at}</div></div></div>`).join('')}
+function renderHistory(){$('history').innerHTML=history.map(h=>`<div class="item"><div class="dot"></div><div class="item-main"><div class="item-title">${h.action}</div><div class="item-meta">${h.at}</div></div></div>`).join('')}
+function renderReport(){
+ let items=allTasks().filter(t=>t.report);
+ $('reportItems').innerHTML=items.map(t=>`<label class="checkline"><input type="checkbox" checked><span><strong>${t.title}</strong><br><span class="small">${t.stream} · ${t.status} · ${dur(getTaskSeconds(t))}</span></span></label>`).join('');
+ $('reportPreview').innerHTML=`<h2>PROJECT COMPLETION / SOW REPORT</h2><p><strong>Project:</strong> ${cur().title}<br><strong>Project No.:</strong> ${cur().ref}<br><strong>Client:</strong> ${cur().client}<br><strong>Handling Time:</strong> ${dur(projectHandling())}</p><h3>Work Performed</h3><ul>${items.map(t=>`<li>${t.title} — ${t.status}</li>`).join('')}</ul><h3>Issues & Observations</h3><p>${$('rIssues')?.value||''}</p><h3>Recommendations</h3><p>${$('rRecommendations')?.value||''}</p><h3>Summary & Way Forward</h3><p>${$('rWay')?.value||''}</p><h3>Supporting Evidence</h3><ul>${files.filter(f=>f.report).map(f=>`<li>${f.name}</li>`).join('')}</ul>`;
+}
+function completion(){
+ let p=cur(),tasks=p.stage==='Completed'||allTasks().every(t=>t.status==='Completed'),dels=p.stage==='Completed'||deliverables.every(d=>d.status==='Ready'),report=p.stage==='Completed'||deliverables.find(d=>d.name==='Final SOW Report')?.status==='Ready',trans=!!p.transmittal||p.stage==='Completed',coc=!!p.coc||p.stage==='Completed';return{tasks,dels,report,trans,coc}
+}
+function renderCompletion(){
+ let c=completion(),checks=[['Approved SOW / NTP valid',true],['All required Tasks completed',c.tasks],['All required Deliverables ready',c.dels],['Final SOW Report approved',c.report],['Presentation complete / N/A',true],['Transmittal issued',c.trans],['No critical unresolved issue',true],['Certificate of Completion issued',c.coc]];
+ $('completionChecks').innerHTML=checks.map(x=>`<div class="checkline"><span style="font-size:16px">${x[1]?'✓':'○'}</span><div class="item-main"><div class="item-title">${x[0]}</div></div>${badge(x[1]?'Completed':'Pending')}</div>`).join('');
+ $('transmittalBtn').disabled=!(c.tasks&&c.dels&&c.report)||c.trans;$('cocBtn').disabled=!c.trans||c.coc;$('closeProjectBtn').disabled=!c.coc;
+ $('clientPackage').innerHTML=`<div class="checkline"><span style="flex:1">Final SOW Report</span><strong>${c.report?'Ready':'Pending'}</strong></div><div class="checkline"><span style="flex:1">Deliverables</span><strong>${deliverables.filter(d=>d.status==='Ready').length}/${deliverables.length}</strong></div><div class="checkline"><span style="flex:1">Transmittal</span><strong>${c.trans?'Issued':'Pending'}</strong></div><div class="checkline"><span style="flex:1">COC</span><strong>${c.coc?'Issued':'Pending'}</strong></div>`;
+}
+function switchPanel(name){document.querySelectorAll('#pTabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.panel===name));document.querySelectorAll('#screen-project .panel').forEach(p=>p.classList.remove('active'));$('panel-'+name).classList.add('active');if(name==='time')renderTime();if(name==='reports')renderReport();if(name==='history')renderHistory();if(name==='completion')renderCompletion()}
+function stageInfo(s){let n={'Work Order':'Created from Service Memo and registers the Project.','SOW':'Defines approved scope, tasks, deliverables, responsibility and exclusions.','Review':'Internal validation and controlled revisions.','NTP':'Client approval authorizing execution. No NTP means execution remains locked.','Execution':'Approved SOW work using Task/Child Task timers, evidence and activities.','Reporting':'SOW Report built from execution data and professional assessment.','Presentation':'Conditional when advisory/reporting output requires presentation.','Delivery':'Final outputs delivered through Transmittal.','Completion':'COC issued after readiness. No COC means no closure.'};$('stageTitle').textContent=s;$('stageBody').innerHTML=`<strong>${cur().ref}</strong><br>${n[s]}`;openModal('stageModal')}
+function download(name,text){let blob=new Blob([text],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),700)}
+function previewOutline(){let lines=$('outlineInput').value.split(/\r?\n/).filter(x=>x.trim());$('outlinePreview').innerHTML=lines.map(l=>{let n=l.match(/^\s*/)[0].length;return `<div style="padding-left:${n*8}px">${n?'↳ ':''}${l.trim()}</div>`}).join('')}
+function importOutline(){let lines=$('outlineInput').value.split(/\r?\n/).filter(x=>x.trim()),ws=null;lines.forEach(l=>{let n=l.match(/^\s*/)[0].length,title=l.trim();if(n===0){ws={id:'ws'+Math.random().toString(36).slice(2,7),name:title,tasks:[]};streams.push(ws)}else if(ws)ws.tasks.push({id:'t'+Math.random().toString(36).slice(2,8),title,assignee:'Unassigned',est:'1h',status:'Ready',seconds:0,report:true})});history.unshift({action:`Bulk outline imported: ${lines.length} items`,at:new Date().toLocaleString()});closeModals();renderScope();renderExecution();renderDashboard();updateProjectKpis()}
+function addEvidence(e){e.preventDefault();files.push({name:$('fileName').value,class:$('fileClass').value,stage:$('fileStage').value,report:$('includeReport').checked,record:$('linkRecords').checked?'REC-DEMO-'+(1800+files.length):'—'});history.unshift({action:`Evidence added: ${$('fileName').value}`,at:new Date().toLocaleString()});closeModals();renderFiles();renderReport();renderHistory()}
+function addClient(e){e.preventDefault();clientActions.push({subject:$('clientSubject').value,type:$('clientType').value,status:'Pending',method:'Portal / Link / Email / Manual',date:'Aug 25, 2026'});history.unshift({action:`Client Action created: ${$('clientSubject').value}`,at:new Date().toLocaleString()});closeModals();renderClientActions();renderHistory()}
+function addDeliv(){let n=prompt('Deliverable name');if(n){deliverables.push({name:n,status:'Pending'});renderDeliverables();renderCompletion()}}
+function postUpdate(){let t=$('updateText').value.trim();if(!t)return;updates.unshift({text:t,user:'Current User',at:new Date().toLocaleString()});$('updateText').value='';history.unshift({action:'Internal project update posted',at:new Date().toLocaleString()});renderUpdates();renderHistory()}
+function approveReport(){let d=deliverables.find(x=>x.name==='Final SOW Report');if(d)d.status='Ready';history.unshift({action:'Final SOW Report generated / approved',at:new Date().toLocaleString()});renderDeliverables();renderReport();renderCompletion()}
+function issueTrans(){cur().transmittal='TRN-2026-DEMO';history.unshift({action:'Transmittal issued',at:new Date().toLocaleString()});renderCompletion();renderHistory()}
+function issueCoc(){cur().coc='COC-2026-DEMO';history.unshift({action:'Certificate of Completion issued',at:new Date().toLocaleString()});renderCompletion();renderHistory()}
+function closeProject(){cur().stage='Completed';cur().progress=100;cur().health='Completed';history.unshift({action:'Project formally closed',at:new Date().toLocaleString()});renderProject();alert('Project closed. The completed workspace remains accessible.')}
+function addQuick(){quickTask(streams[0].id)}
+
+$('projectMenuBtn').addEventListener('click',()=>{$('projectSubmenu').classList.toggle('open');$('projectMenuArrow').textContent=$('projectSubmenu').classList.contains('open')?'⌄':'›'});
+document.querySelectorAll('.project-sub').forEach(b=>b.addEventListener('click',()=>show(b.dataset.screen)));
+document.querySelectorAll('[data-screen-jump]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.screenJump)));
+$('roleScope').addEventListener('change',setRole);
+$('createProject').addEventListener('click',()=>openModal('createModal'));$('createProject2').addEventListener('click',()=>openModal('createModal'));
+$('allSearch').addEventListener('input',renderAll);$('allStage').addEventListener('change',renderAll);
+$('exportAll').addEventListener('click',()=>download('Project_Registry.csv','Project,Stage,Progress\n'+projects.map(p=>`${p.ref},${p.stage},${p.progress}%`).join('\n')));
+$('downloadReportSummary').addEventListener('click',()=>download('Project_Report_Summary.csv','KPI,Value\nProject AHT,16h 42m\nAverage Cycle Time,18.6d\nOn-Time,87%'));
+$('saveSettings').addEventListener('click',()=>alert('Mock settings saved. Laravel must enforce access and policy gates server-side.'));
+$('backBtn').addEventListener('click',()=>show(state.role==='management'?'all':'forme'));
+$('pTabs').querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchPanel(t.dataset.panel)));
+$('pStart').addEventListener('click',startProject);$('pPause').addEventListener('click',pauseProject);$('pStop').addEventListener('click',()=>stopProject(false));
+$('quickAdd').addEventListener('click',addQuick);$('bulkAdd').addEventListener('click',()=>{previewOutline();openModal('outlineModal')});$('templateBtn').addEventListener('click',()=>openModal('templateModal'));$('dupStream').addEventListener('click',()=>duplicateWs(streams[0].id));$('sowPreview').addEventListener('click',()=>stageInfo('SOW'));
+$('outlineInput').addEventListener('input',previewOutline);$('importOutline').addEventListener('click',importOutline);
+document.querySelectorAll('.template-use').forEach(b=>b.addEventListener('click',()=>{closeModals();alert('Fresh SOW structure loaded. No approvals, actual time, files, history or completion states are copied.')}))
+$('addFile').addEventListener('click',()=>openModal('fileModal'));$('fileForm').addEventListener('submit',addEvidence);
+$('addClientAction').addEventListener('click',()=>openModal('clientModal'));$('clientForm').addEventListener('submit',addClient);
+$('addDeliverable').addEventListener('click',addDeliv);$('postUpdate').addEventListener('click',postUpdate);
+$('refreshReport').addEventListener('click',renderReport);$('approveReport').addEventListener('click',approveReport);
+$('transmittalBtn').addEventListener('click',issueTrans);$('cocBtn').addEventListener('click',issueCoc);$('closeProjectBtn').addEventListener('click',closeProject);
+document.querySelectorAll('.close-modal').forEach(b=>b.addEventListener('click',closeModals));document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModals()}));
+
+renderOverview();renderLists();renderAll();renderReports();previewOutline();setRole();ensureTicker();updateProjectTimer();
+})();
+</script>
+</body>
+</html>

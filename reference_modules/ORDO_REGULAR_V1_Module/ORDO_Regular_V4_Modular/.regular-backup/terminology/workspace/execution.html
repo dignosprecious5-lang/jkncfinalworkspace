@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <style>
+      script { display:none !important; }
+      .execution-task-open { cursor: pointer; border-radius: 7px; transition: background .16s ease; }
+      .execution-task-open:hover { background: #f5f8ff; }
+      .execution-task-open:focus-visible { outline: 2px solid #3158e6; outline-offset: -2px; }
+      .task-workspace-modal .modalbox { width:min(1180px,100%); max-height:calc(100vh - 30px); overflow:hidden; display:flex; flex-direction:column; }
+      .task-workspace-head { display:flex; align-items:center; justify-content:space-between; gap:18px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+      .task-workspace-head-main { min-width:0; flex:1; }
+      .task-workspace-head-right { width:min(560px,52%); display:grid; gap:8px; }
+      .task-workspace-head-actions { display:flex; align-items:center; gap:7px; }
+      .demo-reset-task { border-color:#ead8b5; background:#fff9ec; color:#8b651e; }
+      .task-workspace-head h3 { margin:0 0 5px; color:var(--navy); }
+      .task-workspace-meta { display:flex; flex-wrap:wrap; gap:7px; margin-top:9px; }
+      .task-workspace-meta span { padding:5px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:8px; background:#f8fafc; }
+      .task-workspace-controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; padding:8px; border:1px solid #dce4f2; border-radius:10px; background:#f7f9fd; }
+      .task-workspace-control { display:flex; align-items:center; justify-content:center; gap:7px; min-height:40px; border:1px solid #cfd9e9; border-radius:8px; background:#fff; color:#40506d; font-family:inherit; font-size:9px; font-weight:700; cursor:pointer; }
+      .task-workspace-control svg { width:15px; height:15px; fill:currentColor; }
+      .task-workspace-control:hover:not(:disabled) { border-color:#9fb4df; background:#eef3ff; color:#24458f; }
+      .task-workspace-control.primary { border-color:#294b98; background:#294b98; color:#fff; }
+      .task-workspace-control.success { border-color:#bedfcf; background:#eef8f2; color:#277653; }
+      .task-workspace-control.is-active { box-shadow:0 0 0 2px rgba(49,88,230,.15); border-color:#3158e6; background:#eaf0ff; color:#24458f; }
+      .task-workspace-control.success.is-active { border-color:#2d8a61; background:#e7f5ed; color:#216846; }
+      .task-workspace-control:disabled { opacity:.42; cursor:not-allowed; }
+      .task-control-legend { grid-column:1/-1; margin:1px 2px 0; color:#7a8599; font-size:7px; line-height:1.45; }
+      .execution-scope-note { display:flex; align-items:flex-start; gap:9px; margin-bottom:12px; padding:10px 12px; border:1px solid #dce4f2; border-radius:9px; background:#f6f8fc; color:#667085; font-size:8px; line-height:1.45; }
+      .execution-scope-note strong { color:#294b98; }
+      .execution-stream { margin-bottom:14px; border:1px solid #dce4f2; border-radius:12px; overflow:hidden; background:#fff; box-shadow:0 5px 18px rgba(35,57,105,.06); }
+      .execution-stream-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:14px 16px; background:linear-gradient(135deg,#f7f9fd,#eef3fb); border-bottom:1px solid #dce4f2; }
+      .execution-stream-head h3 { margin:0 0 4px; color:#203a7c; font-size:11px; }
+      .execution-stream-kpis { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+      .execution-stream-kpis span { padding:5px 8px; border:1px solid #d8e1f0; border-radius:7px; background:#fff; color:#667085; font-size:7px; }
+      .execution-task-head, .execution-task-row { display:grid; grid-template-columns:minmax(210px,1.45fr) minmax(150px,1fr) 112px 112px 105px 118px; gap:0; align-items:center; }
+      .execution-task-head { padding:8px 14px; background:#fbfcfe; border-bottom:1px solid #e7ebf2; color:#8a94a7; font-size:7px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; }
+      .execution-task-row { min-height:64px; padding:0 14px; border-bottom:1px solid #edf0f5; }
+      .execution-task-row:last-child { border-bottom:0; }
+      .execution-task-row > div { padding:10px 8px; min-width:0; }
+      .execution-schedule { display:grid; gap:3px; color:#5d6980; font-size:8px; }
+      .execution-schedule strong { color:#34415d; }
+      .schedule-state { display:inline-flex; width:max-content; padding:4px 7px; border-radius:999px; font-size:7px; font-weight:800; }
+      .schedule-state.good { background:#eaf6ef; color:#277653; }
+      .schedule-state.warning { background:#fff4dd; color:#946515; }
+      .schedule-state.overdue { background:#fff0f0; color:#b23c3c; }
+      .schedule-state.neutral { background:#eef2f7; color:#6c778c; }
+      .task-schedule-panel { margin-top:12px; padding:12px; border:1px solid #dce4f2; border-radius:10px; background:#fff; }
+      .task-execution-layout { min-height:0; overflow:auto; }
+      .task-execution-primary { min-width:0; }
+      .task-schedule-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+      .task-schedule-grid div { padding:9px; border-radius:8px; background:#f7f9fd; }
+      .task-schedule-grid span { display:block; color:#8a94a7; font-size:7px; text-transform:uppercase; }
+      .task-schedule-grid strong { display:block; margin-top:4px; color:#34415d; font-size:9px; }
+      .extension-panel { display:none; margin-top:10px; padding:12px; border:1px solid #efd29a; border-radius:9px; background:#fffaf0; }
+      .extension-panel.visible { display:block; }
+      .extension-panel h4 { margin:0 0 4px; color:#83570f; font-size:9px; }
+      .extension-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:10px; }
+      .extension-grid .span-2 { grid-column:1/-1; }
+      .extension-history { margin-top:9px; color:#705b35; font-size:8px; line-height:1.5; }
+      .task-workspace-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; margin-top:14px; }
+      .task-workspace-section { border:1px solid var(--line); border-radius:10px; background:#fff; overflow:hidden; }
+      .task-workspace-section h4 { margin:0; padding:11px 13px; color:var(--navy); background:#f5f7fb; border-bottom:1px solid var(--line); font-size:9px; letter-spacing:.35px; }
+      .task-workspace-body { padding:13px; }
+      .task-upload-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+      .task-upload-row input[type=file] { min-width:0; flex:1; font-size:8px; }
+      .task-attachment, .task-update { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line2); }
+      .task-attachment:last-child, .task-update:last-child { border-bottom:0; }
+      .task-record-title { color:var(--text); font-size:9px; font-weight:700; overflow-wrap:anywhere; }
+      .task-record-meta { margin-top:3px; color:var(--soft); font-size:7px; }
+      .task-update p { margin:0; color:var(--text); font-size:9px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+      .report-record { display:inline-block; margin-top:5px; padding:3px 6px; border-radius:999px; background:#eef3ff; color:#3158e6; font-size:7px; font-weight:700; }
+      .task-empty { margin:0; padding:12px; color:var(--soft); font-size:8px; text-align:center; background:#fafbfd; border-radius:7px; }
+      .task-update-form textarea { min-height:88px; resize:vertical; }
+      .task-workspace-actions { display:flex; justify-content:flex-end; margin-top:9px; }
+      .remove-task-attachment { flex:0 0 auto; color:#a33d3d; border-color:#e5c4c4; background:#fff5f5; }
+      .task-activity { min-height:0; border:1px solid #dce4f2; border-radius:10px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+      .task-update-side { display:grid; grid-template-columns:minmax(280px,.8fr) minmax(360px,1.2fr); gap:12px; min-height:350px; margin-top:12px; }
+      .task-submit-panel, .task-history-panel { min-height:0; border:1px solid #dce4f2; border-radius:10px; overflow:hidden; background:#fff; }
+      .task-history-panel { display:flex; flex-direction:column; }
+      .task-activity-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 13px; background:#f5f7fb; border-bottom:1px solid #dce4f2; }
+      .task-activity-head h4 { margin:0; color:#203a7c; font-size:9px; letter-spacing:.35px; }
+      .task-update-composer { padding:13px; background:#fff; }
+      .task-update-composer-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+      .task-update-composer-grid .form-group { grid-column:1; }
+      .task-update-composer textarea { min-height:90px; max-height:180px; resize:vertical; }
+      .task-update-composer input[type=file] { width:100%; min-height:42px; padding:9px; border:1px solid #dce4f2; border-radius:8px; background:#fff; }
+      .task-update-composer #addTaskUpdate { width:100%; min-height:40px; }
+      .task-update-composer .form-group { margin:0; }
+      .task-reason-modal { position:fixed; inset:0; z-index:1200; display:none; place-items:center; padding:20px; background:rgba(20,31,54,.5); }
+      .task-reason-modal.open { display:grid; }
+      .task-reason-box { width:min(520px,100%); padding:22px; border:1px solid #dbe3f1; border-radius:14px; background:#fff; box-shadow:0 24px 70px rgba(24,42,77,.25); }
+      .task-reason-box h3 { margin:0 0 7px; color:#173b82; }
+      .task-reason-box textarea { width:100%; min-height:120px; margin-top:14px; resize:vertical; }
+      .task-reason-error { display:none; margin-top:8px; color:#a32618; font-size:10px; font-weight:700; }
+      .task-reason-error.visible { display:block; }
+      .task-reason-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+      .task-timeline { flex:1; min-height:180px; overflow-y:auto; padding:0 14px; scrollbar-gutter:stable; }
+      .task-timeline-entry { position:relative; padding:14px 8px 14px 24px; border-bottom:1px solid #edf0f5; }
+      .task-timeline-entry::before { content:""; position:absolute; left:6px; top:19px; width:8px; height:8px; border-radius:50%; background:#3158e6; box-shadow:0 0 0 4px #eef3ff; }
+      .task-timeline-entry::after { content:""; position:absolute; left:9px; top:30px; bottom:-7px; width:1px; background:#dce4f2; }
+      .task-timeline-entry:last-child::after { display:none; }
+      .task-timeline-entry p { margin:5px 0; color:#34415d; font-size:9px; line-height:1.5; white-space:pre-wrap; }
+      .timeline-files { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+      .timeline-file { display:flex; align-items:center; gap:7px; max-width:100%; padding:6px 8px; border:1px solid #dce4f2; border-radius:7px; background:#f8fafc; color:#40506d; font-size:8px; }
+      .timeline-file button { border:0; background:transparent; color:#a33d3d; cursor:pointer; font-weight:800; }
+      .history-client-action { margin-top:8px; padding:6px 9px; border:1px solid #9fb4df; border-radius:7px; background:#fff; color:#294b98; font:700 8px inherit; cursor:pointer; }
+      .history-client-action:hover { background:#eef3ff; }
+      .client-proof-panel { margin-top:9px; padding:9px; border:1px solid #cfd9ec; border-radius:8px; background:#f7f9fd; }
+      .client-proof-status { display:flex; flex-wrap:wrap; gap:6px 12px; margin-bottom:8px; color:#61708a; font-size:7px; }
+      .client-proof-status strong { color:#294b98; }
+      .client-proof-actions { display:flex; flex-wrap:wrap; gap:6px; }
+      .client-proof-actions button,.client-proof-actions label { padding:6px 8px; border:1px solid #aebddd; border-radius:7px; background:#fff; color:#294b98; font:700 7px inherit; cursor:pointer; }
+      .client-proof-actions button:hover,.client-proof-actions label:hover { background:#edf3ff; }
+      .timeline-load { display:flex; justify-content:center; padding:11px; border-top:1px solid #edf0f5; }
+      .responsibility-list { display:flex; flex-wrap:wrap; gap:4px; }
+      .responsibility-list b { padding:3px 6px; border-radius:999px; background:#eef3ff; color:#3158e6; font-size:7px; }
+      @media (max-width:900px) { .task-workspace-modal .modalbox { overflow:auto; } .task-workspace-head { align-items:flex-start; } .task-workspace-head-right { width:55%; } .task-update-side { grid-template-columns:1fr 1fr; } }
+      @media (max-width:760px) { .task-workspace-head { flex-direction:column; } .task-workspace-head-right { width:100%; } .task-update-side { grid-template-columns:1fr; } .task-submit-panel,.task-history-panel { min-height:auto; } .execution-task-head { display:none; } .execution-task-row { grid-template-columns:1fr 1fr; } .execution-task-row > div:first-child { grid-column:1/-1; } }
+      @media (max-width:760px) { .task-workspace-grid { grid-template-columns:1fr; } .task-workspace-head,.execution-stream-head { flex-direction:column; } .execution-stream-kpis { justify-content:flex-start; } .task-workspace-controls,.task-schedule-grid,.extension-grid { grid-template-columns:1fr 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">REGULAR DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">RSAT</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab active" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY & COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div id="executionStageManagement" aria-live="polite"></div>
+          </aside>
+          <section class="content">
+            <div class="card">
+              <div class="cardhead">
+                <div>
+                  <strong>Execution Tasks</strong>
+                  <div class="imeta">
+                    Perform and monitor tasks authorized by the approved RSAT.
+                  </div>
+                </div>
+              </div>
+              <div class="cardbody">
+                <div class="execution-scope-note"><strong>Approved scope only.</strong><span>Execution tasks come directly from the approved RSAT. Any additional task must be added through a RSAT revision or an approved Out-of-Scope RSAT.</span></div>
+                <div id="streams"></div>
+              </div>
+            </div>
+            <div class="modal task-workspace-modal" id="taskWorkspaceModal" role="dialog" aria-modal="true" aria-labelledby="taskWorkspaceTitle">
+              <div class="modalbox">
+                <div class="task-workspace-head">
+                  <div class="task-workspace-head-main">
+                    <h3 id="taskWorkspaceTitle">Task Execution</h3>
+                    <div class="imeta" id="taskWorkspacePath"></div>
+                    <div class="task-workspace-meta" id="taskWorkspaceMeta"></div>
+                  </div>
+                  <div class="task-workspace-head-right"><div class="task-workspace-head-actions"><button class="btn demo-reset-task" type="button" id="resetTaskForTesting">Reset Task for Testing</button><button class="btn" type="button" id="closeTaskWorkspace">Close</button></div><div class="task-workspace-controls" id="taskWorkspaceControls">
+                    <button class="task-workspace-control primary" type="button" id="taskPlay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>Start</span></button>
+                    <button class="task-workspace-control" type="button" id="taskPause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg><span>Pause</span></button>
+                    <button class="task-workspace-control" type="button" id="taskStop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z"/></svg><span>Stop Session</span></button>
+                    <button class="task-workspace-control success" type="button" id="taskDone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 16.2-3.5-3.5L4.1 14.1 9 19 20.3 7.7l-1.4-1.4z"/></svg><span>Done</span></button>
+                    <div class="task-control-legend">Each action automatically creates an Internal &amp; Client Submission. Pause and Stop open a separate reason form.</div>
+                  </div></div>
+                </div>
+                <div class="task-execution-layout"><div class="task-execution-primary">
+                <section class="task-schedule-panel">
+                  <div class="task-schedule-grid" id="taskScheduleSummary"></div>
+                  <div class="extension-panel" id="taskExtensionPanel">
+                    <h4>Schedule Extension Required</h4>
+                    <div class="imeta">Record why the approved target cannot be met and establish the revised target end date.</div>
+                    <div class="extension-grid">
+                      <div class="form-group"><label for="extensionReasonCategory">Reason</label><select id="extensionReasonCategory"><option value="">Select reason</option><option>Client action or document delay</option><option>Government or regulatory processing</option><option>Third-party dependency</option><option>Additional clarification required</option><option>Holiday or official proclamation</option><option>Force majeure or unforeseen event</option><option>Internal operational delay</option><option>Other</option></select></div>
+                      <div class="form-group"><label for="extensionTargetEnd">Revised Target End Date</label><input type="date" id="extensionTargetEnd" /></div>
+                      <div class="form-group span-2"><label for="extensionReasonDetails">Explanation</label><textarea id="extensionReasonDetails" placeholder="Explain the cause, impact, and required extension..."></textarea></div>
+                    </div>
+                    <div class="task-workspace-actions"><button class="btn primary" type="button" id="saveTaskExtension">Save Extension</button></div>
+                    <div class="extension-history" id="extensionHistory"></div>
+                  </div>
+                </section></div>
+                <div class="task-update-side">
+                  <section class="task-submit-panel">
+                    <div class="task-activity-head"><div><h4>SUBMIT UPDATE</h4><div class="imeta">Add written information, files, or both.</div></div></div>
+                    <div class="task-update-composer"><div class="task-update-composer-grid"><div class="form-group"><label for="taskSubmissionType">Submission Type</label><select id="taskSubmissionType"><option value="internal">Internal Submission</option><option value="client">Client Submission</option><option value="both">Internal &amp; Client Submission</option></select></div><div class="form-group"><label for="taskUpdateText">Update Information (optional)</label><textarea id="taskUpdateText" placeholder="Progress, result, issue, next action, or client information..."></textarea></div><div class="form-group"><label for="taskUpdateFiles">Attachments (optional)</label><input type="file" id="taskUpdateFiles" multiple /></div><button class="btn primary" type="button" id="addTaskUpdate">Submit Update</button></div><div class="imeta" style="margin-top:7px">Internal submissions stay within the project. Client and combined submissions are also added to the client RSAT Report.</div></div>
+                  </section>
+                  <section class="task-history-panel">
+                    <div class="task-activity-head"><div><h4>SUBMISSION HISTORY</h4><div class="imeta">Permanent task update and attachment record.</div></div><select id="taskActivityFilter" aria-label="Filter submission history"><option value="all">All submissions</option><option value="updates">Written updates</option><option value="files">With files</option><option value="extensions">Extensions</option></select></div>
+                    <div class="task-timeline" id="taskUpdateList"></div>
+                    <div class="timeline-load" id="taskTimelineLoad" hidden><button class="btn" type="button" id="loadMoreTaskUpdates">Load More</button></div>
+                  </section>
+                </div></div>
+              </div>
+            </div>
+            <div class="task-reason-modal" id="taskReasonModal" role="dialog" aria-modal="true" aria-labelledby="taskReasonTitle">
+              <div class="task-reason-box">
+                <h3 id="taskReasonTitle">Reason Required</h3>
+                <div class="imeta" id="taskReasonHelp">Explain why this task is being paused or stopped. Submitting this form will perform the action automatically.</div>
+                <textarea id="taskReasonText" aria-label="Reason" placeholder="Enter the reason, current situation, and next required action..."></textarea>
+                <div class="task-reason-error" id="taskReasonError">Enter a reason before submitting.</div>
+                <div class="task-reason-actions"><button class="btn" type="button" id="cancelTaskReason">Cancel</button><button class="btn primary" type="button" id="submitTaskReason">Submit and Continue</button></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script src="../assets/js/execution-client-update-print.js"></script>
+    <script style="display:none!important" hidden>
+      (function () {
+        const current = 4;
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+
+        const stage = ORDO_STATE.stageManagement.stages[current];
+        const now = () => new Date().toISOString();
+        const seconds = (stored, startedAt) => Number(stored || 0) + (startedAt ? Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)) : 0);
+        const fmt = (value) => ORDO.fmt(Math.max(0, Math.floor(value || 0)));
+        const assigned = (responsibility) => [...new Set((ORDO_STATE.workOrder?.stageAssignments || []).filter((row) => row.stage === "Execution" && (row.responsibilities || []).includes(responsibility)).flatMap((row) => row.persons || []))];
+
+        if (ORDO_STATE.ntpApproved && stage.status !== "Completed" && !stage.startedAt) {
+          stage.startedAt = now();
+          stage.status = "In Progress";
+          stage.inProgressStartedAt = stage.startedAt;
+          stage.waitingStartedAt = null;
+          stage.waitingOn = null;
+          stage.waitingReason = null;
+          ORDO.log("Execution started automatically after NTP completion");
+          ORDO.save();
+        }
+
+        function stopActive(key, totalKey) {
+          if (!stage[key]) return;
+          stage[totalKey] = Number(stage[totalKey] || 0) + Math.max(0, Math.floor((Date.now() - new Date(stage[key]).getTime()) / 1000));
+          stage[key] = null;
+        }
+        function renderStageManagement() {
+          const inProgress = seconds(stage.inProgressSeconds, stage.inProgressStartedAt);
+          const onHold = seconds(stage.onHoldSeconds, stage.onHoldStartedAt);
+          const waiting = seconds(stage.waitingSeconds, stage.waitingStartedAt);
+          const elapsed = stage.startedAt ? Math.max(0, Math.floor(((stage.completedAt ? new Date(stage.completedAt) : new Date()) - new Date(stage.startedAt)) / 1000)) : 0;
+          const status = ORDO_STATE.ntpApproved ? stage.status : "Locked";
+          const controls = !ORDO_STATE.ntpApproved
+            ? '<div class="workflow-note">Execution unlocks only after the NTP is completed.</div>'
+            : stage.status === "On Hold"
+              ? '<button class="stage-control primary" id="executionResume">Resume Execution</button>'
+              : stage.status === "Completed"
+                ? '<a class="stage-control primary" href="sow-report.html?project=' + ORDO_PROJECT_ID + '">Open Reporting</a>'
+                : '<button class="stage-control" id="executionHold">Put Execution On Hold</button>';
+          document.getElementById("executionStageManagement").innerHTML = `<div class="side-title">STAGE MANAGEMENT</div><div class="stage-management-panel wo-management"><section><h4>STAGE STATUS</h4><div class="stage-status-value ${status.toLowerCase().replaceAll(" ", "-")}">${status}</div></section><section><h4>STAGE HANDLING</h4><div class="stage-total"><span>Total Stage Handling<br>Time</span><strong id="executionHandling">${fmt(inProgress + onHold)}</strong></div><dl class="stage-handling"><div><dt>In Progress</dt><dd id="executionProgress">${fmt(inProgress)}</dd></div><div><dt>On Hold</dt><dd id="executionHoldTime">${fmt(onHold)}</dd></div><div><dt>Waiting</dt><dd id="executionWaiting">${fmt(waiting)}</dd></div><div><dt>Responsible</dt><dd>${ORDO.esc(assigned("Responsible").join(", ") || "Unassigned")}</dd></div><div><dt>Executor</dt><dd>${ORDO.esc(assigned("Executor").join(", ") || "Unassigned")}</dd></div><div><dt>Coordinator</dt><dd>${ORDO.esc(assigned("Coordinator").join(", ") || "Unassigned")}</dd></div><div><dt>Support</dt><dd>${ORDO.esc(assigned("Support").join(", ") || "Unassigned")}</dd></div><div><dt>Waiting On</dt><dd>${ORDO.esc(stage.waitingOn || "—")}</dd></div><div><dt>Started</dt><dd>${stage.startedAt ? new Date(stage.startedAt).toLocaleString() : "—"}</dd></div><div><dt>Completed</dt><dd>${stage.completedAt ? new Date(stage.completedAt).toLocaleString() : "—"}</dd></div><div><dt>Stage Elapsed</dt><dd id="executionElapsed">${fmt(elapsed)}</dd></div></dl></section><section><h4>STAGE CONTROLS</h4><div class="stage-controls">${controls}</div></section></div>`;
+          document.getElementById("executionHold")?.addEventListener("click", () => { stopActive("inProgressStartedAt", "inProgressSeconds"); stage.status = "On Hold"; stage.onHoldStartedAt = now(); ORDO.log("Execution placed On Hold"); ORDO.save(); renderStageManagement(); });
+          document.getElementById("executionResume")?.addEventListener("click", () => { stopActive("onHoldStartedAt", "onHoldSeconds"); stage.status = "In Progress"; stage.inProgressStartedAt = now(); ORDO.log("Execution resumed"); ORDO.save(); renderStageManagement(); });
+        }
+        renderStageManagement();
+        setInterval(() => {
+          const inProgress = seconds(stage.inProgressSeconds, stage.inProgressStartedAt), onHold = seconds(stage.onHoldSeconds, stage.onHoldStartedAt);
+          const elapsed = stage.startedAt ? Math.max(0, Math.floor(((stage.completedAt ? new Date(stage.completedAt) : new Date()) - new Date(stage.startedAt)) / 1000)) : 0;
+          const values = { executionHandling: inProgress + onHold, executionProgress: inProgress, executionHoldTime: onHold, executionWaiting: seconds(stage.waitingSeconds, stage.waitingStartedAt), executionElapsed: elapsed };
+          Object.entries(values).forEach(([id, value]) => { const node = document.getElementById(id); if (node) node.textContent = fmt(value); });
+        }, 1000);
+      })();
+    </script>
+    <script src="../assets/js/execution-controller.js"></script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,2655 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Project Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <style>
+      .sow-builder-note {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        border-left: 4px solid #294b98;
+        background: #f6f8ff;
+        padding: 9px 11px;
+        margin: 0 0 10px;
+        font-size: 8px;
+        color: #56647a;
+      }
+      .builder-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        color: #48566c;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action:hover {
+        background: #f4f7fb;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus,
+      .scope-table select:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .add-row-wrap {
+        display: flex;
+        justify-content: flex-end;
+        margin: 7px 0 13px;
+      }
+      .outline-status {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        background: #f8fafc;
+        border: 1px solid #e0e6ef;
+        border-radius: 7px;
+        margin-bottom: 8px;
+        font-size: 8px;
+        color: #667085;
+      }
+      .outline-preview {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 9px;
+        line-height: 1.7;
+      }
+      .sow-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 9px;
+        margin: 16px 14px 6px;
+      }
+      .sow-summary-card {
+        border: 1px solid #cfd9e7;
+        background: #f8fafc;
+        padding: 9px;
+      }
+      .sow-summary-card label {
+        display: block;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+      .sow-summary-card strong {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 14px;
+        color: #344054;
+      }
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 11%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        color: #7f8a9b;
+        text-align: center;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow: 0 0 0 5px #eef3ff;
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      @media (max-width: 1000px) {
+        .sow-summary-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .life {
+          overflow-x: auto !important;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+    </style>
+
+    <style>
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .child-row-sow td:first-child {
+        background: #fbfcfe;
+      }
+      .child-label {
+        padding-left: 8px;
+      }
+      .hierarchy-mark {
+        color: #98a2b3;
+        margin-right: 4px;
+      }
+      .parent-actions,
+      .child-actions {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .builder-action.child-add {
+        color: #2d8a61;
+      }
+      .builder-action.workstream {
+        color: #3158e6;
+      }
+      .exclusion-modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+      }
+      .exclusion-modal-table th,
+      .exclusion-modal-table td {
+        border: 1px solid #d7dee8;
+        padding: 7px;
+        font-size: 9px;
+        vertical-align: middle;
+      }
+      .exclusion-modal-table th {
+        background: #f8fafc;
+        color: #667085;
+        font-weight: 700;
+      }
+      .exclusion-modal-table input {
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 5px;
+        font-size: 9px;
+      }
+      .exclusion-modal-table input:focus {
+        outline: none;
+        border-color: #b9caf2;
+        background: #fff;
+      }
+      .exclusion-count {
+        font-size: 9px;
+        color: #667085;
+      }
+      @media (max-width: 900px) {
+        .scope-table {
+          min-width: 1180px;
+        }
+      }
+    </style>
+
+    <style>
+      /* SOW-specific Quick Actions */
+      .sidecard .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .sidecard .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .sidecard .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .sidecard .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .sidebtn.secondary-action {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sidebtn .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sidebtn.locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .statuspill.final {
+        background: #eef8f2;
+        border-color: #d5ebdf;
+        color: #2d8a61;
+      }
+      .statuspill.review {
+        background: #fff7e8;
+        border-color: #f0dfba;
+        color: #9f6816;
+      }
+      .statuspill.draft {
+        background: #eef3ff;
+        border-color: #dbe4fb;
+        color: #3158e6;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .secondary-action {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sow-view-tabs {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sow-view-tab {
+        height: 32px;
+        border: 1px solid #d9e1ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #48566c;
+        padding: 0 11px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .sow-view-tab.active {
+        background: #294998;
+        border-color: #294998;
+        color: #fff;
+      }
+      .sow-view-tab.outscope.active {
+        background: #815f24;
+        border-color: #815f24;
+        color: #fff;
+      }
+      .sow-builder-panel {
+        display: none;
+      }
+      .sow-builder-panel.active {
+        display: block;
+      }
+      #outScopePanel .scope-title {
+        background: #815f24;
+      }
+      #outScopePanel .parent-row td {
+        background: #fffaf4;
+      }
+      #outScopePanel .child-row-sow td:first-child {
+        background: #fffdf8;
+      }
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        text-align: center;
+        color: #344054;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #48566c;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 330px;
+      }
+      .toast {
+        background: #172033;
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.22);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 7px 5px !important;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+      .autosave-dot.off {
+        background: #98a2b3 !important;
+      }
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+      .sidebtn[disabled],
+      .builder-action[disabled],
+      .btn[disabled],
+      .tbtn[disabled] {
+        opacity: 0.42 !important;
+        cursor: not-allowed !important;
+      }
+    </style>
+
+    <style>
+      .docmeta {
+        grid-template-columns: 150px minmax(220px, 1fr) 150px minmax(
+            220px,
+            1fr
+          ) !important;
+      }
+      .docmeta > div:nth-child(odd) {
+        font-weight: 600;
+      }
+      .docmeta .line {
+        min-height: 24px;
+      }
+      @media (max-width: 1100px) {
+        .docmeta {
+          grid-template-columns: 150px 1fr !important;
+        }
+      }
+    </style>
+
+    <style>
+      /* ===== Modern SOW row actions ===== */
+      .scope-table th:last-child,
+      .scope-table td:last-child {
+        width: 184px !important;
+        min-width: 184px;
+        max-width: 184px;
+        box-sizing: border-box;
+        overflow: visible;
+      }
+      .scope-table {
+        min-width: 1250px !important;
+      }
+      .builder-actions {
+        display: grid !important;
+        grid-template-columns: repeat(5, 30px);
+        align-items: center;
+        justify-content: center;
+        gap: 5px !important;
+        width: 170px;
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 2px 0;
+        box-sizing: border-box;
+      }
+      .builder-action {
+        position: relative;
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+        border: 1px solid #dce3ed !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        color: #526176 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
+        transition: 0.15s ease;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+      }
+      .builder-action:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: #f8faff !important;
+        border-color: #b9c8e8 !important;
+        box-shadow: 0 4px 10px rgba(31, 63, 135, 0.09);
+      }
+      .builder-action.add {
+        color: #277653 !important;
+        background: #f2faf6 !important;
+        border-color: #d4eadf !important;
+      }
+      .builder-action.duplicate {
+        color: #3158e6 !important;
+        background: #f5f7ff !important;
+        border-color: #dbe3ff !important;
+      }
+      .builder-action.move {
+        color: #59667a !important;
+      }
+      .builder-action.remove {
+        color: #c44242 !important;
+        background: #fff7f7 !important;
+        border-color: #f0d7d7 !important;
+      }
+      .builder-action::after {
+        content: attr(data-tip);
+        pointer-events: none;
+        position: absolute;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%) translateY(2px);
+        background: #172033;
+        color: #fff;
+        border-radius: 6px;
+        padding: 5px 7px;
+        font-size: 7px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: 0.12s ease;
+        z-index: 50;
+      }
+      .builder-action:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+      .builder-action:disabled {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+      }
+      .sow-responsibility { position:relative; width:100%; font-family:Inter,Segoe UI,Arial,sans-serif; font-size:8px; }
+      .sow-responsibility summary { min-height:27px; padding:7px 20px 6px 7px; border:1px solid #dce3ed; border-radius:6px; background:#fff; color:#48566c; cursor:pointer; list-style:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sow-responsibility summary::-webkit-details-marker { display:none; }
+      .sow-responsibility summary::after { content:"⌄"; position:absolute; right:7px; color:#98a2b3; }
+      .sow-responsibility > div { position:absolute; z-index:60; top:32px; left:0; min-width:145px; padding:5px; border:1px solid #dce3ed; border-radius:7px; background:#fff; box-shadow:0 10px 24px rgba(27,45,78,.16); }
+      .sow-responsibility label { display:flex; align-items:center; gap:6px; padding:5px; white-space:nowrap; color:#526176; }
+      .scope-table .sow-responsibility input { width:auto; }
+      .sow-responsibility[data-disabled] summary { background:#f4f6f9; color:#98a2b3; cursor:not-allowed; }
+
+      /* Builder toolbar */
+      .builder-toolbar {
+        background: #f8faff;
+        border: 1px solid #e4e9f2;
+        border-radius: 10px;
+        padding: 9px 10px;
+        margin: 10px 0 12px !important;
+      }
+      .builder-toolbar .btn {
+        border-radius: 8px !important;
+        min-height: 34px;
+      }
+      .sow-view-tabs {
+        padding-left: 6px;
+        border-left: 1px solid #dfe5ee;
+      }
+      .sow-view-tab {
+        border-radius: 8px !important;
+      }
+
+      /* Side action panel */
+      .sidecard {
+        overflow: visible !important;
+      }
+      .secondary-action {
+        border-radius: 8px !important;
+      }
+      .secondary-action:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #cfd9ec;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 8px !important;
+        transition: 0.15s ease;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+
+      /* Feedback */
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 340px;
+      }
+      .toast {
+        color: #fff;
+        background: #172033;
+        border-radius: 9px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 10px 28px rgba(16, 24, 40, 0.23);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+
+      .demo-reset {
+        width: 100%;
+        height: 31px;
+        border: 1px dashed #d2d9e5;
+        background: #fafbfc;
+        border-radius: 8px;
+        color: #7a8495;
+        font-size: 8px;
+        cursor: pointer;
+        margin-top: 7px;
+      }
+      .demo-reset:hover {
+        color: #3158e6;
+        border-color: #b7c6e8;
+        background: #f6f8ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Project</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">PROJECT WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">PROJECT DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab active" href="scope-of-work.html">SCOPE OF WORK</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">SOW REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Project Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div class="side-title">STAGE MANAGEMENT</div>
+
+            <div class="side-section">
+              <h4>STAGE STATUS</h4>
+              <div class="statuspill" id="sowStageStatus">SOW: Draft</div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE HANDLING</h4>
+              <div class="timer-card">
+                <div class="timer-row">
+                  <span id="timerState">SOW Planning</span>
+                  <span class="clock" id="timerClock">00:00:00</span>
+                </div>
+                <div class="timer-actions">
+                  <button class="tbtn start" id="timerStart">▶ Start</button>
+                  <button class="tbtn pause" id="timerPause">Ⅱ Pause</button>
+                  <button class="tbtn stop" id="timerStop">■ Stop</button>
+                </div>
+                <div class="planning-total">
+                  Total planning time: <strong id="planningTotal">0m</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE CONTROLS</h4>
+
+              <div class="autosave-row">
+                <span><span class="autosave-dot"></span>Auto-Save</span>
+                <strong id="autosaveState">On</strong>
+              </div>
+
+              <button
+                class="sidebtn primary secondary-action"
+                id="saveDraftBtn"
+              >
+                <span>Save Draft</span
+                ><span class="action-state" id="saveState">Saved</span>
+              </button>
+
+              <button class="sidebtn secondary-action" id="editSowBtn">
+                <span>Edit SOW</span
+                ><span class="action-state">Draft only</span>
+              </button>
+
+              <button class="sidebtn secondary-action" id="submitReviewBtn">
+                <span>Submit for Review</span
+                ><span class="action-state">Next gate</span>
+              </button>
+
+              <button class="sidebtn secondary-action" id="finalizeSowBtn">
+                <span>Complete Review / Finalize</span
+                ><span class="action-state">Reviewer</span>
+              </button>
+
+              <button class="demo-reset" id="resetSowDemo" type="button">
+                Reset SOW Demo State
+              </button>
+              <div class="workflow-note">
+                Draft SOW may be edited and auto-saved. Once review is
+                completed, the approved SOW is locked. New scope after
+                finalization is recorded under Out of Scope / Exclusions.
+              </div>
+            </div>
+          </aside>
+          <section class="content">
+            <div class="docframe">
+              <div class="dochead">
+                <div class="docbrand">
+                  John Kelly
+                  <div>◉ Company</div>
+                </div>
+                <div class="doctitle">
+                  <h1>SCOPE OF WORK</h1>
+                  <small>PROJ-F-002</small>
+                </div>
+              </div>
+
+              <!-- Developer: bind these metadata values to Project assignments / SOW authors. Lead Consultant = Project Manager. -->
+              <div class="docmeta">
+                <div>Condeal Reference No.:</div>
+                <div class="line">CONDEAL-2026-065</div>
+                <div>Version No.:</div>
+                <div class="line" id="sowVersionNo">1.0</div>
+
+                <div>Business Name:</div>
+                <div class="line">X10 REAL ESTATE CORPORATION</div>
+                <div>SOW No.:</div>
+                <div class="line">SOW-2026-032</div>
+
+                <div>Client Name:</div>
+                <div class="line">May Flor D. Dabatos and Stephan Tenten</div>
+                <div>Date Prepared:</div>
+                <div class="line">08/20/2026</div>
+
+                <div>Lead Consultant / Project Manager:</div>
+                <div class="line" id="leadConsultantName">
+                  John Kelly Abalde
+                </div>
+                <div>Lead Associate:</div>
+                <div class="line" id="leadAssociateName">Rubeca Potayre</div>
+
+                <div>Within Scope Prepared By:</div>
+                <div class="line" id="withinPreparedBy">
+                  John Kelly Abalde · Rubeca Potayre
+                </div>
+                <div>Out of Scope Prepared By:</div>
+                <div class="line" id="outScopePreparedBy">
+                  John Kelly Abalde · Rubeca Potayre
+                </div>
+              </div>
+
+              <div class="review-banner" id="reviewBanner">
+                <strong>Under Review:</strong> Within Scope is read-only while
+                the SOW is under internal review.
+              </div>
+              <div class="sow-locked-banner" id="sowLockedBanner">
+                <strong>SOW Finalized:</strong> Within Scope is locked. Any
+                additional requested work must be recorded under Out of Scope /
+                Exclusions.
+              </div>
+
+              <div class="builder-toolbar">
+                <div class="toolbar" style="margin: 0">
+                  <button class="btn primary" id="addMainRow">
+                    + Add Scope Item
+                  </button>
+                  <button class="btn" id="bulk">Outline Builder</button>
+                  <button class="btn" id="duplicateWs">
+                    Duplicate Workstream
+                  </button>
+
+                  <div class="sow-view-tabs">
+                    <button class="sow-view-tab active" id="withinTab">
+                      Within Scope
+                    </button>
+                    <button class="sow-view-tab outscope" id="outScopeTab">
+                      Out of Scope / Exclusions
+                    </button>
+                  </div>
+                </div>
+                <div class="imeta" id="viewHint">Building approved scope.</div>
+              </div>
+
+              <!-- WITHIN SCOPE -->
+              <div class="sow-builder-panel active" id="withinPanel">
+                <div class="scope-title">WITHIN SCOPE</div>
+                <div class="scope-wrap">
+                  <table class="scope-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 5%">Item</th>
+                        <th style="width: 18%">Main Task Description</th>
+                        <th style="width: 23%">Sub Task Description</th>
+                        <th style="width: 12%">Responsibility</th>
+                        <th style="width: 13%">Assigned Person</th>
+                        <th style="width: 7%">Duration</th>
+                        <th style="width: 10%">Start Date</th>
+                        <th style="width: 10%">End Date</th>
+                        <th style="width: 5%">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="withinRows"></tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="6"></td>
+                        <td style="text-align: right; font-weight: 700">
+                          Total:
+                        </td>
+                        <td id="withinTotal">0 item(s)</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div class="add-row-wrap">
+                  <button class="btn" id="addWithinBottom">
+                    Add Scope Item
+                  </button>
+                </div>
+              </div>
+
+              <!-- OUT OF SCOPE -->
+              <div class="sow-builder-panel" id="outScopePanel">
+                <div class="scope-title">OUT OF SCOPE</div>
+                <div class="scope-wrap">
+                  <table class="scope-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 5%">Item</th>
+                        <th style="width: 18%">Main Task Description</th>
+                        <th style="width: 23%">Sub Task Description</th>
+                        <th style="width: 12%">Responsibility</th>
+                        <th style="width: 13%">Assigned Person</th>
+                        <th style="width: 7%">Duration</th>
+                        <th style="width: 10%">Start Date</th>
+                        <th style="width: 10%">End Date</th>
+                        <th style="width: 5%">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="outScopeRows"></tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="6"></td>
+                        <td style="text-align: right; font-weight: 700">
+                          Total:
+                        </td>
+                        <td id="outScopeTotal">0 item(s)</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div class="add-row-wrap">
+                  <button class="btn" id="addOutScopeItem">
+                    Add Out of Scope Item
+                  </button>
+                </div>
+              </div>
+
+              <div class="scope-title" id="summaryTitle">SOW SUMMARY</div>
+              <div class="sow-summary-grid" id="sowSummary"></div>
+            </div>
+
+            <div class="modal" id="outlineModal">
+              <div class="modalbox">
+                <h3>SOW Outline Builder</h3>
+                <div class="outline-status">
+                  <span
+                    >Outline is synchronized with the current Within Scope
+                    hierarchy.</span
+                  ><strong id="outlineSyncState">Synchronized</strong>
+                </div>
+                <div class="outline">
+                  <textarea id="outline"></textarea>
+                  <div class="card cardbody">
+                    <strong>Live Preview</strong>
+                    <div
+                      class="outline-preview"
+                      id="preview"
+                      style="margin-top: 8px"
+                    ></div>
+                  </div>
+                </div>
+                <div class="modal-actions">
+                  <button class="btn" id="cancel">Cancel</button>
+                  <button class="btn" id="refreshOutline">
+                    Reload from Current SOW
+                  </button>
+                  <button class="btn primary" id="applyOutline">
+                    Apply Outline to SOW
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        if (typeof window.ORDO_STATE === "undefined") {
+          const KEY = "ordoSowFunctionalV10State";
+          const DEFAULT_STATE = {
+            streams: [
+              {
+                id: "ws1",
+                name: "Share Transfer Documentation",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t1",
+                    title:
+                      "Review existing corporate and share ownership records",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-20",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t2",
+                    title: "Verify shares to be transferred",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-21",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t3",
+                    title: "Prepare applicable share transfer documents",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-21",
+                    end: "2026-08-22",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+              {
+                id: "ws2",
+                name: "BIR Share Transfer Processing",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t4",
+                    title: "Prepare BIR / ONETT requirements",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-24",
+                    end: "2026-08-25",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+            ],
+            files: [],
+            deliverables: [],
+            updates: [],
+            history: [],
+            projectTimer: { state: "stopped", seconds: 0, started: null },
+            taskTimers: {},
+            transmittal: null,
+            coc: null,
+            closed: false,
+          };
+          try {
+            window.ORDO_STATE =
+              JSON.parse(localStorage.getItem(KEY) || "null") ||
+              JSON.parse(JSON.stringify(DEFAULT_STATE));
+          } catch (e) {
+            window.ORDO_STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+          }
+          window.ORDO_SAVE = function () {
+            try {
+              localStorage.setItem(KEY, JSON.stringify(window.ORDO_STATE));
+            } catch (e) {}
+          };
+          window.ORDO_RESET = function () {
+            try {
+              localStorage.removeItem(KEY);
+            } catch (e) {}
+            location.reload();
+          };
+        }
+
+        if (typeof window.ORDO === "undefined") {
+          window.ORDO = {
+            stages: [
+              "Work Order",
+              "SOW",
+              "Review",
+              "NTP",
+              "Execution",
+              "Reporting",
+              "Presentation",
+              "Delivery",
+              "Completion",
+            ],
+            esc(s) {
+              return String(s ?? "").replace(
+                /[&<>"']/g,
+                (c) =>
+                  ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    '"': "&quot;",
+                    "'": "&#39;",
+                  })[c],
+              );
+            },
+            dur(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60);
+              return h ? `${h}h ${m}m` : `${m}m`;
+            },
+            fmt(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60),
+                s = sec % 60;
+              return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+            },
+            allTasks() {
+              return ORDO_STATE.streams.flatMap((w) =>
+                w.tasks.map((t) => ({ task: t, stream: w })),
+              );
+            },
+            findTask(id) {
+              return this.allTasks().find((x) => x.task.id === id)?.task;
+            },
+            findStream(id) {
+              return ORDO_STATE.streams.find((w) => w.id === id);
+            },
+            projectSeconds() {
+              const x = ORDO_STATE.projectTimer;
+              return (
+                Number(x.seconds || 0) +
+                (x.state === "running" && x.started
+                  ? Math.floor((Date.now() - x.started) / 1000)
+                  : 0)
+              );
+            },
+            save() {
+              ORDO_SAVE();
+            },
+            log(action) {
+              ORDO_STATE.history = ORDO_STATE.history || [];
+              ORDO_STATE.history.unshift({
+                action,
+                at: new Date().toLocaleString(),
+              });
+              this.save();
+            },
+            stopRunning() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.save();
+            },
+            startProject() {
+              this.stopRunning();
+              ORDO_STATE.projectTimer.state = "running";
+              ORDO_STATE.projectTimer.started = Date.now();
+              this.log("SOW planning timer started");
+            },
+            pauseProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state !== "running") return;
+              x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "paused";
+              x.started = null;
+              this.log("SOW planning timer paused");
+            },
+            stopProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.log("SOW planning timer stopped");
+            },
+            duplicateStream(id) {
+              const w = this.findStream(id);
+              if (!w) return;
+              ORDO_STATE.streams.push({
+                ...w,
+                id: "ws" + Date.now() + Math.random(),
+                name: w.name + " (Copy)",
+                tasks: w.tasks.map((t) => ({
+                  ...t,
+                  id: "t" + Date.now() + Math.random(),
+                  seconds: 0,
+                  status: "Ready",
+                })),
+              });
+              this.log("SOW workstream duplicated: " + w.name);
+            },
+          };
+        }
+      })();
+    </script>
+
+    <script>
+      (function () {
+        const current = 1;
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}" type="button"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+      })();
+    </script>
+
+    <script>
+      (function () {
+        if (
+          !ORDO_STATE.sowWorkflow ||
+          ORDO_STATE.sowWorkflow.demoVersion !== 10
+        ) {
+          ORDO_STATE.sowWorkflow = {
+            demoVersion: 10,
+            status: "draft",
+            editMode: true,
+            autoSave: true,
+            submittedAt: null,
+            finalizedAt: null,
+            finalizedBy: null,
+            lastSavedAt: null,
+          };
+        }
+        ORDO_STATE.sowWorkflow = ORDO_STATE.sowWorkflow || {
+          status: "draft",
+          editMode: true,
+          autoSave: true,
+          submittedAt: null,
+          finalizedAt: null,
+          finalizedBy: null,
+          lastSavedAt: null,
+        };
+
+        ORDO_STATE.sowOutOfScope = ORDO_STATE.sowOutOfScope || [
+          {
+            id: "ows-default",
+            name: "Activities outside approved SOW",
+            owner: "Project Manager",
+            remarks: "Policy controlled",
+            tasks: [
+              {
+                id: "owt-default",
+                title:
+                  "Any material work outside the approved Scope of Work requires controlled Project Change / SOW revision.",
+                assignee: "Project Manager",
+                est: "",
+                start: "",
+                end: "",
+                remarks: "Excluded from approved execution",
+              },
+            ],
+          },
+        ];
+
+        ORDO_STATE.sowPeople = ORDO_STATE.sowPeople || {
+          leadConsultant: "John Kelly Abalde",
+          leadAssociate: "Rubeca Potayre",
+          withinPreparedBy: ["John Kelly Abalde", "Rubeca Potayre"],
+          outScopePreparedBy: ["John Kelly Abalde", "Rubeca Potayre"],
+        };
+
+        const WF = ORDO_STATE.sowWorkflow;
+        const responsibilityOptions = [
+          "Responsible",
+          "Executor",
+          "Monitor",
+          "Reviewer",
+          "Approver",
+          "Coordinator",
+          "Support",
+        ];
+        [...ORDO_STATE.streams, ...ORDO_STATE.sowOutOfScope].forEach((stream) => {
+          if (!Array.isArray(stream.responsibilities) || !stream.responsibilities.length)
+            stream.responsibilities = ["Responsible"];
+          stream.tasks.forEach((task) => {
+            if (!Array.isArray(task.responsibilities) || !task.responsibilities.length)
+              task.responsibilities = ["Responsible"];
+          });
+        });
+        const responsibilitySelect = (kind, id, values, disabled = false) => {
+          const chosen = Array.isArray(values) && values.length ? values : ["Responsible"];
+          return `<details class="sow-responsibility" data-${kind}-responsibilities="${ORDO.esc(id)}" ${disabled ? "data-disabled" : ""}><summary>${ORDO.esc(chosen.join(", "))}</summary><div>${responsibilityOptions.map((item) => `<label><input type="checkbox" value="${item}" ${chosen.includes(item) ? "checked" : ""} ${disabled ? "disabled" : ""}>${item}</label>`).join("")}</div></details>`;
+        };
+        if (typeof WF.editMode !== "boolean")
+          WF.editMode = WF.status === "draft";
+        let activeView =
+          sessionStorage.getItem("ordoSowActiveView") || "within";
+
+        function renderSowPeople() {
+          const p = ORDO_STATE.sowPeople || {};
+          const joinNames = (value) => {
+            if (Array.isArray(value)) return value.filter(Boolean).join(" · ");
+            return value || "—";
+          };
+
+          const lead = document.getElementById("leadConsultantName");
+          const associate = document.getElementById("leadAssociateName");
+          const within = document.getElementById("withinPreparedBy");
+          const out = document.getElementById("outScopePreparedBy");
+
+          if (lead) lead.textContent = p.leadConsultant || "—";
+          if (associate) associate.textContent = p.leadAssociate || "—";
+          if (within) within.textContent = joinNames(p.withinPreparedBy);
+          if (out) out.textContent = joinNames(p.outScopePreparedBy);
+        }
+
+        function isDraft() {
+          return WF.status === "draft";
+        }
+        function isReview() {
+          return WF.status === "review";
+        }
+        function isFinal() {
+          return WF.status === "final";
+        }
+        function withinEditable() {
+          return isDraft() && WF.editMode && WF.scopeMode !== "out";
+        }
+        function outScopeEditable() {
+          return isDraft() && WF.editMode && WF.scopeMode === "out";
+        }
+
+        function toast(message, type = "success") {
+          const stack = document.getElementById("toastStack");
+          if (!stack) return;
+          const el = document.createElement("div");
+          el.className = "toast " + type;
+          el.textContent = message;
+          stack.appendChild(el);
+          setTimeout(() => el.remove(), 2600);
+        }
+
+        function validateWithinScope() {
+          const errors = [];
+          if (!ORDO_STATE.streams.length)
+            errors.push("Add at least one Within Scope main item.");
+          ORDO_STATE.streams.forEach((ws, wi) => {
+            if (!String(ws.name || "").trim())
+              errors.push(`Main item ${wi + 1} needs a description.`);
+            if (!ws.tasks.length)
+              errors.push(`Main item ${wi + 1} needs at least one child item.`);
+            ws.tasks.forEach((t, ti) => {
+              if (!String(t.title || "").trim())
+                errors.push(
+                  `Item ${wi + 1}.${ti + 1} needs a Sub Task Description.`,
+                );
+              if (!String(t.assignee || "").trim())
+                errors.push(
+                  `Item ${wi + 1}.${ti + 1} needs an Assigned Person.`,
+                );
+              if (!Array.isArray(t.responsibilities) || !t.responsibilities.length)
+                errors.push(
+                  `Item ${wi + 1}.${ti + 1} needs at least one Responsibility.`,
+                );
+            });
+          });
+          return errors;
+        }
+
+        function saveNow(label = "Saved") {
+          WF.lastSavedAt = new Date().toISOString();
+          ORDO.save();
+          const s = document.getElementById("saveState");
+          if (s) {
+            s.textContent = label;
+            setTimeout(() => {
+              const x = document.getElementById("saveState");
+              if (x) x.textContent = "Saved";
+            }, 900);
+          }
+        }
+
+        function autoSave() {
+          if (WF.autoSave) saveNow("Auto-saved");
+        }
+        function parseEst(v) {
+          const m = String(v || "").match(/([0-9.]+)/);
+          return m ? Number(m[1]) : 0;
+        }
+
+        function blankTask(prefix = "t") {
+          return {
+            id: prefix + Date.now() + Math.random(),
+            title: "New Sub Task",
+            assignee: "Unassigned",
+            responsibilities: ["Responsible"],
+            est: "1h",
+            start: "",
+            end: "",
+            remarks: "",
+            status: "Ready",
+            seconds: 0,
+            report: true,
+          };
+        }
+
+        function blankStream(prefix = "ws") {
+          return {
+            id: prefix + Date.now() + Math.random(),
+            name: "New Main Task",
+            owner: "Project Manager",
+            responsibilities: ["Responsible"],
+            remarks: "",
+            tasks: [blankTask(prefix === "ows" ? "owt" : "t")],
+          };
+        }
+
+        function parentRollup(ws) {
+          const starts = ws.tasks
+            .map((t) => t.start)
+            .filter(Boolean)
+            .sort();
+          const ends = ws.tasks
+            .map((t) => t.end)
+            .filter(Boolean)
+            .sort();
+          return {
+            duration: ws.tasks.reduce((s, t) => s + parseEst(t.est), 0),
+            start: starts[0] || "",
+            end: ends.length ? ends[ends.length - 1] : "",
+          };
+        }
+
+        function findWithinTask(id) {
+          for (const ws of ORDO_STATE.streams) {
+            const i = ws.tasks.findIndex((t) => t.id === id);
+            if (i >= 0) return { ws, i };
+          }
+          return null;
+        }
+
+        function findOutTask(id) {
+          for (const ws of ORDO_STATE.sowOutOfScope) {
+            const i = ws.tasks.findIndex((t) => t.id === id);
+            if (i >= 0) return { ws, i };
+          }
+          return null;
+        }
+
+        function switchView(view) {
+          activeView = view === "out" ? "out" : "within";
+          sessionStorage.setItem("ordoSowActiveView", activeView);
+          const out = activeView === "out";
+
+          document
+            .getElementById("withinPanel")
+            .classList.toggle("active", !out);
+          document
+            .getElementById("outScopePanel")
+            .classList.toggle("active", out);
+          document.getElementById("withinTab").classList.toggle("active", !out);
+          document
+            .getElementById("outScopeTab")
+            .classList.toggle("active", out);
+
+          // Same builder features, contextual to active scope.
+          document.getElementById("addMainRow").textContent = out
+            ? "+ Add Out of Scope Item"
+            : "+ Add Scope Item";
+          document.getElementById("bulk").textContent = out
+            ? "Out of Scope Outline Builder"
+            : "Outline Builder";
+          document.getElementById("duplicateWs").textContent = out
+            ? "Duplicate Out of Scope Workstream"
+            : "Duplicate Workstream";
+
+          document.getElementById("viewHint").textContent = out
+            ? "Building excluded / non-approved scope."
+            : "Building approved scope.";
+
+          document.getElementById("summaryTitle").textContent = out
+            ? "OUT OF SCOPE SOW SUMMARY"
+            : "SOW SUMMARY";
+
+          renderSummary();
+        }
+
+        function renderWithin() {
+          const html = [];
+
+          ORDO_STATE.streams.forEach((ws, wi) => {
+            const pno = String(wi + 1),
+              p = parentRollup(ws);
+
+            html.push(`
+        <tr class="parent-row">
+          <td class="item-code">${pno}</td>
+          <td><input class="main-task-input" data-ws-field="name" data-ws="${ws.id}" value="${ORDO.esc(ws.name)}" ${!withinEditable() ? "disabled" : ""}></td>
+          <td><span class="imeta">Main scope item / workstream</span></td>
+          <td>${responsibilitySelect("ws", ws.id, ws.responsibilities, !withinEditable())}</td>
+          <td><input data-ws-field="owner" data-ws="${ws.id}" value="${ORDO.esc(ws.owner || "Project Manager")}" ${!withinEditable() ? "disabled" : ""}></td>
+          <td>${p.duration ? p.duration + "h" : "—"}</td>
+          <td>${p.start || "—"}</td>
+          <td>${p.end || "—"}</td>
+          <td><div class="builder-actions">
+            <button class="builder-action add addWithinChild" data-tip="Add child" title="Add child" data-ws="${ws.id}" ${!withinEditable() ? "disabled" : ""}>＋</button>
+            <button class="builder-action duplicate dupWithinWs" data-tip="Duplicate" title="Duplicate" data-ws="${ws.id}" ${!withinEditable() ? "disabled" : ""}>⧉</button>
+            <button class="builder-action move upWithinWs" data-tip="Move up" title="Move up" data-ws="${ws.id}" ${!withinEditable() ? "disabled" : ""}>↑</button>
+            <button class="builder-action move downWithinWs" data-tip="Move down" title="Move down" data-ws="${ws.id}" ${!withinEditable() ? "disabled" : ""}>↓</button>
+            <button class="builder-action remove rmWithinWs" data-tip="Remove" title="Remove" data-ws="${ws.id}" ${!withinEditable() ? "disabled" : ""}>×</button>
+          </div></td>
+        </tr>`);
+
+            ws.tasks.forEach((t, ti) => {
+              const no = `${pno}.${ti + 1}`;
+              html.push(`
+          <tr class="child-row-sow">
+            <td class="item-code">${no}</td>
+            <td><span class="imeta">↳ ${ORDO.esc(ws.name)}</span></td>
+            <td><input data-task-field="title" data-id="${t.id}" value="${ORDO.esc(t.title)}" ${!withinEditable() ? "disabled" : ""}></td>
+            <td>${responsibilitySelect("task", t.id, t.responsibilities, !withinEditable())}</td>
+            <td><input data-task-field="assignee" data-id="${t.id}" value="${ORDO.esc(t.assignee || "")}" ${!withinEditable() ? "disabled" : ""}></td>
+            <td><input data-task-field="est" data-id="${t.id}" value="${ORDO.esc(t.est || "")}" ${!withinEditable() ? "disabled" : ""}></td>
+            <td><input type="date" data-task-field="start" data-id="${t.id}" value="${ORDO.esc(t.start || "")}" ${!withinEditable() ? "disabled" : ""}></td>
+            <td><input type="date" data-task-field="end" data-id="${t.id}" value="${ORDO.esc(t.end || "")}" ${!withinEditable() ? "disabled" : ""}></td>
+            <td><div class="builder-actions">
+              <button class="builder-action add addWithinSibling" data-tip="Add below" title="Add row below" data-id="${t.id}" ${!withinEditable() ? "disabled" : ""}>＋</button>
+              <button class="builder-action duplicate dupWithinChild" data-tip="Duplicate" title="Duplicate" data-id="${t.id}" ${!withinEditable() ? "disabled" : ""}>⧉</button>
+              <button class="builder-action move upWithinChild" data-tip="Move up" title="Move up" data-id="${t.id}" ${!withinEditable() ? "disabled" : ""}>↑</button>
+              <button class="builder-action move downWithinChild" data-tip="Move down" title="Move down" data-id="${t.id}" ${!withinEditable() ? "disabled" : ""}>↓</button>
+              <button class="builder-action remove rmWithinChild" data-tip="Remove" title="Remove" data-id="${t.id}" ${!withinEditable() ? "disabled" : ""}>×</button>
+            </div></td>
+          </tr>`);
+            });
+          });
+
+          document.getElementById("withinRows").innerHTML = html.join("");
+          const children = ORDO_STATE.streams.reduce(
+            (s, w) => s + w.tasks.length,
+            0,
+          );
+          document.getElementById("withinTotal").textContent =
+            ORDO_STATE.streams.length + children + " item(s)";
+        }
+
+        function renderOut() {
+          const html = [];
+
+          ORDO_STATE.sowOutOfScope.forEach((ws, wi) => {
+            const pno = String(wi + 1),
+              p = parentRollup(ws);
+
+            html.push(`
+        <tr class="parent-row">
+          <td class="item-code">${pno}</td>
+          <td><input class="main-task-input" data-ows-field="name" data-ows="${ws.id}" value="${ORDO.esc(ws.name)}"></td>
+          <td><span class="imeta">Out of scope main item</span></td>
+          <td>${responsibilitySelect("ows", ws.id, ws.responsibilities)}</td>
+          <td><input data-ows-field="owner" data-ows="${ws.id}" value="${ORDO.esc(ws.owner || "Project Manager")}"></td>
+          <td>${p.duration ? p.duration + "h" : "—"}</td>
+          <td>${p.start || "—"}</td>
+          <td>${p.end || "—"}</td>
+          <td><div class="builder-actions">
+            <button class="builder-action add addOutChild" data-tip="Add child" title="Add child" data-ows="${ws.id}">＋</button>
+            <button class="builder-action duplicate dupOutWs" data-tip="Duplicate" title="Duplicate" data-ows="${ws.id}">⧉</button>
+            <button class="builder-action move upOutWs" data-tip="Move up" title="Move up" data-ows="${ws.id}">↑</button>
+            <button class="builder-action move downOutWs" data-tip="Move down" title="Move down" data-ows="${ws.id}">↓</button>
+            <button class="builder-action remove rmOutWs" data-tip="Remove" title="Remove" data-ows="${ws.id}">×</button>
+          </div></td>
+        </tr>`);
+
+            ws.tasks.forEach((t, ti) => {
+              const no = `${pno}.${ti + 1}`;
+              html.push(`
+          <tr class="child-row-sow">
+            <td class="item-code">${no}</td>
+            <td><span class="imeta">↳ ${ORDO.esc(ws.name)}</span></td>
+            <td><input data-owt-field="title" data-owt="${t.id}" value="${ORDO.esc(t.title)}"></td>
+            <td>${responsibilitySelect("owt", t.id, t.responsibilities)}</td>
+            <td><input data-owt-field="assignee" data-owt="${t.id}" value="${ORDO.esc(t.assignee || "")}"></td>
+            <td><input data-owt-field="est" data-owt="${t.id}" value="${ORDO.esc(t.est || "")}"></td>
+            <td><input type="date" data-owt-field="start" data-owt="${t.id}" value="${ORDO.esc(t.start || "")}"></td>
+            <td><input type="date" data-owt-field="end" data-owt="${t.id}" value="${ORDO.esc(t.end || "")}"></td>
+            <td><div class="builder-actions">
+              <button class="builder-action add addOutSibling" data-tip="Add below" title="Add row below" data-owt="${t.id}">＋</button>
+              <button class="builder-action duplicate dupOutChild" data-tip="Duplicate" title="Duplicate" data-owt="${t.id}">⧉</button>
+              <button class="builder-action move upOutChild" data-tip="Move up" title="Move up" data-owt="${t.id}">↑</button>
+              <button class="builder-action move downOutChild" data-tip="Move down" title="Move down" data-owt="${t.id}">↓</button>
+              <button class="builder-action remove rmOutChild" data-tip="Remove" title="Remove" data-owt="${t.id}">×</button>
+            </div></td>
+          </tr>`);
+            });
+          });
+
+          document.getElementById("outScopeRows").innerHTML = html.join("");
+          const children = ORDO_STATE.sowOutOfScope.reduce(
+            (s, w) => s + w.tasks.length,
+            0,
+          );
+          document.getElementById("outScopeTotal").textContent =
+            ORDO_STATE.sowOutOfScope.length + children + " item(s)";
+        }
+
+        function summaryFor(collection) {
+          const tasks = collection.flatMap((w) => w.tasks);
+          const planned = tasks.reduce((s, t) => s + parseEst(t.est), 0);
+          const starts = tasks
+            .map((t) => t.start)
+            .filter(Boolean)
+            .sort();
+          const ends = tasks
+            .map((t) => t.end)
+            .filter(Boolean)
+            .sort();
+          return { tasks, planned, starts, ends };
+        }
+
+        function renderSummary() {
+          const data =
+            activeView === "within"
+              ? summaryFor(ORDO_STATE.streams)
+              : summaryFor(ORDO_STATE.sowOutOfScope);
+
+          const collection =
+            activeView === "within"
+              ? ORDO_STATE.streams
+              : ORDO_STATE.sowOutOfScope;
+
+          document.getElementById("sowSummary").innerHTML = [
+            ["TOTAL ITEMS", collection.length + data.tasks.length],
+            ["MAIN TASKS", collection.length],
+            ["CHILD TASKS", data.tasks.length],
+            ["PLANNED DURATION", data.planned ? data.planned + "h" : "—"],
+            ["PLANNED START", data.starts[0] || "—"],
+            [
+              "PLANNED END",
+              data.ends.length ? data.ends[data.ends.length - 1] : "—",
+            ],
+          ]
+            .map(
+              (x) =>
+                `<div class="sow-summary-card"><label>${x[0]}</label><strong>${x[1]}</strong></div>`,
+            )
+            .join("");
+        }
+
+        function workflowUI() {
+          const versionState = ORDO_STATE.sowVersions || {};
+          const versionNo = document.getElementById("sowVersionNo");
+          if (versionNo)
+            versionNo.textContent = versionState.active?.version || "1.0";
+          document.getElementById("autosaveState").textContent = WF.autoSave
+            ? "On"
+            : "Off";
+
+          document.getElementById("saveDraftBtn").disabled =
+            !isDraft() || !WF.editMode;
+          document.getElementById("editSowBtn").disabled =
+            !isDraft() || WF.editMode;
+          document.getElementById("submitReviewBtn").disabled = !isDraft();
+          document.getElementById("finalizeSowBtn").disabled = !isReview();
+
+          const rb = document.getElementById("reviewBanner");
+          if (rb) rb.classList.toggle("show", isReview());
+          document
+            .getElementById("sowLockedBanner")
+            .classList.toggle("show", isFinal());
+
+          if (activeView === "within") {
+            const locked = !withinEditable();
+            document.getElementById("addMainRow").disabled = locked;
+            document.getElementById("bulk").disabled = locked;
+            document.getElementById("duplicateWs").disabled = locked;
+            document.getElementById("addWithinBottom").disabled = locked;
+          } else {
+            const locked = !outScopeEditable();
+            document.getElementById("addMainRow").disabled = locked;
+            document.getElementById("bulk").disabled = locked;
+            document.getElementById("duplicateWs").disabled = locked;
+            document.getElementById("addOutScopeItem").disabled = locked;
+            document
+              .querySelectorAll("#outScopePanel input, #outScopePanel button, #outScopePanel details input")
+              .forEach((control) => (control.disabled = locked));
+          }
+        }
+
+        function wireWithin() {
+          document.querySelectorAll("[data-ws-responsibilities]").forEach(
+            (control) =>
+              (control.onchange = () => {
+                if (!withinEditable()) return;
+                const ws = ORDO.findStream(control.dataset.wsResponsibilities);
+                if (ws) ws.responsibilities = [...control.querySelectorAll("input:checked")].map((input) => input.value);
+                autoSave();
+                renderAll();
+              }),
+          );
+          document.querySelectorAll("[data-task-responsibilities]").forEach(
+            (control) =>
+              (control.onchange = () => {
+                if (!withinEditable()) return;
+                const task = ORDO.findTask(control.dataset.taskResponsibilities);
+                if (task) task.responsibilities = [...control.querySelectorAll("input:checked")].map((input) => input.value);
+                autoSave();
+                renderAll();
+              }),
+          );
+          document.querySelectorAll("[data-ws-field]").forEach(
+            (el) =>
+              (el.onchange = () => {
+                if (!withinEditable()) return;
+                const ws = ORDO.findStream(el.dataset.ws);
+                if (ws) ws[el.dataset.wsField] = el.value;
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll("[data-task-field]").forEach(
+            (el) =>
+              (el.onchange = () => {
+                if (!withinEditable()) return;
+                const t = ORDO.findTask(el.dataset.id);
+                if (t) t[el.dataset.taskField] = el.value;
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".addWithinChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable())
+                  return routeToOut("Additional scope item");
+                const ws = ORDO.findStream(b.dataset.ws);
+                if (ws) ws.tasks.push(blankTask());
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".addWithinSibling").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable())
+                  return routeToOut("Additional scope item");
+                const x = findWithinTask(b.dataset.id);
+                if (x) x.ws.tasks.splice(x.i + 1, 0, blankTask());
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".dupWithinWs").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable())
+                  return routeToOut(
+                    "Duplicate scope requested after finalization",
+                  );
+                ORDO.duplicateStream(b.dataset.ws);
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document
+            .querySelectorAll(".upWithinWs")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveStream(ORDO_STATE.streams, b.dataset.ws, -1, true)),
+            );
+          document
+            .querySelectorAll(".downWithinWs")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveStream(ORDO_STATE.streams, b.dataset.ws, 1, true)),
+            );
+
+          document.querySelectorAll(".rmWithinWs").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable()) return;
+                if (
+                  confirm("Remove this main scope item and its child items?")
+                ) {
+                  ORDO_STATE.streams = ORDO_STATE.streams.filter(
+                    (w) => w.id !== b.dataset.ws,
+                  );
+                  autoSave();
+                  renderAll();
+                }
+              }),
+          );
+
+          document.querySelectorAll(".dupWithinChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable())
+                  return routeToOut(
+                    "Duplicate child scope requested after finalization",
+                  );
+                const x = findWithinTask(b.dataset.id);
+                if (!x) return;
+                const t = x.ws.tasks[x.i];
+                x.ws.tasks.splice(x.i + 1, 0, {
+                  ...t,
+                  id: "t" + Date.now() + Math.random(),
+                  title: t.title + " (Copy)",
+                  seconds: 0,
+                  status: "Ready",
+                });
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document
+            .querySelectorAll(".upWithinChild")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveChild(findWithinTask(b.dataset.id), -1, true)),
+            );
+          document
+            .querySelectorAll(".downWithinChild")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveChild(findWithinTask(b.dataset.id), 1, true)),
+            );
+
+          document.querySelectorAll(".rmWithinChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (!withinEditable()) return;
+                const x = findWithinTask(b.dataset.id);
+                if (x && confirm("Remove this child scope item?")) {
+                  x.ws.tasks.splice(x.i, 1);
+                  autoSave();
+                  renderAll();
+                }
+              }),
+          );
+        }
+
+        function wireOut() {
+          document.querySelectorAll("[data-ows-responsibilities]").forEach(
+            (control) =>
+              (control.onchange = () => {
+                const ws = ORDO_STATE.sowOutOfScope.find((item) => item.id === control.dataset.owsResponsibilities);
+                if (ws) ws.responsibilities = [...control.querySelectorAll("input:checked")].map((input) => input.value);
+                autoSave();
+                renderAll();
+              }),
+          );
+          document.querySelectorAll("[data-owt-responsibilities]").forEach(
+            (control) =>
+              (control.onchange = () => {
+                const found = findOutTask(control.dataset.owtResponsibilities);
+                if (found) found.ws.tasks[found.i].responsibilities = [...control.querySelectorAll("input:checked")].map((input) => input.value);
+                autoSave();
+                renderAll();
+              }),
+          );
+          document.querySelectorAll("[data-ows-field]").forEach(
+            (el) =>
+              (el.onchange = () => {
+                const ws = ORDO_STATE.sowOutOfScope.find(
+                  (w) => w.id === el.dataset.ows,
+                );
+                if (ws) ws[el.dataset.owsField] = el.value;
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll("[data-owt-field]").forEach(
+            (el) =>
+              (el.onchange = () => {
+                const x = findOutTask(el.dataset.owt);
+                if (x) x.ws.tasks[x.i][el.dataset.owtField] = el.value;
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".addOutChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                const ws = ORDO_STATE.sowOutOfScope.find(
+                  (w) => w.id === b.dataset.ows,
+                );
+                if (ws) ws.tasks.push(blankTask("owt"));
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".addOutSibling").forEach(
+            (b) =>
+              (b.onclick = () => {
+                const x = findOutTask(b.dataset.owt);
+                if (x) x.ws.tasks.splice(x.i + 1, 0, blankTask("owt"));
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document.querySelectorAll(".dupOutWs").forEach(
+            (b) =>
+              (b.onclick = () => {
+                duplicateOutStream(b.dataset.ows);
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document
+            .querySelectorAll(".upOutWs")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveStream(
+                    ORDO_STATE.sowOutOfScope,
+                    b.dataset.ows,
+                    -1,
+                    false,
+                  )),
+            );
+          document
+            .querySelectorAll(".downOutWs")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveStream(
+                    ORDO_STATE.sowOutOfScope,
+                    b.dataset.ows,
+                    1,
+                    false,
+                  )),
+            );
+
+          document.querySelectorAll(".rmOutWs").forEach(
+            (b) =>
+              (b.onclick = () => {
+                if (
+                  confirm("Remove this Out of Scope item and its child items?")
+                ) {
+                  ORDO_STATE.sowOutOfScope = ORDO_STATE.sowOutOfScope.filter(
+                    (w) => w.id !== b.dataset.ows,
+                  );
+                  autoSave();
+                  renderAll();
+                }
+              }),
+          );
+
+          document.querySelectorAll(".dupOutChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                const x = findOutTask(b.dataset.owt);
+                if (!x) return;
+                const t = x.ws.tasks[x.i];
+                x.ws.tasks.splice(x.i + 1, 0, {
+                  ...t,
+                  id: "owt" + Date.now() + Math.random(),
+                  title: t.title + " (Copy)",
+                });
+                autoSave();
+                renderAll();
+              }),
+          );
+
+          document
+            .querySelectorAll(".upOutChild")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveChild(findOutTask(b.dataset.owt), -1, false)),
+            );
+          document
+            .querySelectorAll(".downOutChild")
+            .forEach(
+              (b) =>
+                (b.onclick = () =>
+                  moveChild(findOutTask(b.dataset.owt), 1, false)),
+            );
+
+          document.querySelectorAll(".rmOutChild").forEach(
+            (b) =>
+              (b.onclick = () => {
+                const x = findOutTask(b.dataset.owt);
+                if (x && confirm("Remove this Out of Scope child item?")) {
+                  x.ws.tasks.splice(x.i, 1);
+                  autoSave();
+                  renderAll();
+                }
+              }),
+          );
+        }
+
+        function duplicateOutStream(id) {
+          const arr = ORDO_STATE.sowOutOfScope;
+          const i = arr.findIndex((w) => w.id === id);
+          if (i < 0) return;
+          const src = arr[i];
+          arr.splice(i + 1, 0, {
+            ...src,
+            id: "ows" + Date.now() + Math.random(),
+            name: src.name + " (Copy)",
+            tasks: src.tasks.map((t) => ({
+              ...t,
+              id: "owt" + Date.now() + Math.random(),
+            })),
+          });
+        }
+
+        function moveStream(arr, id, dir, within) {
+          if (within && !withinEditable()) return;
+          const i = arr.findIndex((w) => w.id === id),
+            n = i + dir;
+          if (i < 0 || n < 0 || n >= arr.length) return;
+          const [w] = arr.splice(i, 1);
+          arr.splice(n, 0, w);
+          autoSave();
+          renderAll();
+        }
+
+        function moveChild(x, dir, within) {
+          if (within && !withinEditable()) return;
+          if (!x) return;
+          const n = x.i + dir;
+          if (n < 0 || n >= x.ws.tasks.length) return;
+          const [t] = x.ws.tasks.splice(x.i, 1);
+          x.ws.tasks.splice(n, 0, t);
+          autoSave();
+          renderAll();
+        }
+
+        function routeToOut(title) {
+          ORDO_STATE.sowOutOfScope.push({
+            id: "ows" + Date.now() + Math.random(),
+            name: title,
+            owner: "Project Manager",
+            remarks: "Added after SOW finalization",
+            tasks: [
+              {
+                id: "owt" + Date.now() + Math.random(),
+                title:
+                  "Additional request after approved SOW. Requires controlled scope-change review before execution.",
+                assignee: "Project Manager",
+                est: "",
+                start: "",
+                end: "",
+                remarks: "Post-final request",
+              },
+            ],
+          });
+          autoSave();
+          switchView("out");
+          renderAll();
+          toast("Moved to Out of Scope / Exclusions.", "warn");
+          toast("Item routed to Out of Scope / Exclusions.", "warn");
+        }
+
+        function outlineText(collection) {
+          return collection
+            .map((ws) => [ws.name, ...ws.tasks.map((t) => "  " + t.title)])
+            .flat()
+            .join("\n");
+        }
+
+        function outlinePreview() {
+          const v = document.getElementById("outline").value;
+          let p = 0,
+            c = 0;
+          document.getElementById("preview").innerHTML = v
+            .split(/\r?\n/)
+            .filter((x) => x.trim())
+            .map((l) => {
+              const ind = (l.match(/^\s*/) || [""])[0].length;
+              let no;
+              if (ind === 0) {
+                p++;
+                c = 0;
+                no = p;
+              } else {
+                c++;
+                no = p + "." + c;
+              }
+              return `<div style="padding-left:${ind ? 14 : 0}px"><strong>${no}</strong> ${ind ? "↳ " : ""}${ORDO.esc(l.trim())}</div>`;
+            })
+            .join("");
+
+          const collection =
+            activeView === "within"
+              ? ORDO_STATE.streams
+              : ORDO_STATE.sowOutOfScope;
+          document.getElementById("outlineSyncState").textContent =
+            v.trim() === outlineText(collection).trim()
+              ? "Synchronized"
+              : "Edited — not yet applied";
+        }
+
+        function timerTick() {
+          document.getElementById("timerClock").textContent = ORDO.fmt(
+            ORDO.projectSeconds(),
+          );
+          document.getElementById("planningTotal").textContent = ORDO.dur(
+            ORDO.projectSeconds(),
+          );
+          document.getElementById("timerState").textContent = isFinal()
+            ? "Planning Complete"
+            : ORDO_STATE.projectTimer.state === "running"
+              ? "Planning"
+              : ORDO_STATE.projectTimer.state === "paused"
+                ? "Paused"
+                : "SOW Planning";
+
+          document.getElementById("timerStart").disabled = isFinal();
+          document.getElementById("timerPause").disabled =
+            isFinal() || ORDO_STATE.projectTimer.state !== "running";
+          document.getElementById("timerStop").disabled =
+            isFinal() || ORDO_STATE.projectTimer.state === "stopped";
+        }
+
+        function renderAll() {
+          renderSowPeople();
+          renderWithin();
+          renderOut();
+          switchView(activeView);
+          wireWithin();
+          wireOut();
+          workflowUI();
+          ORDO.save();
+        }
+
+        // Scope view tabs.
+        document.getElementById("withinTab").onclick = () =>
+          switchView("within");
+        document.getElementById("outScopeTab").onclick = () =>
+          switchView("out");
+
+        // Context-aware Add.
+        document.getElementById("addMainRow").onclick = () => {
+          if (activeView === "within") {
+            if (!withinEditable()) return routeToOut("Additional scope item");
+            ORDO_STATE.streams.push(blankStream());
+          } else {
+            ORDO_STATE.sowOutOfScope.push(blankStream("ows"));
+          }
+          autoSave();
+          renderAll();
+          toast(
+            activeView === "within"
+              ? "Within Scope item added."
+              : "Out of Scope item added.",
+          );
+        };
+
+        document.getElementById("addWithinBottom").onclick = () => {
+          if (!withinEditable()) return routeToOut("Additional scope item");
+          ORDO_STATE.streams.push(blankStream());
+          autoSave();
+          renderAll();
+        };
+
+        document.getElementById("addOutScopeItem").onclick = () => {
+          ORDO_STATE.sowOutOfScope.push(blankStream("ows"));
+          autoSave();
+          renderAll();
+        };
+
+        // Context-aware Duplicate Workstream.
+        document.getElementById("duplicateWs").onclick = () => {
+          if (activeView === "within") {
+            if (!withinEditable())
+              return routeToOut("Duplicate workstream requested");
+            if (ORDO_STATE.streams[0])
+              ORDO.duplicateStream(ORDO_STATE.streams[0].id);
+          } else {
+            if (ORDO_STATE.sowOutOfScope[0])
+              duplicateOutStream(ORDO_STATE.sowOutOfScope[0].id);
+          }
+          autoSave();
+          renderAll();
+          toast("Workstream duplicated.");
+        };
+
+        // Context-aware Outline Builder.
+        document.getElementById("bulk").onclick = () => {
+          if (activeView === "within" && !withinEditable())
+            return routeToOut("Outline change requested");
+
+          const collection =
+            activeView === "within"
+              ? ORDO_STATE.streams
+              : ORDO_STATE.sowOutOfScope;
+          document.querySelector("#outlineModal h3").textContent =
+            activeView === "within"
+              ? "SOW Outline Builder"
+              : "Out of Scope Outline Builder";
+
+          document.getElementById("outline").value = outlineText(collection);
+          outlinePreview();
+          document.getElementById("outlineModal").classList.add("open");
+        };
+
+        document.getElementById("cancel").onclick = () =>
+          document.getElementById("outlineModal").classList.remove("open");
+
+        document.getElementById("refreshOutline").onclick = () => {
+          const collection =
+            activeView === "within"
+              ? ORDO_STATE.streams
+              : ORDO_STATE.sowOutOfScope;
+          document.getElementById("outline").value = outlineText(collection);
+          outlinePreview();
+        };
+
+        document.getElementById("outline").oninput = outlinePreview;
+
+        document.getElementById("applyOutline").onclick = () => {
+          if (activeView === "within" && !withinEditable())
+            return routeToOut("Outline change requested");
+
+          const lines = document
+            .getElementById("outline")
+            .value.split(/\r?\n/)
+            .filter((x) => x.trim());
+          if (!lines.length) {
+            toast("Outline is empty.", "error");
+            return;
+          }
+          const out = [];
+          let ws = null;
+          const streamPrefix = activeView === "within" ? "ws" : "ows";
+          const taskPrefix = activeView === "within" ? "t" : "owt";
+
+          lines.forEach((l) => {
+            const ind = (l.match(/^\s*/) || [""])[0].length,
+              title = l.trim();
+            if (ind === 0) {
+              ws = {
+                id: streamPrefix + Date.now() + Math.random(),
+                name: title,
+                owner: "Project Manager",
+                remarks: "",
+                tasks: [],
+              };
+              out.push(ws);
+            } else if (ws) {
+              ws.tasks.push({ ...blankTask(taskPrefix), title });
+            }
+          });
+
+          if (!out.length) {
+            toast("Outline must begin with a Main Task.", "error");
+            return;
+          }
+          out.forEach((w) => {
+            if (!w.tasks.length) w.tasks.push(blankTask(taskPrefix));
+          });
+
+          if (activeView === "within") ORDO_STATE.streams = out;
+          else ORDO_STATE.sowOutOfScope = out;
+
+          autoSave();
+          document.getElementById("outlineModal").classList.remove("open");
+          renderAll();
+        };
+
+        // SOW actions.
+        document.getElementById("saveDraftBtn").onclick = () => {
+          if (!isDraft() || !WF.editMode) return;
+          WF.editMode = false;
+          saveNow("Saved");
+          ORDO.log("SOW draft saved");
+          renderAll();
+          toast("Draft saved. Use Edit SOW to continue changes.");
+        };
+
+        document.getElementById("editSowBtn").onclick = () => {
+          if (!isDraft() || WF.editMode) return;
+          WF.editMode = true;
+          ORDO.save();
+          ORDO.log("SOW editing resumed");
+          renderAll();
+          toast("SOW is now editable.");
+        };
+
+        document.getElementById("submitReviewBtn").onclick = () => {
+          if (!isDraft()) return;
+          const errors = validateWithinScope();
+          if (errors.length) {
+            toast(errors[0], "error");
+            return;
+          }
+          if (!confirm("Submit this SOW for internal review?")) return;
+
+          WF.status = "review";
+          localStorage.removeItem("ordoSowReviewV2-" + ORDO_PROJECT_ID);
+          WF.editMode = false;
+          WF.submittedAt = new Date().toISOString();
+          saveNow("Submitted");
+          ORDO.log("SOW submitted for internal review");
+          renderAll();
+          toast("SOW submitted for review.");
+        };
+
+        document.getElementById("finalizeSowBtn").onclick = () => {
+          if (isReview())
+            location.href = "review.html?project=" + ORDO_PROJECT_ID;
+        };
+
+        // Planning timer.
+        document.getElementById("timerStart").onclick = () => {
+          if (isFinal()) return;
+          ORDO.startProject();
+          timerTick();
+          toast("Planning timer started.");
+        };
+
+        document.getElementById("timerPause").onclick = () => {
+          if (isFinal()) return;
+          ORDO.pauseProject();
+          timerTick();
+          toast("Planning timer paused.", "warn");
+        };
+
+        document.getElementById("timerStop").onclick = () => {
+          if (isFinal()) return;
+          ORDO.stopProject();
+          timerTick();
+          toast("Planning timer stopped.");
+        };
+
+        const autoSaveRow = document.querySelector(".autosave-row");
+        if (autoSaveRow) {
+          autoSaveRow.title = "Click to toggle Auto-Save";
+          autoSaveRow.setAttribute("role", "button");
+          autoSaveRow.setAttribute("tabindex", "0");
+          autoSaveRow.onclick = () => {
+            WF.autoSave = !WF.autoSave;
+            ORDO.save();
+            workflowUI();
+            toast(
+              "Auto-Save " + (WF.autoSave ? "enabled" : "disabled"),
+              WF.autoSave ? "success" : "warn",
+            );
+          };
+          autoSaveRow.onkeydown = (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              autoSaveRow.click();
+            }
+          };
+        }
+
+        const resetBtn = document.getElementById("resetSowDemo");
+        if (resetBtn) {
+          resetBtn.onclick = () => {
+            if (!confirm("Reset the SOW demo to a fresh editable state?"))
+              return;
+            try {
+              localStorage.removeItem("ordoSowFunctionalV10State");
+              localStorage.removeItem("ordoProjectModularState");
+            } catch (e) {}
+            location.reload();
+          };
+        }
+
+        document.querySelectorAll(".modal").forEach((m) =>
+          m.addEventListener("click", (e) => {
+            if (e.target === m) m.classList.remove("open");
+          }),
+        );
+
+        renderAll();
+        timerTick();
+        setInterval(timerTick, 1000);
+      })();
+    </script>
+    <div class="toast-stack" id="toastStack"></div>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/sow-stage-management.js"></script>
+    <script src="../assets/js/sow-workstream-tools.js"></script>
+  </body>
+</html>

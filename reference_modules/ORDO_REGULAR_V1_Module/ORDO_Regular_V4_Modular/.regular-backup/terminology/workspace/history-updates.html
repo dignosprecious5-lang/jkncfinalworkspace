@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">REGULAR DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">RSAT</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY & COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab active" href="history-updates.html">HISTORY</a
+            >
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div class="side-title">STAGE MANAGEMENT</div>
+            <div class="side-section">
+              <h4>STAGE STATUS</h4>
+              <div class="statuspill">✓ RSAT approved</div>
+              <div class="statuspill">✓ NTP approved</div>
+              <div class="statuspill">● Execution in progress</div>
+              <div class="statuspill">○ COC pending</div>
+            </div>
+            <div class="side-section">
+              <h4>STAGE HANDLING</h4>
+              <div class="timer-card">
+                <div class="timer-row">
+                  <span id="timerState">Regular Direct</span
+                  ><span class="clock" id="timerClock">00:00:00</span>
+                </div>
+                <div class="timer-actions">
+                  <button class="tbtn start" id="timerStart">▶ Start</button
+                  ><button class="tbtn pause" id="timerPause">Ⅱ Pause</button
+                  ><button class="tbtn stop" id="timerStop">■ Stop</button>
+                </div>
+              </div>
+            </div>
+            <div class="side-section">
+              <h4>STAGE CONTROLS</h4>
+              <a
+                class="sidebtn primary quick-link"
+                href="project-dashboard.html"
+                >Dashboard</a
+              ><a class="sidebtn quick-link" href="scope-of-work.html"
+                >RSAT</a
+              ><a class="sidebtn quick-link" href="execution.html">Execution</a
+              ><a class="sidebtn quick-link" href="sow-report.html"
+                >RSAT Report</a
+              ><a class="sidebtn quick-link" href="delivery-completion.html"
+                >Delivery & Completion</a
+              >
+            </div>
+          </aside>
+          <section class="content">
+            <div class="two">
+              <div class="card">
+                <div class="cardhead"><strong>Internal Updates</strong></div>
+                <div class="cardbody">
+                  <div class="form-group">
+                    <textarea
+                      id="text"
+                      placeholder="Regular update..."
+                    ></textarea>
+                  </div>
+                  <button class="btn primary" id="post">Post Update</button>
+                  <div id="updates"></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="cardhead"><strong>Audit Trail</strong></div>
+                <div class="cardbody" id="history"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        const current = 4;
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+        function tick() {
+          document.getElementById("timerClock").textContent = ORDO.fmt(
+            ORDO.projectSeconds(),
+          );
+          document.getElementById("timerState").textContent =
+            ORDO_STATE.projectTimer.state === "running"
+              ? "Running"
+              : ORDO_STATE.projectTimer.state === "paused"
+                ? "Paused"
+                : "Regular Direct";
+        }
+        document.getElementById("timerStart").onclick = () => {
+          ORDO.startProject();
+          tick();
+        };
+        document.getElementById("timerPause").onclick = () => {
+          ORDO.pauseProject();
+          tick();
+        };
+        document.getElementById("timerStop").onclick = () => {
+          ORDO.stopProject();
+          tick();
+        };
+        tick();
+        setInterval(tick, 1000);
+      })();
+    </script>
+    <script>
+      (function () {
+        function r() {
+          document.getElementById("updates").innerHTML = ORDO_STATE.updates
+            .map(
+              (u) =>
+                `<div class="listitem"><div class="dot"></div><div class="itemmain"><div class="ititle">${ORDO.esc(u.text)}</div><div class="imeta">${u.user} · ${u.at}</div></div></div>`,
+            )
+            .join("");
+          document.getElementById("history").innerHTML = ORDO_STATE.history
+            .map(
+              (h) =>
+                `<div class="listitem"><div class="dot"></div><div class="itemmain"><div class="ititle">${ORDO.esc(h.action)}</div><div class="imeta">${h.at}</div></div></div>`,
+            )
+            .join("");
+        }
+        document.getElementById("post").onclick = () => {
+          const t = document.getElementById("text").value.trim();
+          if (t) {
+            ORDO_STATE.updates.unshift({
+              text: t,
+              user: "Current User",
+              at: new Date().toLocaleString(),
+            });
+            ORDO.log("Internal project update posted");
+            document.getElementById("text").value = "";
+            r();
+          }
+        };
+        r();
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>

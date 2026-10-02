@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <style>
+      /* Modern Regular Lifecycle Stepper */
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life-title strong {
+        font-size: 11px;
+        color: #26354f;
+      }
+      .life-title span {
+        font-size: 8px;
+        color: #8b96a8;
+        background: #f6f8fb;
+        border: 1px solid #e8edf4;
+        border-radius: 999px;
+        padding: 5px 8px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 44.5%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: #8290a3 !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+        box-shadow: 0 2px 7px rgba(16, 24, 40, 0.04);
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        line-height: 1.2;
+        color: #7f8a9b;
+        text-align: center;
+        max-width: 96px;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.done small {
+        color: #4c5e78;
+        font-weight: 700;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow:
+          0 0 0 5px #eef3ff,
+          0 3px 9px rgba(41, 75, 152, 0.16);
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      .life .stage:hover b {
+        transform: translateY(-1px);
+      }
+      @media (max-width: 1100px) {
+        .life {
+          overflow-x: auto !important;
+          padding-top: 2px;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>REG-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                REG-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">REGULAR DASHBOARD</a
+            ><a class="ptab active" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">RSAT</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard" aria-live="polite"></aside>
+          <section class="content" aria-live="polite"></section>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        const current = 4;
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}" type="button"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/work-order.js"></script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORDO Project V4 — Existing Workspace Look</title>
+<style>
+:root{
+  --bg:#f4f7fb;
+  --surface:#fff;
+  --line:#e3e8f0;
+  --line2:#edf1f5;
+  --text:#141b2b;
+  --muted:#677286;
+  --soft:#94a0b2;
+  --navy:#1f3f87;
+  --navy2:#294b98;
+  --blue-soft:#edf3ff;
+  --green:#338260;
+  --green-soft:#eaf7ef;
+  --amber:#bd731e;
+  --amber-soft:#fff7e9;
+  --red:#c84c4c;
+  --red-soft:#fff0f0;
+  --shadow:0 8px 24px rgba(27,45,78,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);font-size:13px}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:68px 1fr;grid-template-rows:72px 1fr}
+.topbar{
+  grid-column:1/-1;grid-row:1;background:#fff;border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:230px 1fr 180px;align-items:center;position:sticky;top:0;z-index:30
+}
+.brand{padding-left:22px;font-family:Georgia,serif;font-size:15px;line-height:.88;color:#111827}
+.brand .co{display:flex;gap:4px;align-items:center}
+.brandmark{width:12px;height:12px;border:1.5px solid #4e69c5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;color:#4e69c5}
+.searchwrap{display:flex;justify-content:center}.search{width:min(520px,52vw);height:36px;border-radius:22px;background:#f2f4f7;color:#98a2b3;display:flex;align-items:center;padding:0 16px}
+.toptools{display:flex;justify-content:flex-end;align-items:center;gap:14px;padding-right:18px;color:#667085}.avatar{width:33px;height:33px;border-radius:50%;background:#f0f2f5;display:flex;align-items:center;justify-content:center}
+.rail{grid-column:1;grid-row:2;background:#fff;border-right:1px solid var(--line);padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:14px}
+.railbtn{width:38px;height:38px;border:0;border-radius:10px;background:transparent;color:#7b8494;font-size:16px;display:flex;align-items:center;justify-content:center}
+.railbtn:hover{background:#f4f6f9}.railbtn.active{background:#eaf2ff;color:#3158e6}.railspace{flex:1}
+.main{grid-column:2;grid-row:2;padding:20px 24px 38px;min-width:0}
+.breadcrumb{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:14px;box-shadow:var(--shadow);font-size:11px}
+.workspace-head{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow);margin-bottom:12px}
+.workspace-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.eyebrow{font-size:9px;letter-spacing:2px;color:#76839a;font-weight:800}
+.workspace-title{font-size:22px;font-weight:700;margin:10px 0 6px}
+.refline{font-size:10px;color:#7a8495}
+.chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.chip{border:1px solid #dce3ed;border-radius:999px;padding:9px 13px;background:#fff;color:#59667a;font-size:9px;white-space:nowrap}.chip strong{color:#30425e;margin-left:5px}
+.primary-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.ptab{height:37px;border:1px solid #d8dfeb;border-radius:22px;background:#fff;color:#2a3b5a;font-size:10px;font-weight:700;padding:0 17px}
+.ptab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.relations{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow);margin-bottom:14px;display:flex;gap:32px;flex-wrap:wrap;font-size:10px;color:#6b7280}.relations a{color:#3158e6;font-weight:700}
+.lifecycle{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;box-shadow:var(--shadow);margin-bottom:14px}
+.life-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.life-title strong{font-size:11px}.life-title span{font-size:9px;color:#8a94a5}
+.life{display:grid;grid-template-columns:repeat(9,1fr);overflow:hidden;border:1px solid var(--line);border-radius:9px}
+.stage{min-height:56px;border:0;border-right:1px solid var(--line);background:#fff;padding:8px 6px;text-align:center;color:#738095}.stage:last-child{border-right:0}.stage b{display:block;font-size:15px;color:#26354f}.stage small{font-size:7px}.stage.done{background:#f1faf5;color:#2d8a61}.stage.done b{color:#2d8a61}.stage.current{background:#eef3ff;color:#3158e6}.stage.current b{color:#3158e6}
+.layout{display:grid;grid-template-columns:205px minmax(0,1fr);gap:14px;align-items:start}
+.sidecard{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;position:sticky;top:90px}
+.side-title{padding:16px 14px 8px;font-size:10px;font-weight:800;letter-spacing:1px;color:#65738a}
+.side-section{padding:10px 12px;border-top:1px solid var(--line2)}.side-section h4{margin:0 0 9px;font-size:8px;letter-spacing:1px;color:#8d98aa}
+.statuspill{border:1px solid #dbe2ed;border-radius:22px;padding:9px 11px;margin-bottom:7px;font-size:9px;color:#536176;background:#fff}
+.timer-card{border:1px solid #dde4ef;border-radius:10px;padding:9px;background:#fbfcfe}
+.timer-row{display:flex;align-items:center;justify-content:space-between;gap:4px}.clock{font-variant-numeric:tabular-nums;font-weight:800;color:#24324b}.timer-state{font-size:7px;border-radius:999px;padding:3px 6px;background:#f1f3f6;color:#6b7280}.timer-state.running{background:#eaf7ef;color:#2d8a61}.timer-state.paused{background:#fff6e7;color:#b36a16}
+.timer-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:7px}.tbtn{height:28px;border:1px solid #dbe2ed;border-radius:6px;background:#fff;font-size:8px}.tbtn.start{background:#edf9f2;color:#16834d;border-color:#cdebd9}.tbtn.pause{background:#fff8e9;color:#ad6d0e;border-color:#f3dfb5}.tbtn.stop{background:#fff1f1;color:#c23d3d;border-color:#f2cccc}
+.sidebtn{width:100%;height:36px;border:1px solid #dce3ed;background:#fff;color:#44526a;margin-bottom:7px;font-size:9px;text-align:left;padding:0 10px}
+.sidebtn.primary{background:#294998;color:#fff;border-color:#294998;font-weight:700}.sidebtn:disabled{opacity:.45}
+.content{min-width:0}
+.view{display:none}.view.active{display:block}
+.docframe{background:#fff;border:2px solid #2d4f97;min-height:640px;box-shadow:var(--shadow);padding:22px 26px;font-family:Georgia,serif}
+.dochead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px}.docbrand{font-size:17px;line-height:.9}.doctitle{text-align:right}.doctitle h1{font-size:28px;margin:0}.doctitle small{font-size:8px;color:#748094}
+.docmeta{display:grid;grid-template-columns:140px 1fr 130px 1fr;gap:8px 14px;align-items:center;font-size:10px;margin-bottom:15px}.docmeta .line{border-bottom:1px solid #8b93a1;padding:4px 0;font-family:Inter,Arial}
+.scope-title{background:#2d4f97;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:9px;margin-top:12px}
+.scope-wrap{overflow:auto}.scope-table{border-collapse:collapse;width:100%;min-width:1000px;table-layout:fixed;font-family:Georgia,serif}
+.scope-table th,.scope-table td{border:1px solid #707887;padding:5px 6px;font-size:8px;vertical-align:middle}.scope-table th{font-weight:500;text-align:center}.scope-table input,.scope-table select{width:100%;border:0;background:transparent;font-size:8px;font-family:inherit}
+.task-actions{display:flex;gap:3px;align-items:center;justify-content:center}.mini{width:23px;height:23px;border:1px solid #d9dfE9;background:#fff;border-radius:5px;font-size:8px}.mini.start{color:#27835c}.mini.pause{color:#b36a16}.mini.stop{color:#c94343}
+.dashboard-grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:12px}.dashkpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow)}.dashkpi label{font-size:8px;color:#7b8495;font-weight:800;text-transform:uppercase;display:block}.dashkpi strong{font-size:20px;display:block;margin-top:6px}.dashkpi small{font-size:8px;color:#96a0af}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.cardhead{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.cardhead strong{font-size:11px}
+.cardbody{padding:14px}
+.two{display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+.listitem{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--line2);align-items:flex-start}.listitem:last-child{border-bottom:0}.dot{width:8px;height:8px;border-radius:50%;background:#3158e6;margin-top:4px}.itemmain{flex:1}.ititle{font-weight:700;font-size:10px}.imeta{font-size:8px;color:#98a2b3;margin-top:3px}
+.badge{display:inline-flex;padding:4px 7px;border-radius:999px;font-size:7px;font-weight:700;background:#f2f4f7;color:#667085}.badge.green{background:#eaf7ef;color:#2d8a61}.badge.amber{background:#fff6e7;color:#b36a16}.badge.blue{background:#eaf2ff;color:#3158e6}.badge.red{background:#fff0f0;color:#c94343}.badge.purple{background:#f3efff;color:#7357cf}
+.toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}.btn{height:32px;border:1px solid #dce3ed;border-radius:8px;background:#fff;color:#44526a;padding:0 10px;font-size:9px}.btn.primary{background:#294998;color:#fff;border-color:#294998}.btn.green{background:#2d8a61;color:#fff;border-color:#2d8a61}.btn:disabled{opacity:.45}
+.workstream{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px;background:#fff}.wshead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f7f9fd;border-bottom:1px solid var(--line)}.wshead strong{font-size:10px}
+.taskrow{display:grid;grid-template-columns:minmax(230px,1.5fr) 120px 75px 90px 115px auto;align-items:center;border-bottom:1px solid var(--line2);min-height:46px}.taskrow:last-child{border-bottom:0}.taskcell{padding:7px 9px;font-size:8px}.taskname{font-weight:700;color:#26364f}
+.file-row{display:grid;grid-template-columns:1.4fr 130px 110px 120px auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}.form-group label{font-size:8px;font-weight:700;color:#667085}.form-group input,.form-group select,.form-group textarea{border:1px solid #dfe5ee;border-radius:7px;padding:8px;font-size:9px}.form-group textarea{min-height:72px;resize:vertical}
+.reportgrid{display:grid;grid-template-columns:.9fr 1.1fr;gap:12px}.preview{background:#fff;border:2px solid #2d4f97;padding:20px;font-family:Georgia,serif;min-height:500px}.preview h2{text-align:center}.preview h3{font-size:12px;border-bottom:1px solid #ccd3df;padding-bottom:5px}.preview p,.preview li{font-size:10px;line-height:1.45}
+.checkline{display:flex;gap:8px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+.modal{display:none;position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:90;align-items:center;justify-content:center;padding:18px;overflow:auto}.modal.open{display:flex}.modalbox{background:#fff;width:min(760px,100%);border-radius:12px;padding:18px}.modalbox h3{margin:0 0 12px}.modal-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}.outline{display:grid;grid-template-columns:1fr 1fr;gap:12px}.outline textarea{min-height:220px;font-family:monospace}
+.hidden{display:none!important}
+@media(max-width:1200px){.layout{grid-template-columns:190px minmax(0,1fr)}.dashboard-grid{grid-template-columns:repeat(2,1fr)}.life{overflow:auto;grid-template-columns:repeat(9,105px)}.two,.reportgrid{grid-template-columns:1fr}}
+@media(max-width:820px){.app{grid-template-columns:1fr;grid-template-rows:64px 54px 1fr}.topbar{grid-template-columns:1fr auto}.searchwrap{display:none}.rail{grid-column:1;grid-row:2;flex-direction:row;border-right:0;border-bottom:1px solid var(--line);padding:7px;overflow:auto}.railspace{display:none}.main{grid-column:1;grid-row:3;padding:12px 9px 28px}.workspace-top{flex-direction:column}.chips{justify-content:flex-start}.layout{grid-template-columns:1fr}.sidecard{position:static}.dashboard-grid{grid-template-columns:1fr 1fr}.taskrow{grid-template-columns:1fr auto}.taskrow .taskcell:nth-child(2),.taskrow .taskcell:nth-child(3),.taskrow .taskcell:nth-child(4),.taskrow .taskcell:nth-child(5){grid-column:1}.taskrow .taskcell:last-child{grid-column:2;grid-row:1}.file-row{grid-template-columns:1fr}.docmeta{grid-template-columns:1fr}.outline{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">John Kelly<div class="co"><span class="brandmark">C</span><span>Company</span></div></div>
+    <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+    <div class="toptools"><span>♧</span><div class="avatar">J</div></div>
+  </header>
+
+  <aside class="rail">
+    <button class="railbtn">▰</button>
+    <button class="railbtn">♙</button>
+    <button class="railbtn">⚑</button>
+    <button class="railbtn">▤</button>
+    <button class="railbtn">▧</button>
+    <button class="railbtn">▥</button>
+    <button class="railbtn">♟</button>
+    <button class="railbtn">◎</button>
+    <button class="railbtn">⌁</button>
+    <button class="railbtn">▣</button>
+    <button class="railbtn active">⌘</button>
+    <div class="railspace"></div>
+  </aside>
+
+  <main class="main">
+    <div class="breadcrumb">← Project &nbsp;/&nbsp; <strong>PROJ-2026-120</strong></div>
+
+    <section class="workspace-head">
+      <div class="workspace-top">
+        <div>
+          <div class="eyebrow">PROJECT WORKSPACE</div>
+          <div class="workspace-title">Transfer of Share From Dany and Ronald to X10</div>
+          <div class="refline">PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087</div>
+        </div>
+        <div class="chips">
+          <span class="chip">Business <strong>X10 REAL ESTATE CORPORATION</strong></span>
+          <span class="chip">Client <strong>May Flor Dabatos</strong></span>
+          <span class="chip">Planned Start <strong>Aug 17, 2026</strong></span>
+          <span class="chip">Target Completion <strong>Sep 18, 2026</strong></span>
+        </div>
+      </div>
+      <div class="primary-tabs" id="primaryTabs">
+        <button class="ptab" data-view="dashboard">PROJECT DASHBOARD</button>
+        <button class="ptab active" data-view="sow">SCOPE OF WORK</button>
+        <button class="ptab" data-view="execution">EXECUTION</button>
+        <button class="ptab" data-view="report">SOW REPORT</button>
+        <button class="ptab" data-view="completion">DELIVERY & COMPLETION</button>
+      </div>
+    </section>
+
+    <div class="relations">
+      <span>Deal: <a>CONDEAL-2026-065</a></span>
+      <span>Company: <a>X10 REAL ESTATE CORPORATION</a></span>
+      <span>Contact: <a>May Flor Dabatos</a></span>
+      <span>Project Manager: <a>John Kelly Abalde</a></span>
+    </div>
+
+    <div class="lifecycle">
+      <div class="life-title"><strong>Project Lifecycle</strong><span>Policy-controlled process</span></div>
+      <div class="life" id="life"></div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidecard">
+        <div class="side-title">QUICK ACTIONS</div>
+        <div class="side-section">
+          <h4>STATUS</h4>
+          <div class="statuspill">✓ SOW approved</div>
+          <div class="statuspill">✓ NTP approved</div>
+          <div class="statuspill">● Execution in progress</div>
+          <div class="statuspill">○ COC pending</div>
+        </div>
+        <div class="side-section">
+          <h4>PROJECT TIMER</h4>
+          <div class="timer-card">
+            <div class="timer-row"><span class="timer-state" id="projectTimerState">Project Direct</span><span class="clock" id="projectClock">00:00:00</span></div>
+            <div class="timer-actions">
+              <button class="tbtn start" id="projectStart">▶ Start</button>
+              <button class="tbtn pause" id="projectPause">Ⅱ Pause</button>
+              <button class="tbtn stop" id="projectStop">■ Stop</button>
+            </div>
+          </div>
+        </div>
+        <div class="side-section">
+          <h4>PROJECT ACTIONS</h4>
+          <button class="sidebtn primary" data-view-jump="dashboard">Open Dashboard</button>
+          <button class="sidebtn" data-view-jump="execution">Execute SOW</button>
+          <button class="sidebtn" id="addEvidenceSide">+ Add Evidence</button>
+          <button class="sidebtn" data-view-jump="report">Open SOW Report</button>
+          <button class="sidebtn" data-view-jump="completion">Delivery & Completion</button>
+        </div>
+        <div class="side-section">
+          <h4>DOCUMENT ACTIONS</h4>
+          <button class="sidebtn">Save Scope of Work</button>
+          <button class="sidebtn" data-view-jump="report">Generate SOW Report</button>
+          <button class="sidebtn" id="generateTransmittalSide">Generate Transmittal</button>
+          <button class="sidebtn" id="generateCocSide">Generate COC</button>
+          <button class="sidebtn">Download PDF</button>
+        </div>
+        <div class="side-section">
+          <h4>SOW TOOLS</h4>
+          <button class="sidebtn" id="quickAddSide">+ Quick Task</button>
+          <button class="sidebtn" id="bulkAddSide">Bulk Add / Outline</button>
+          <button class="sidebtn" id="duplicateSide">Duplicate Task / Workstream</button>
+          <button class="sidebtn" id="templateSide">Use Template</button>
+        </div>
+      </aside>
+
+      <section class="content">
+        <!-- Dashboard -->
+        <div class="view" id="view-dashboard">
+          <div class="dashboard-grid" id="dashboardKpis"></div>
+          <div class="two">
+            <div class="card">
+              <div class="cardhead"><strong>SOW / Execution Progress</strong><button class="btn" data-view-jump="execution">Open Execution</button></div>
+              <div class="cardbody" id="dashStreams"></div>
+            </div>
+            <div class="card">
+              <div class="cardhead"><strong>Next Required Actions</strong></div>
+              <div class="cardbody" id="nextActions"></div>
+            </div>
+          </div>
+          <div class="two" style="margin-top:12px">
+            <div class="card">
+              <div class="cardhead"><strong>Time & AHT</strong><button class="btn" id="showTimeDetail">Refresh</button></div>
+              <div class="cardbody" id="timeSummary"></div>
+            </div>
+            <div class="card">
+              <div class="cardhead"><strong>Files / Evidence / Client Report</strong><button class="btn" id="dashAddEvidence">+ Evidence</button></div>
+              <div class="cardbody" id="dashFiles"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SOW -->
+        <div class="view active" id="view-sow">
+          <div class="docframe">
+            <div class="dochead">
+              <div class="docbrand">John Kelly<div>◉ Company</div></div>
+              <div class="doctitle"><h1>SCOPE OF WORK</h1><small>PROJ-F-002</small></div>
+            </div>
+            <div class="docmeta">
+              <div>Condeal Reference No.:</div><div class="line">CONDEAL-2026-065</div>
+              <div>Version No.:</div><div class="line">1.0</div>
+              <div>Business Name:</div><div class="line">X10 REAL ESTATE CORPORATION</div>
+              <div>SOW No.:</div><div class="line">SOW-2026-032</div>
+              <div>Client Name:</div><div class="line">May Flor D. Dabatos and Stephan Tenten</div>
+              <div>Date Prepared:</div><div class="line">08/20/2026</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn primary" id="quickAddTop">+ Quick Task</button>
+              <button class="btn" id="bulkAddTop">Bulk Add / Outline</button>
+              <button class="btn" id="templateTop">Use Template</button>
+              <button class="btn" id="duplicateTop">Duplicate Workstream</button>
+              <button class="btn" data-view-jump="execution">Open Execution View</button>
+            </div>
+            <div class="scope-title">WITHIN SCOPE</div>
+            <div class="scope-wrap">
+              <table class="scope-table">
+                <thead><tr><th style="width:18%">Main Task Description</th><th style="width:20%">Sub Task Description</th><th style="width:12%">Responsible</th><th style="width:6%">Est.</th><th style="width:10%">Actual</th><th style="width:9%">Status</th><th style="width:14%">Remarks / Report</th><th style="width:11%">Action</th></tr></thead>
+                <tbody id="sowTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Execution -->
+        <div class="view" id="view-execution">
+          <div class="card">
+            <div class="cardhead">
+              <div><strong>Execution Workspace</strong><div class="imeta">Same SOW items, now with Task Manager V2 controls, timers, evidence, duplicate and quick add.</div></div>
+              <div class="toolbar" style="margin:0"><button class="btn primary" id="quickAddExec">+ Quick Task</button><button class="btn" id="bulkAddExec">Bulk Add</button><button class="btn" id="templateExec">Use Template</button></div>
+            </div>
+            <div class="cardbody" id="executionStreams"></div>
+          </div>
+          <div class="two" style="margin-top:12px">
+            <div class="card"><div class="cardhead"><strong>Project Evidence</strong><button class="btn" id="addEvidenceExec">+ Add</button></div><div class="cardbody" id="executionFiles"></div></div>
+            <div class="card"><div class="cardhead"><strong>Internal Project Updates</strong></div><div class="cardbody"><div class="form-group"><textarea id="updateText" placeholder="Progress update, internal note, client dependency..."></textarea></div><button class="btn primary" id="postUpdate">Post Update</button><div id="updates"></div></div></div>
+          </div>
+        </div>
+
+        <!-- Report -->
+        <div class="view" id="view-report">
+          <div class="reportgrid">
+            <div class="card">
+              <div class="cardhead"><div><strong>SOW Report Builder</strong><div class="imeta">Client-report items are pulled from execution.</div></div></div>
+              <div class="cardbody">
+                <div id="reportItems"></div>
+                <div class="form-group"><label>Issues & Observations</label><textarea id="reportIssues">Client execution copies were received in batches; all transfer documentation is being consolidated.</textarea></div>
+                <div class="form-group"><label>Recommendations</label><textarea id="reportRecommendations">Maintain updated corporate records together with the transmitted closing package.</textarea></div>
+                <div class="form-group"><label>Summary / Way Forward</label><textarea id="reportWay">Complete remaining BIR processing and corporate record updates, then transmit the final package and issue the COC.</textarea></div>
+                <div class="toolbar"><button class="btn" id="refreshReport">Refresh Preview</button><button class="btn primary" id="approveReport">Generate / Approve Report</button></div>
+              </div>
+            </div>
+            <div class="preview" id="reportPreview"></div>
+          </div>
+        </div>
+
+        <!-- Completion -->
+        <div class="view" id="view-completion">
+          <div class="two">
+            <div class="card">
+              <div class="cardhead"><div><strong>Completion Readiness</strong><div class="imeta">Policy gates determine whether Transmittal, COC and Closure are available.</div></div></div>
+              <div class="cardbody" id="completionChecks"></div>
+              <div class="cardbody" style="border-top:1px solid var(--line)"><div class="toolbar"><button class="btn" id="transmittalBtn">Generate Transmittal</button><button class="btn green" id="cocBtn">Issue COC</button><button class="btn primary" id="closeProjectBtn">Close Project</button></div></div>
+            </div>
+            <div class="card">
+              <div class="cardhead"><strong>Client Completion Package</strong></div>
+              <div class="cardbody" id="clientPackage"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Modals -->
+<div class="modal" id="outlineModal">
+  <div class="modalbox">
+    <h3>Bulk Add / Outline Builder</h3>
+    <p style="font-size:9px;color:#667085">Top-level lines become workstreams/tasks; indented lines become child tasks.</p>
+    <div class="outline">
+      <textarea id="outlineInput">BIR Share Transfer Processing
+  Prepare ONETT requirements
+  Compute documentary stamp tax
+  Submit transfer documents
+  Follow up eCAR
+Corporate Records Update
+  Update Stock and Transfer Book
+  Prepare closing records</textarea>
+      <div class="card"><div class="cardbody"><strong>Preview</strong><div id="outlinePreview" style="font-size:9px;line-height:1.8;margin-top:8px"></div></div></div>
+    </div>
+    <div class="modal-actions"><button class="btn close-modal">Cancel</button><button class="btn primary" id="importOutline">Import</button></div>
+  </div>
+</div>
+
+<div class="modal" id="templateModal">
+  <div class="modalbox">
+    <h3>SOW Templates</h3>
+    <div class="two">
+      <div class="card"><div class="cardbody"><strong>Share Transfer — Standard</strong><p style="font-size:9px;color:#667085">Corporate review, documentation, BIR, records update and closing.</p><button class="btn primary template-use">Use Template</button></div></div>
+      <div class="card"><div class="cardbody"><strong>SEC Registration — Standard</strong><p style="font-size:9px;color:#667085">Drafting, signatures, filing, monitoring and closing.</p><button class="btn primary template-use">Use Template</button></div></div>
+    </div>
+    <div class="modal-actions"><button class="btn close-modal">Close</button></div>
+  </div>
+</div>
+
+<div class="modal" id="fileModal">
+  <div class="modalbox">
+    <h3>Add File / Evidence</h3>
+    <form id="fileForm">
+      <div class="form-group"><label>File / Record Name</label><input id="fileName" value="Executed Deed of Assignment.pdf" required></div>
+      <div class="form-group"><label>Classification</label><select id="fileClass"><option>Internal Working File</option><option>Supporting Evidence</option><option>Client Report Item</option><option>Deliverable</option><option>Appendix</option><option>Final Delivery</option></select></div>
+      <div class="form-group"><label>Stage</label><select id="fileStage"><option>Execution</option><option>SOW</option><option>Review</option><option>NTP</option><option>Reporting</option><option>Delivery</option><option>Completion</option></select></div>
+      <label class="checkline"><input id="includeReport" type="checkbox" checked><span>Include in Client Report</span></label>
+      <label class="checkline"><input id="linkRecords" type="checkbox" checked><span>Link to Records Management</span></label>
+      <div class="modal-actions"><button type="button" class="btn close-modal">Cancel</button><button class="btn primary" type="submit">Add Evidence</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+const stages=['Work Order','SOW','Review','NTP','Execution','Reporting','Presentation','Delivery','Completion'];
+const streams=[
+ {id:'ws1',name:'Share Transfer Documentation',tasks:[
+  {id:'t1',title:'Review existing corporate and share ownership records',assignee:'Rubeca Potayre',est:'1h',status:'Completed',seconds:2880,report:true,remarks:'Completed review'},
+  {id:'t2',title:'Verify shares to be transferred by Dany and Ronald',assignee:'Rubeca Potayre',est:'1h',status:'Completed',seconds:3180,report:true,remarks:'Verified'},
+  {id:'t3',title:'Prepare applicable share transfer documents',assignee:'Rubeca Potayre',est:'2h',status:'In Progress',seconds:4200,report:true,remarks:'Drafting'},
+  {id:'t4',title:'Coordinate documentary requirements with transferors',assignee:'Rubeca Potayre',est:'2h',status:'Pending Client',seconds:1800,report:true,remarks:'Waiting signed copy'},
+  {id:'t5',title:'Facilitate execution and signing of transfer documents',assignee:'Rubeca Potayre',est:'1h',status:'Ready',seconds:0,report:true,remarks:''},
+  {id:'t6',title:'Facilitate notarization of applicable documents',assignee:'Rubeca Potayre',est:'1h',status:'Ready',seconds:0,report:true,remarks:''},
+  {id:'t7',title:'Receive and consolidate duly executed documents',assignee:'Rubeca Potayre',est:'1h',status:'Ready',seconds:0,report:true,remarks:''}
+ ]},
+ {id:'ws2',name:'BIR Share Transfer Processing',tasks:[
+  {id:'t8',title:'Prepare and organize applicable BIR requirements',assignee:'Rubeca Potayre',est:'2h',status:'Ready',seconds:0,report:true,remarks:''},
+  {id:'t9',title:'Prepare ONETT / documentary stamp requirements',assignee:'John Kelly Abalde',est:'2h',status:'Ready',seconds:0,report:true,remarks:''},
+  {id:'t10',title:'Submit and monitor BIR share transfer processing',assignee:'Rubeca Potayre',est:'4h',status:'Ready',seconds:0,report:true,remarks:''}
+ ]}
+];
+const files=[
+ {name:'Draft Deed of Assignment.pdf',class:'Internal Working File',stage:'Execution',report:false,record:'—'},
+ {name:'Existing Stock and Transfer Book.pdf',class:'Supporting Evidence',stage:'Execution',report:true,record:'REC-2026-1841'},
+ {name:'Signed SPA.pdf',class:'Client Report Item',stage:'Execution',report:true,record:'REC-2026-1847'}
+];
+const deliverables=[
+ {name:'Executed Deed(s) of Assignment',status:'Ready'},
+ {name:'Notarized Transfer Documents',status:'In Progress'},
+ {name:'BIR / eCAR Output',status:'Pending'},
+ {name:'Updated Stock and Transfer Book',status:'Pending'},
+ {name:'Final SOW Report',status:'Pending'},
+ {name:'Final Client Closing Package',status:'Pending'}
+];
+const updates=[
+ {text:'All transfer documentation drafts are ready for final review.',user:'Rubeca Potayre',at:'Aug 25, 2026 3:20 PM'},
+ {text:'Client signed SPA received and linked to Records Management.',user:'John Kelly Abalde',at:'Aug 24, 2026 5:14 PM'}
+];
+const history=[
+ {action:'Project created from issued Service Memo',at:'Aug 17, 2026 9:14 AM'},
+ {action:'SOW v1.0 internally approved',at:'Aug 17, 2026 3:22 PM'},
+ {action:'NTP approved from manual/wet-signed evidence',at:'Aug 18, 2026 10:31 AM'},
+ {action:'Execution unlocked',at:'Aug 18, 2026 10:32 AM'}
+];
+const state={activeView:'sow',projectTimer:{state:'stopped',seconds:0,started:null},taskTimers:{},activeTimer:null,ticker:null,transmittal:null,coc:null,closed:false};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function dur(sec){sec=Math.max(0,Math.floor(sec||0));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60);return h?`${h}h ${m}m`:`${m}m`}
+function fmt(sec){sec=Math.max(0,Math.floor(sec||0));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
+function badge(s){const c=s==='Completed'||s==='Ready'?'green':s==='Pending'||s==='Pending Client'?'amber':s==='In Progress'?'purple':s==='At Risk'?'red':'blue';return `<span class="badge ${c}">${esc(s)}</span>`}
+function allTasks(){return streams.flatMap(w=>w.tasks.map(t=>({...t,stream:w.name})))}
+function findTask(id){return streams.flatMap(w=>w.tasks).find(t=>t.id===id)}
+function findStream(id){return streams.find(w=>w.id===id)}
+function taskTimer(t){state.taskTimers[t.id]=state.taskTimers[t.id]||{state:'stopped',started:null};return state.taskTimers[t.id]}
+function taskSeconds(t){const x=taskTimer(t);return t.seconds+(x.state==='running'&&x.started?Math.floor((Date.now()-x.started)/1000):0)}
+function projectSeconds(){const x=state.projectTimer;return x.seconds+(x.state==='running'&&x.started?Math.floor((Date.now()-x.started)/1000):0)}
+function totalHandling(){return projectSeconds()+allTasks().reduce((s,t)=>s+taskSeconds(findTask(t.id)),0)}
+function doneCount(){return allTasks().filter(t=>findTask(t.id).status==='Completed').length}
+function showView(name){
+ state.activeView=name;
+ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+ $('view-'+name).classList.add('active');
+ document.querySelectorAll('.ptab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+ if(name==='dashboard')renderDashboard();
+ if(name==='sow')renderSow();
+ if(name==='execution')renderExecution();
+ if(name==='report')renderReport();
+ if(name==='completion')renderCompletion();
+}
+function renderLife(){
+ const current=4;
+ $('life').innerHTML=stages.map((s,i)=>`<button class="stage ${i<current?'done':i===current?'current':''}" data-stage="${s}"><b>${i<current?'✓':i===current?'●':'○'}</b><small>${s}</small></button>`).join('');
+ document.querySelectorAll('.stage').forEach(b=>b.addEventListener('click',()=>alert(`${b.dataset.stage}\n\nThis stage opens its document/evidence in the Project Workspace. Policy gates are enforced server-side in Laravel.`)));
+}
+function renderDashboard(){
+ const completed=doneCount(),total=allTasks().length,aht=completed?Math.floor(totalHandling()/completed):0;
+ $('dashboardKpis').innerHTML=[
+  ['Overall Progress',Math.round(completed/total*100)+'%','SOW execution'],
+  ['Handling Time',dur(totalHandling()),'Project + Task time'],
+  ['AHT / Completed Task',dur(aht),'Current average'],
+  ['Elapsed Time','11d 7h','Project cycle'],
+  ['Waiting Time','3d 8h','Client / third party'],
+  ['Deliverables',`${deliverables.filter(d=>d.status==='Ready').length}/${deliverables.length}`,'Ready for delivery'],
+  ['On-Time','92%','Current personal rate'],
+  ['Health','On Track','Target Sep 18']
+ ].map(x=>`<div class="dashkpi"><label>${x[0]}</label><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join('');
+ $('dashStreams').innerHTML=streams.map(w=>{const d=w.tasks.filter(t=>t.status==='Completed').length,p=Math.round(d/w.tasks.length*100);return `<div class="workstream"><div class="wshead"><div><strong>${w.name}</strong><div class="imeta">${d}/${w.tasks.length} complete · ${dur(w.tasks.reduce((s,t)=>s+taskSeconds(t),0))}</div></div><span class="badge blue">${p}%</span></div><div class="cardbody"><div style="height:6px;border-radius:999px;background:#edf1f6;overflow:hidden"><div style="height:100%;width:${p}%;background:#3158e6"></div></div></div></div>`}).join('');
+ $('nextActions').innerHTML=[
+  ['Review transfer document draft','Assigned to John Kelly Abalde · due today'],
+  ['Receive signed transfer documents','Pending Client · waiting 1d 7h'],
+  ['Prepare BIR package','Ready after signed documents']
+ ].map(x=>`<div class="listitem"><div class="dot"></div><div class="itemmain"><div class="ititle">${x[0]}</div><div class="imeta">${x[1]}</div></div></div>`).join('');
+ renderTimeSummary();renderDashFiles();
+}
+function renderTimeSummary(){
+ const by={};allTasks().forEach(t=>{const orig=findTask(t.id);by[orig.assignee]=(by[orig.assignee]||0)+taskSeconds(orig)});by['John Kelly Abalde']=(by['John Kelly Abalde']||0)+projectSeconds();
+ $('timeSummary').innerHTML=Object.entries(by).map(([n,s])=>`<div class="checkline"><span style="flex:1">${esc(n)}</span><strong>${dur(s)}</strong></div>`).join('');
+}
+function renderDashFiles(){
+ $('dashFiles').innerHTML=files.slice(-4).map(f=>`<div class="listitem"><div class="dot"></div><div class="itemmain"><div class="ititle">${esc(f.name)}</div><div class="imeta">${esc(f.class)} · ${f.report?'Client Report':'Internal'} · ${f.record}</div></div></div>`).join('');
+}
+function renderSow(){
+ $('sowTable').innerHTML=streams.flatMap(w=>w.tasks.map(t=>`<tr>
+  <td>${esc(w.name)}</td>
+  <td><input value="${esc(t.title)}" data-edit="${t.id}"></td>
+  <td>${esc(t.assignee)}</td>
+  <td>${t.est}</td>
+  <td>${dur(taskSeconds(t))}</td>
+  <td>${badge(t.status)}</td>
+  <td><input value="${esc(t.remarks||'')}" placeholder="Remarks"><div style="font-family:Inter,Arial;font-size:7px;color:#667085;margin-top:3px"><label><input type="checkbox" class="report-flag" data-id="${t.id}" ${t.report?'checked':''}> Client report</label></div></td>
+  <td><div class="task-actions"><button class="mini start tstart" data-id="${t.id}">▶</button><button class="mini pause tpause" data-id="${t.id}">Ⅱ</button><button class="mini stop tstop" data-id="${t.id}">■</button><button class="mini tdone" data-id="${t.id}">✓</button><button class="mini tdup" data-id="${t.id}">⧉</button></div></td>
+ </tr>`)).join('');
+ wireTaskButtons();
+ document.querySelectorAll('.report-flag').forEach(c=>c.addEventListener('change',()=>{findTask(c.dataset.id).report=c.checked;renderReport()}));
+}
+function renderExecution(){
+ $('executionStreams').innerHTML=streams.map(w=>`<div class="workstream">
+  <div class="wshead"><div><strong>${w.name}</strong><div class="imeta">${w.tasks.filter(t=>t.status==='Completed').length}/${w.tasks.length} completed</div></div><div><button class="btn dup-stream" data-id="${w.id}">Duplicate</button></div></div>
+  ${w.tasks.map(t=>`<div class="taskrow">
+    <div class="taskcell"><div class="taskname">${esc(t.title)}</div><div class="imeta">${esc(t.assignee)}</div></div>
+    <div class="taskcell">${t.est}</div>
+    <div class="taskcell">${dur(taskSeconds(t))}</div>
+    <div class="taskcell">${badge(t.status)}</div>
+    <div class="taskcell"><label><input class="exec-report" data-id="${t.id}" type="checkbox" ${t.report?'checked':''}> Client report</label></div>
+    <div class="taskcell"><div class="task-actions"><button class="mini start tstart" data-id="${t.id}">▶</button><button class="mini pause tpause" data-id="${t.id}">Ⅱ</button><button class="mini stop tstop" data-id="${t.id}">■</button><button class="mini tdone" data-id="${t.id}">✓</button><button class="mini tdup" data-id="${t.id}">⧉</button><button class="btn task-file">+ Evidence</button></div></div>
+  </div>`).join('')}
+ </div>`).join('');
+ wireTaskButtons();
+ document.querySelectorAll('.dup-stream').forEach(b=>b.addEventListener('click',()=>duplicateStream(b.dataset.id)));
+ document.querySelectorAll('.task-file').forEach(b=>b.addEventListener('click',()=>openModal('fileModal')));
+ document.querySelectorAll('.exec-report').forEach(c=>c.addEventListener('change',()=>{findTask(c.dataset.id).report=c.checked;renderReport()}));
+ $('executionFiles').innerHTML=files.map(f=>`<div class="file-row"><div><strong>${esc(f.name)}</strong><div class="imeta">${f.record}</div></div><div>${badge(f.class)}</div><div>${f.stage}</div><div>${f.report?'✓ Client Report':'Internal'}</div><button class="btn">Preview</button></div>`).join('');
+ $('updates').innerHTML=updates.map(u=>`<div class="listitem"><div class="dot"></div><div class="itemmain"><div class="ititle">${esc(u.text)}</div><div class="imeta">${u.user} · ${u.at}</div></div></div>`).join('');
+}
+function wireTaskButtons(){
+ document.querySelectorAll('.tstart').forEach(b=>b.addEventListener('click',()=>startTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tpause').forEach(b=>b.addEventListener('click',()=>pauseTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tstop').forEach(b=>b.addEventListener('click',()=>stopTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tdone').forEach(b=>b.addEventListener('click',()=>doneTask(findTask(b.dataset.id))));
+ document.querySelectorAll('.tdup').forEach(b=>b.addEventListener('click',()=>duplicateTask(b.dataset.id)));
+}
+function stopActive(){
+ if(!state.activeTimer)return;
+ if(state.activeTimer.type==='project')stopProject(true);
+ else{const t=findTask(state.activeTimer.id);if(t)stopTask(t,true)}
+ state.activeTimer=null;
+}
+function startTask(t){
+ if(!t||t.status==='Completed')return;const x=taskTimer(t);if(x.state==='running')return;
+ if(state.activeTimer)stopActive();
+ x.state='running';x.started=Date.now();state.activeTimer={type:'task',id:t.id};t.status='In Progress';
+ history.unshift({action:`Timer started: ${t.title}`,at:new Date().toLocaleString()});ensureTicker();refreshCurrent();
+}
+function pauseTask(t){
+ if(!t)return;const x=taskTimer(t);if(x.state!=='running')return;
+ t.seconds+=Math.floor((Date.now()-x.started)/1000);x.state='paused';x.started=null;state.activeTimer=null;
+ history.unshift({action:`Timer paused: ${t.title}`,at:new Date().toLocaleString()});refreshCurrent();
+}
+function stopTask(t,silent=false){
+ if(!t)return;const x=taskTimer(t);if(x.state==='running')t.seconds+=Math.floor((Date.now()-x.started)/1000);x.state='stopped';x.started=null;
+ if(state.activeTimer?.id===t.id)state.activeTimer=null;if(!silent)history.unshift({action:`Timer stopped: ${t.title}`,at:new Date().toLocaleString()});refreshCurrent();
+}
+function doneTask(t){stopTask(t,true);t.status='Completed';history.unshift({action:`Task completed: ${t.title}`,at:new Date().toLocaleString()});refreshCurrent();renderCompletion()}
+function duplicateTask(id){
+ const t=findTask(id);if(!t)return;const w=streams.find(x=>x.tasks.includes(t));
+ w.tasks.push({...t,id:'t'+Date.now(),title:t.title+' (Copy)',status:'Ready',seconds:0});
+ history.unshift({action:`Task duplicated: ${t.title}`,at:new Date().toLocaleString()});refreshCurrent();
+}
+function duplicateStream(id){
+ const w=findStream(id)||streams[0];
+ streams.push({id:'ws'+Date.now(),name:w.name+' (Copy)',tasks:w.tasks.map(t=>({...t,id:'t'+Math.random().toString(36).slice(2,8),status:'Ready',seconds:0}))});
+ history.unshift({action:`Workstream duplicated: ${w.name}`,at:new Date().toLocaleString()});refreshCurrent();
+}
+function quickTask(){
+ const w=streams[0],title=prompt('Quick Task title');if(!title)return;
+ w.tasks.push({id:'t'+Date.now(),title,assignee:'Unassigned',est:'1h',status:'Ready',seconds:0,report:true,remarks:''});
+ history.unshift({action:`Quick Task added: ${title}`,at:new Date().toLocaleString()});refreshCurrent();
+}
+function startProject(){
+ const x=state.projectTimer;if(x.state==='running')return;if(state.activeTimer)stopActive();
+ x.state='running';x.started=Date.now();state.activeTimer={type:'project'};history.unshift({action:'Project direct timer started',at:new Date().toLocaleString()});ensureTicker();updateProjectTimer();
+}
+function pauseProject(){
+ const x=state.projectTimer;if(x.state!=='running')return;x.seconds+=Math.floor((Date.now()-x.started)/1000);x.state='paused';x.started=null;state.activeTimer=null;
+ history.unshift({action:'Project direct timer paused',at:new Date().toLocaleString()});updateProjectTimer();refreshCurrent();
+}
+function stopProject(silent=false){
+ const x=state.projectTimer;if(x.state==='running')x.seconds+=Math.floor((Date.now()-x.started)/1000);x.state='stopped';x.started=null;if(state.activeTimer?.type==='project')state.activeTimer=null;
+ if(!silent)history.unshift({action:'Project direct timer stopped',at:new Date().toLocaleString()});updateProjectTimer();refreshCurrent();
+}
+function updateProjectTimer(){
+ $('projectClock').textContent=fmt(projectSeconds());
+ $('projectTimerState').textContent=state.projectTimer.state==='running'?'Running':state.projectTimer.state==='paused'?'Paused':'Project Direct';
+ $('projectTimerState').className='timer-state '+state.projectTimer.state;
+}
+function ensureTicker(){
+ if(state.ticker)return;
+ state.ticker=setInterval(()=>{updateProjectTimer();if(state.activeView==='dashboard')renderDashboard();if(state.activeView==='sow')renderSow();if(state.activeView==='execution')renderExecution();},1000);
+}
+function refreshCurrent(){showView(state.activeView)}
+function renderReport(){
+ const items=allTasks().filter(t=>findTask(t.id).report);
+ $('reportItems').innerHTML=items.map(t=>`<label class="checkline"><input type="checkbox" checked><span><strong>${esc(t.title)}</strong><br><span class="imeta">${t.stream} · ${findTask(t.id).status} · ${dur(taskSeconds(findTask(t.id)))}</span></span></label>`).join('');
+ $('reportPreview').innerHTML=`<h2>PROJECT / SOW REPORT</h2>
+ <p><strong>Project:</strong> Transfer of Share From Dany and Ronald to X10<br><strong>Project No.:</strong> PROJ-2026-120<br><strong>Client:</strong> May Flor D. Dabatos<br><strong>Handling Time:</strong> ${dur(totalHandling())}<br><strong>Elapsed Time:</strong> 11d 7h</p>
+ <h3>Work Performed</h3><ul>${items.map(t=>`<li>${esc(t.title)} — ${findTask(t.id).status}</li>`).join('')}</ul>
+ <h3>Issues & Observations</h3><p>${esc($('reportIssues')?.value||'')}</p>
+ <h3>Recommendations</h3><p>${esc($('reportRecommendations')?.value||'')}</p>
+ <h3>Summary / Way Forward</h3><p>${esc($('reportWay')?.value||'')}</p>
+ <h3>Supporting Evidence</h3><ul>${files.filter(f=>f.report).map(f=>`<li>${esc(f.name)} (${esc(f.class)})</li>`).join('')}</ul>`;
+}
+function renderCompletion(){
+ const tasksDone=state.closed||allTasks().every(t=>findTask(t.id).status==='Completed');
+ const delsDone=state.closed||deliverables.every(d=>d.status==='Ready');
+ const reportDone=state.closed||deliverables.find(d=>d.name==='Final SOW Report')?.status==='Ready';
+ const trans=!!state.transmittal||state.closed;
+ const coc=!!state.coc||state.closed;
+ const checks=[['Approved SOW / NTP valid',true],['All required execution Tasks completed',tasksDone],['All required Deliverables ready',delsDone],['Final SOW Report approved',reportDone],['Presentation completed / N/A',true],['Transmittal issued',trans],['No critical unresolved issue',true],['Certificate of Completion issued',coc]];
+ $('completionChecks').innerHTML=checks.map(x=>`<div class="checkline"><span>${x[1]?'✓':'○'}</span><div class="itemmain"><div class="ititle">${x[0]}</div></div>${badge(x[1]?'Completed':'Pending')}</div>`).join('');
+ $('transmittalBtn').disabled=!(tasksDone&&delsDone&&reportDone)||trans;
+ $('cocBtn').disabled=!trans||coc;
+ $('closeProjectBtn').disabled=!coc||state.closed;
+ $('clientPackage').innerHTML=`<div class="checkline"><span style="flex:1">Final SOW Report</span><strong>${reportDone?'Ready':'Pending'}</strong></div>
+ <div class="checkline"><span style="flex:1">Deliverables</span><strong>${deliverables.filter(d=>d.status==='Ready').length}/${deliverables.length}</strong></div>
+ <div class="checkline"><span style="flex:1">Transmittal</span><strong>${trans?'Issued':'Pending'}</strong></div>
+ <div class="checkline"><span style="flex:1">Certificate of Completion</span><strong>${coc?'Issued':'Pending'}</strong></div>`;
+ $('generateTransmittalSide').disabled=!(tasksDone&&delsDone&&reportDone)||trans;
+ $('generateCocSide').disabled=!trans||coc;
+}
+function openModal(id){$(id).classList.add('open')}
+function closeModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'))}
+function previewOutline(){
+ const lines=$('outlineInput').value.split(/\r?\n/).filter(l=>l.trim());
+ $('outlinePreview').innerHTML=lines.map(l=>{const n=l.match(/^\s*/)[0].length;return `<div style="padding-left:${n*8}px">${n?'↳ ':''}${esc(l.trim())}</div>`}).join('');
+}
+function importOutline(){
+ const lines=$('outlineInput').value.split(/\r?\n/).filter(l=>l.trim());let current=null;
+ lines.forEach(l=>{const n=l.match(/^\s*/)[0].length,title=l.trim();if(n===0){current={id:'ws'+Math.random().toString(36).slice(2,7),name:title,tasks:[]};streams.push(current)}else if(current){current.tasks.push({id:'t'+Math.random().toString(36).slice(2,8),title,assignee:'Unassigned',est:'1h',status:'Ready',seconds:0,report:true,remarks:''})}});
+ history.unshift({action:`Bulk outline imported: ${lines.length} items`,at:new Date().toLocaleString()});closeModals();refreshCurrent();
+}
+function addEvidence(e){
+ e.preventDefault();
+ files.push({name:$('fileName').value,class:$('fileClass').value,stage:$('fileStage').value,report:$('includeReport').checked,record:$('linkRecords').checked?'REC-DEMO-'+(1800+files.length):'—'});
+ history.unshift({action:`Evidence added: ${$('fileName').value}`,at:new Date().toLocaleString()});closeModals();refreshCurrent();
+}
+function approveReport(){
+ const d=deliverables.find(d=>d.name==='Final SOW Report');if(d)d.status='Ready';
+ history.unshift({action:'Final SOW Report generated / approved',at:new Date().toLocaleString()});renderReport();renderCompletion();
+}
+function generateTransmittal(){state.transmittal='TRN-2026-DEMO';history.unshift({action:'Transmittal issued: '+state.transmittal,at:new Date().toLocaleString()});renderCompletion()}
+function issueCoc(){state.coc='COC-2026-DEMO';history.unshift({action:'Certificate of Completion issued: '+state.coc,at:new Date().toLocaleString()});renderCompletion()}
+function closeProject(){state.closed=true;history.unshift({action:'Project formally closed',at:new Date().toLocaleString()});renderCompletion();alert('Project closed. The completed workspace remains available with report, Transmittal, COC, files, time and history.')}
+function postUpdate(){
+ const t=$('updateText').value.trim();if(!t)return;updates.unshift({text:t,user:'Current User',at:new Date().toLocaleString()});$('updateText').value='';history.unshift({action:'Internal update posted',at:new Date().toLocaleString()});renderExecution();
+}
+
+document.querySelectorAll('.ptab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+document.querySelectorAll('[data-view-jump]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.viewJump)));
+$('projectStart').addEventListener('click',startProject);$('projectPause').addEventListener('click',pauseProject);$('projectStop').addEventListener('click',()=>stopProject(false));
+['quickAddSide','quickAddTop','quickAddExec'].forEach(id=>$(id).addEventListener('click',quickTask));
+['bulkAddSide','bulkAddTop','bulkAddExec'].forEach(id=>$(id).addEventListener('click',()=>{previewOutline();openModal('outlineModal')}));
+['templateSide','templateTop','templateExec'].forEach(id=>$(id).addEventListener('click',()=>openModal('templateModal')));
+$('duplicateSide').addEventListener('click',()=>duplicateTask('t3'));$('duplicateTop').addEventListener('click',()=>duplicateStream('ws1'));
+['addEvidenceSide','dashAddEvidence','addEvidenceExec'].forEach(id=>$(id).addEventListener('click',()=>openModal('fileModal')));
+$('showTimeDetail').addEventListener('click',renderTimeSummary);
+$('postUpdate').addEventListener('click',postUpdate);
+$('refreshReport').addEventListener('click',renderReport);$('approveReport').addEventListener('click',approveReport);
+$('generateTransmittalSide').addEventListener('click',generateTransmittal);$('generateCocSide').addEventListener('click',issueCoc);
+$('transmittalBtn').addEventListener('click',generateTransmittal);$('cocBtn').addEventListener('click',issueCoc);$('closeProjectBtn').addEventListener('click',closeProject);
+$('fileForm').addEventListener('submit',addEvidence);
+$('outlineInput').addEventListener('input',previewOutline);$('importOutline').addEventListener('click',importOutline);
+document.querySelectorAll('.template-use').forEach(b=>b.addEventListener('click',()=>{closeModals();alert('Fresh SOW structure loaded. Actual time, approvals, client evidence, files and audit history are not copied.')}))
+document.querySelectorAll('.close-modal').forEach(b=>b.addEventListener('click',closeModals));
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModals()}));
+
+renderLife();renderSow();renderDashboard();renderExecution();renderReport();renderCompletion();previewOutline();ensureTicker();updateProjectTimer();
+})();
+</script>
+</body>
+</html>

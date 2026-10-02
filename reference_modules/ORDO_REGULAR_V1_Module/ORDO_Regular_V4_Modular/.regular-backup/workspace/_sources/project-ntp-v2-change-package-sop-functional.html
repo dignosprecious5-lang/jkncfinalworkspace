@@ -1,0 +1,2831 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Project NTP</title>
+    <link rel="stylesheet" href="../../assets/css/project-workspace.css" />
+    <style>
+      .sow-builder-note {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        border-left: 4px solid #294b98;
+        background: #f6f8ff;
+        padding: 9px 11px;
+        margin: 0 0 10px;
+        font-size: 8px;
+        color: #56647a;
+      }
+      .builder-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        color: #48566c;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action:hover {
+        background: #f4f7fb;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus,
+      .scope-table select:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .add-row-wrap {
+        display: flex;
+        justify-content: flex-end;
+        margin: 7px 0 13px;
+      }
+      .outline-status {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        background: #f8fafc;
+        border: 1px solid #e0e6ef;
+        border-radius: 7px;
+        margin-bottom: 8px;
+        font-size: 8px;
+        color: #667085;
+      }
+      .outline-preview {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 9px;
+        line-height: 1.7;
+      }
+      .sow-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 9px;
+        margin: 16px 14px 6px;
+      }
+      .sow-summary-card {
+        border: 1px solid #cfd9e7;
+        background: #f8fafc;
+        padding: 9px;
+      }
+      .sow-summary-card label {
+        display: block;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+      .sow-summary-card strong {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 14px;
+        color: #344054;
+      }
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 11%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        color: #7f8a9b;
+        text-align: center;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow: 0 0 0 5px #eef3ff;
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      @media (max-width: 1000px) {
+        .sow-summary-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .life {
+          overflow-x: auto !important;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+    </style>
+
+    <style>
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .child-row-sow td:first-child {
+        background: #fbfcfe;
+      }
+      .child-label {
+        padding-left: 8px;
+      }
+      .hierarchy-mark {
+        color: #98a2b3;
+        margin-right: 4px;
+      }
+      .parent-actions,
+      .child-actions {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .builder-action.child-add {
+        color: #2d8a61;
+      }
+      .builder-action.workstream {
+        color: #3158e6;
+      }
+      .exclusion-modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+      }
+      .exclusion-modal-table th,
+      .exclusion-modal-table td {
+        border: 1px solid #d7dee8;
+        padding: 7px;
+        font-size: 9px;
+        vertical-align: middle;
+      }
+      .exclusion-modal-table th {
+        background: #f8fafc;
+        color: #667085;
+        font-weight: 700;
+      }
+      .exclusion-modal-table input {
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 5px;
+        font-size: 9px;
+      }
+      .exclusion-modal-table input:focus {
+        outline: none;
+        border-color: #b9caf2;
+        background: #fff;
+      }
+      .exclusion-count {
+        font-size: 9px;
+        color: #667085;
+      }
+      @media (max-width: 900px) {
+        .scope-table {
+          min-width: 1180px;
+        }
+      }
+    </style>
+
+    <style>
+      /* SOW-specific Quick Actions */
+      .sidecard .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .sidecard .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .sidecard .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .sidecard .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .sidebtn.secondary-action {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sidebtn .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sidebtn.locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .statuspill.final {
+        background: #eef8f2;
+        border-color: #d5ebdf;
+        color: #2d8a61;
+      }
+      .statuspill.review {
+        background: #fff7e8;
+        border-color: #f0dfba;
+        color: #9f6816;
+      }
+      .statuspill.draft {
+        background: #eef3ff;
+        border-color: #dbe4fb;
+        color: #3158e6;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .secondary-action {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sow-view-tabs {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sow-view-tab {
+        height: 32px;
+        border: 1px solid #d9e1ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #48566c;
+        padding: 0 11px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .sow-view-tab.active {
+        background: #294998;
+        border-color: #294998;
+        color: #fff;
+      }
+      .sow-view-tab.outscope.active {
+        background: #815f24;
+        border-color: #815f24;
+        color: #fff;
+      }
+      .sow-builder-panel {
+        display: none;
+      }
+      .sow-builder-panel.active {
+        display: block;
+      }
+      #outScopePanel .scope-title {
+        background: #815f24;
+      }
+      #outScopePanel .parent-row td {
+        background: #fffaf4;
+      }
+      #outScopePanel .child-row-sow td:first-child {
+        background: #fffdf8;
+      }
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        text-align: center;
+        color: #344054;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #48566c;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 330px;
+      }
+      .toast {
+        background: #172033;
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.22);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 7px 5px !important;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+      .autosave-dot.off {
+        background: #98a2b3 !important;
+      }
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+      .sidebtn[disabled],
+      .builder-action[disabled],
+      .btn[disabled],
+      .tbtn[disabled] {
+        opacity: 0.42 !important;
+        cursor: not-allowed !important;
+      }
+    </style>
+
+    <style>
+      .docmeta {
+        grid-template-columns: 150px minmax(220px, 1fr) 150px minmax(
+            220px,
+            1fr
+          ) !important;
+      }
+      .docmeta > div:nth-child(odd) {
+        font-weight: 600;
+      }
+      .docmeta .line {
+        min-height: 24px;
+      }
+      @media (max-width: 1100px) {
+        .docmeta {
+          grid-template-columns: 150px 1fr !important;
+        }
+      }
+    </style>
+
+    <style>
+      /* ===== Modern SOW row actions ===== */
+      .scope-table th:last-child,
+      .scope-table td:last-child {
+        min-width: 150px;
+      }
+      .builder-actions {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 5px !important;
+        flex-wrap: nowrap !important;
+        padding: 2px;
+      }
+      .builder-action {
+        position: relative;
+        width: 30px !important;
+        height: 30px !important;
+        border: 1px solid #dce3ed !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        color: #526176 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
+        transition: 0.15s ease;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+      }
+      .builder-action:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: #f8faff !important;
+        border-color: #b9c8e8 !important;
+        box-shadow: 0 4px 10px rgba(31, 63, 135, 0.09);
+      }
+      .builder-action.add {
+        color: #277653 !important;
+        background: #f2faf6 !important;
+        border-color: #d4eadf !important;
+      }
+      .builder-action.duplicate {
+        color: #3158e6 !important;
+        background: #f5f7ff !important;
+        border-color: #dbe3ff !important;
+      }
+      .builder-action.move {
+        color: #59667a !important;
+      }
+      .builder-action.remove {
+        color: #c44242 !important;
+        background: #fff7f7 !important;
+        border-color: #f0d7d7 !important;
+      }
+      .builder-action::after {
+        content: attr(data-tip);
+        pointer-events: none;
+        position: absolute;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%) translateY(2px);
+        background: #172033;
+        color: #fff;
+        border-radius: 6px;
+        padding: 5px 7px;
+        font-size: 7px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: 0.12s ease;
+        z-index: 50;
+      }
+      .builder-action:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+      .builder-action:disabled {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+      }
+
+      /* Builder toolbar */
+      .builder-toolbar {
+        background: #f8faff;
+        border: 1px solid #e4e9f2;
+        border-radius: 10px;
+        padding: 9px 10px;
+        margin: 10px 0 12px !important;
+      }
+      .builder-toolbar .btn {
+        border-radius: 8px !important;
+        min-height: 34px;
+      }
+      .sow-view-tabs {
+        padding-left: 6px;
+        border-left: 1px solid #dfe5ee;
+      }
+      .sow-view-tab {
+        border-radius: 8px !important;
+      }
+
+      /* Side action panel */
+      .sidecard {
+        overflow: visible !important;
+      }
+      .secondary-action {
+        border-radius: 8px !important;
+      }
+      .secondary-action:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #cfd9ec;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 8px !important;
+        transition: 0.15s ease;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+
+      /* Feedback */
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 340px;
+      }
+      .toast {
+        color: #fff;
+        background: #172033;
+        border-radius: 9px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 10px 28px rgba(16, 24, 40, 0.23);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+
+      .demo-reset {
+        width: 100%;
+        height: 31px;
+        border: 1px dashed #d2d9e5;
+        background: #fafbfc;
+        border-radius: 8px;
+        color: #7a8495;
+        font-size: 8px;
+        cursor: pointer;
+        margin-top: 7px;
+      }
+      .demo-reset:hover {
+        color: #3158e6;
+        border-color: #b7c6e8;
+        background: #f6f8ff;
+      }
+    </style>
+
+    <style>
+      /* ===== Review Stage Controls ===== */
+      .review-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .review-progress {
+        height: 6px;
+        background: #edf1f6;
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 8px 0 5px;
+      }
+      .review-progress > span {
+        display: block;
+        height: 100%;
+        background: #294b98;
+        border-radius: 999px;
+        transition: width 0.2s ease;
+      }
+      .reviewer-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        margin-top: 7px;
+      }
+      .reviewer-card {
+        border: 1px solid #e0e6ef;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+      }
+      .reviewer-card.accepted {
+        background: #f3faf6;
+        border-color: #d7eadf;
+      }
+      .reviewer-card.clarification {
+        background: #fff9ec;
+        border-color: #eadbb9;
+      }
+      .reviewer-card.reverted {
+        background: #fff5f5;
+        border-color: #ebd4d4;
+      }
+      .reviewer-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 7px;
+        align-items: flex-start;
+      }
+      .reviewer-role {
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+      }
+      .reviewer-name {
+        font-size: 7px;
+        color: #7a8495;
+        margin-top: 2px;
+        line-height: 1.35;
+      }
+      .reviewer-time {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 8px;
+        font-weight: 700;
+        color: #475467;
+        white-space: nowrap;
+      }
+      .reviewer-meta {
+        font-size: 7px;
+        color: #8a94a5;
+        margin-top: 5px;
+      }
+      .review-status {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 6px;
+        font-size: 7px;
+        font-weight: 800;
+        margin-top: 5px;
+        background: #f2f4f7;
+        color: #667085;
+      }
+      .review-status.accepted {
+        background: #eaf7ef;
+        color: #2d7b59;
+      }
+      .review-status.clarification {
+        background: #fff2d8;
+        color: #996515;
+      }
+      .review-status.reverted {
+        background: #fdecec;
+        color: #b33d3d;
+      }
+      .review-status.pending {
+        background: #eef3ff;
+        color: #3158e6;
+      }
+
+      .review-form {
+        margin-top: 8px;
+      }
+      .review-form label {
+        display: block;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .review-form select,
+      .review-form textarea {
+        width: 100%;
+        border: 1px solid #dce3ed;
+        border-radius: 7px;
+        background: #fff;
+        font-size: 8px;
+        padding: 7px;
+        color: #475467;
+      }
+      .review-form textarea {
+        min-height: 55px;
+        resize: vertical;
+      }
+      .review-action-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-top: 7px;
+      }
+      .review-action-btn {
+        min-height: 33px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #475467;
+        font-size: 8px;
+        font-weight: 700;
+        text-align: left;
+        padding: 0 9px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .review-action-btn:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #b9c8e8;
+      }
+      .review-action-btn.accept {
+        background: #f1faf5;
+        border-color: #d6eadf;
+        color: #277653;
+      }
+      .review-action-btn.question {
+        background: #fff9ec;
+        border-color: #eadbb9;
+        color: #8b651e;
+      }
+      .review-action-btn.revert {
+        background: #fff5f5;
+        border-color: #ebd4d4;
+        color: #b33d3d;
+      }
+      .review-action-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .ntp-gate {
+        margin-top: 8px;
+        padding: 9px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 8px;
+        color: #667085;
+        line-height: 1.45;
+      }
+      .ntp-gate.unlocked {
+        background: #eef9f3;
+        border-color: #cfe7da;
+        color: #286447;
+      }
+      .ntp-btn {
+        width: 100%;
+        height: 34px;
+        margin-top: 7px;
+        border-radius: 8px;
+        border: 1px solid #294b98;
+        background: #294b98;
+        color: #fff;
+        font-size: 8px;
+        font-weight: 800;
+      }
+      .ntp-btn:disabled {
+        background: #eef1f5;
+        border-color: #dfe4eb;
+        color: #98a2b3;
+        cursor: not-allowed;
+      }
+
+      .review-lock-banner {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #3158e6;
+        background: #f3f6ff;
+        color: #4c5c7b;
+        font-size: 8px;
+      }
+      .review-reverted-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b33d3d;
+        background: #fff5f5;
+        color: #7f3333;
+        font-size: 8px;
+      }
+      .review-reverted-banner.show {
+        display: block;
+      }
+      .review-complete-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d7b59;
+        background: #eef9f3;
+        color: #286447;
+        font-size: 8px;
+      }
+      .review-complete-banner.show {
+        display: block;
+      }
+
+      /* During Review the builder controls remain visible but read-only. */
+      .review-readonly .builder-toolbar .btn:not(.sow-view-tab),
+      .review-readonly .builder-action {
+        opacity: 0.35 !important;
+        pointer-events: none !important;
+      }
+      .review-readonly .scope-table input,
+      .review-readonly .scope-table select {
+        pointer-events: none;
+        background: #fbfcfd !important;
+        color: #667085 !important;
+      }
+    </style>
+
+    <style>
+      /* Lifecycle progress percentage markers */
+      .life .stage b {
+        width: auto !important;
+        min-width: 48px !important;
+        height: 30px !important;
+        padding: 0 8px !important;
+        border-radius: 999px !important;
+        font-size: 8px !important;
+        letter-spacing: 0 !important;
+      }
+      .life .stage.current b {
+        min-width: 54px !important;
+      }
+      .life::before,
+      .life::after {
+        top: 14px !important;
+      }
+      .life .stage.current::after {
+        top: -24px !important;
+      }
+    </style>
+
+    <style>
+      /* ===== NTP Document ===== */
+      .ntp-document {
+        background: #fff;
+        border: 1px solid #d7deea;
+        padding: 24px 26px 18px;
+        min-height: 780px;
+        font-family: Georgia, "Times New Roman", serif;
+        color: #111;
+      }
+      .ntp-title {
+        text-align: center;
+        margin: 0 0 22px;
+      }
+      .ntp-title h1 {
+        margin: 0;
+        font-size: 27px;
+        letter-spacing: 0.2px;
+      }
+      .ntp-title small {
+        display: block;
+        margin-top: 2px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .ntp-date {
+        font-size: 12px;
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+      .ntp-date input {
+        border: 0;
+        border-bottom: 1px solid #8893a3;
+        background: transparent;
+        font: inherit;
+        padding: 2px 4px;
+        min-width: 150px;
+      }
+      .ntp-info {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        table-layout: fixed;
+      }
+      .ntp-info td {
+        border: 1px solid #515966;
+        padding: 8px 9px;
+        font-size: 10px;
+        vertical-align: middle;
+      }
+      .ntp-info strong {
+        font-weight: 700;
+      }
+      .ntp-info input {
+        border: 0;
+        background: transparent;
+        width: auto;
+        max-width: 65%;
+        font: inherit;
+        font-size: 10px;
+        padding: 0 2px;
+      }
+      .ntp-body {
+        font-size: 11px;
+        line-height: 1.55;
+        text-align: justify;
+        margin: 20px 0 26px;
+      }
+      .ntp-body p {
+        margin: 0 0 16px;
+      }
+      .ntp-body strong {
+        font-weight: 700;
+      }
+      .ntp-signatures {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        margin-top: 16px;
+      }
+      .ntp-signatures td {
+        border: 1px solid #444;
+        padding: 8px;
+        vertical-align: top;
+      }
+      .ntp-signatures .sig-head {
+        font-size: 12px;
+        font-weight: 700;
+        padding: 7px 9px;
+      }
+      .ntp-signatures .sig-box {
+        text-align: center;
+        height: 146px;
+        font-size: 10px;
+        line-height: 1.4;
+      }
+      .ntp-signatures .sig-box.tall {
+        height: 300px;
+      }
+      .ntp-signatures .sig-name {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        margin-top: 9px;
+      }
+      .ntp-footer {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 7px;
+        line-height: 1.35;
+        margin-top: 18px;
+        color: #303846;
+      }
+      .ntp-readonly input {
+        pointer-events: none;
+      }
+      .ntp-readonly .editable {
+        background: #fbfcfd !important;
+        color: #667085;
+      }
+
+      /* ===== NTP Quick Actions ===== */
+      .ntp-stage-note {
+        padding: 8px 9px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #f8fafc;
+        color: #667085;
+        font-size: 8px;
+        line-height: 1.45;
+        margin-top: 7px;
+      }
+      .ntp-stage-note.unlocked {
+        background: #eef9f3;
+        border-color: #cfe7da;
+        color: #286447;
+      }
+      .ntp-status-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        font-size: 8px;
+        padding: 7px 0;
+        border-bottom: 1px solid #edf0f4;
+      }
+      .ntp-status-row:last-child {
+        border-bottom: 0;
+      }
+      .ntp-status-pill {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 3px 6px;
+        font-size: 7px;
+        font-weight: 800;
+        background: #eef3ff;
+        color: #3158e6;
+      }
+      .ntp-status-pill.pending {
+        background: #fff4dd;
+        color: #996515;
+      }
+      .ntp-status-pill.approved {
+        background: #eaf7ef;
+        color: #2d7b59;
+      }
+      .ntp-status-pill.reverted {
+        background: #fdecec;
+        color: #b33d3d;
+      }
+
+      .ntp-action-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-top: 7px;
+      }
+      .ntp-action-btn {
+        min-height: 34px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #475467;
+        font-size: 8px;
+        font-weight: 700;
+        text-align: left;
+        padding: 0 9px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .ntp-action-btn:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #b9c8e8;
+      }
+      .ntp-action-btn.primary {
+        background: #294b98;
+        border-color: #294b98;
+        color: #fff;
+      }
+      .ntp-action-btn.success {
+        background: #f1faf5;
+        border-color: #d6eadf;
+        color: #277653;
+      }
+      .ntp-action-btn.warn {
+        background: #fff9ec;
+        border-color: #eadbb9;
+        color: #8b651e;
+      }
+      .ntp-action-btn.danger {
+        background: #fff5f5;
+        border-color: #ebd4d4;
+        color: #b33d3d;
+      }
+      .ntp-action-btn:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+      }
+
+      .ntp-form {
+        margin-top: 8px;
+      }
+      .ntp-form label {
+        display: block;
+        font-size: 7px;
+        font-weight: 700;
+        color: #667085;
+        margin-bottom: 4px;
+      }
+      .ntp-form select,
+      .ntp-form textarea,
+      .ntp-form input {
+        width: 100%;
+        border: 1px solid #dce3ed;
+        border-radius: 7px;
+        background: #fff;
+        color: #475467;
+        font-size: 8px;
+        padding: 7px;
+      }
+      .ntp-form textarea {
+        min-height: 52px;
+        resize: vertical;
+      }
+
+      .execution-gate {
+        margin-top: 8px;
+        padding: 9px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 8px;
+        color: #667085;
+        line-height: 1.45;
+      }
+      .execution-gate.unlocked {
+        background: #eef9f3;
+        border-color: #cfe7da;
+        color: #286447;
+      }
+      .execution-btn {
+        width: 100%;
+        height: 34px;
+        margin-top: 7px;
+        border-radius: 8px;
+        border: 1px solid #294b98;
+        background: #294b98;
+        color: #fff;
+        font-size: 8px;
+        font-weight: 800;
+      }
+      .execution-btn:disabled {
+        background: #eef1f5;
+        border-color: #dfe4eb;
+        color: #98a2b3;
+        cursor: not-allowed;
+      }
+
+      .ntp-banner {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #3158e6;
+        background: #f3f6ff;
+        color: #4c5c7b;
+        font-size: 8px;
+      }
+      .ntp-banner.approved {
+        border-left-color: #2d7b59;
+        background: #eef9f3;
+        color: #286447;
+      }
+      .ntp-banner.reverted {
+        border-left-color: #b33d3d;
+        background: #fff5f5;
+        color: #7f3333;
+      }
+
+      .attachment-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 7px;
+        border: 1px solid #e0e6ef;
+        border-radius: 7px;
+        padding: 7px;
+        margin-top: 6px;
+        font-size: 8px;
+        color: #667085;
+      }
+      .attachment-chip strong {
+        color: #344054;
+      }
+    </style>
+
+    <style>
+      .ntp-context-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 9px 10px;
+        margin: 0 0 12px;
+        border: 1px solid #e1e7f0;
+        background: #f8fafc;
+        border-radius: 9px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+      }
+      .ntp-context-bar label {
+        font-size: 8px;
+        font-weight: 800;
+        color: #667085;
+      }
+      .ntp-context-bar select {
+        min-height: 32px;
+        border: 1px solid #d7deea;
+        border-radius: 7px;
+        background: #fff;
+        padding: 0 9px;
+        font-size: 8px;
+        color: #344054;
+      }
+      .ntp-context-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 5px 8px;
+        background: #eef3ff;
+        color: #3158e6;
+        font-size: 8px;
+        font-weight: 800;
+      }
+      .ntp-context-pill.supp {
+        background: #fff4df;
+        color: #966514;
+      }
+      .change-package-box {
+        display: none;
+        margin: 0 0 12px;
+        border: 1px solid #e2e7ef;
+        border-radius: 9px;
+        background: #fffaf2;
+        padding: 10px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+      }
+      .change-package-box.show {
+        display: block;
+      }
+      .change-package-box h3 {
+        margin: 0 0 7px;
+        font-size: 9px;
+        color: #805a16;
+      }
+      .change-package-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .change-package-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid #eee1c8;
+        background: #fff;
+        border-radius: 7px;
+        padding: 7px 8px;
+        font-size: 8px;
+      }
+      .change-package-item strong {
+        color: #594118;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../../index.html">Project</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">PROJECT WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="../project-dashboard.html">PROJECT DASHBOARD</a
+            ><a class="ptab" href="../work-order.html">WORK ORDER</a
+            ><a class="ptab" href="../scope-of-work.html">SCOPE OF WORK</a
+            ><a class="ptab" href="../review.html">REVIEW</a
+            ><a class="ptab active" href="../ntp.html">NTP</a
+            ><a class="ptab" href="../execution.html">EXECUTION</a
+            ><a class="ptab" href="../attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="../sow-report.html">SOW REPORT</a
+            ><a class="ptab" href="../delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="../history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Project Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div class="side-title">STAGE MANAGEMENT</div>
+
+            <div class="side-section">
+              <h4>STAGE HANDLING</h4>
+              <div class="timer-card">
+                <div class="timer-row">
+                  <span id="ntpTimerState">NTP Preparation</span>
+                  <span class="clock" id="ntpTimerClock">00:00:00</span>
+                </div>
+                <div class="timer-actions">
+                  <button class="tbtn start" id="ntpTimerStart">▶ Start</button>
+                  <button class="tbtn pause" id="ntpTimerPause">Ⅱ Pause</button>
+                  <button class="tbtn stop" id="ntpTimerStop">■ Stop</button>
+                </div>
+                <div class="review-total">
+                  Total NTP handling time:
+                  <strong id="ntpHandlingTotal">0m</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE STATUS</h4>
+              <div class="ntp-status-row">
+                <span>Review Gate</span
+                ><span class="ntp-status-pill approved">Complete</span>
+              </div>
+              <div class="ntp-status-row">
+                <span>NTP</span
+                ><span class="ntp-status-pill" id="ntpStatusPill">Draft</span>
+              </div>
+              <div class="ntp-status-row">
+                <span>Client Approval</span
+                ><span class="ntp-status-pill pending" id="clientApprovalPill"
+                  >Pending</span
+                >
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE CONTROLS</h4>
+              <div class="autosave-row" id="ntpAutosaveRow">
+                <span><span class="autosave-dot"></span>Auto-Save</span>
+                <strong id="ntpAutosaveState">On</strong>
+              </div>
+
+              <div class="ntp-action-grid">
+                <button class="ntp-action-btn primary" id="saveNtpBtn">
+                  <span>Save Draft</span><span id="saveNtpState">Saved</span>
+                </button>
+                <button class="ntp-action-btn" id="editNtpBtn">
+                  <span>Edit NTP</span><span>Draft only</span>
+                </button>
+                <button class="ntp-action-btn" id="issueNtpBtn">
+                  <span>Issue / Send to Client</span><span>→</span>
+                </button>
+                <button class="ntp-action-btn success" id="approveNtpBtn">
+                  <span>Record Client Approval</span><span>✓</span>
+                </button>
+                <button class="ntp-action-btn warn" id="uploadSignedBtn">
+                  <span>Upload Signed NTP</span><span>＋</span>
+                </button>
+                <button class="ntp-action-btn danger" id="revertNtpBtn">
+                  <span>Revert to Review / SOW</span><span>↩</span>
+                </button>
+              </div>
+
+              <div class="ntp-form">
+                <label>Client Action Method</label>
+                <select id="clientApprovalMethod">
+                  <option>Signed NTP / Wet Signature</option>
+                  <option>Electronic Signature</option>
+                  <option>Email Confirmation</option>
+                  <option>Client Portal Acceptance</option>
+                  <option>Manual Internal Recording</option>
+                </select>
+              </div>
+
+              <div class="ntp-form">
+                <label>Approval / Revert Note</label>
+                <textarea
+                  id="ntpActionNote"
+                  placeholder="Enter approval evidence details, clarification, or revert reason..."
+                ></textarea>
+              </div>
+
+              <div
+                class="attachment-chip"
+                id="signedEvidence"
+                style="display: none"
+              >
+                <span
+                  ><strong>Signed NTP</strong><br /><span
+                    id="signedEvidenceMeta"
+                    >Evidence attached</span
+                  ></span
+                >
+                <span>✓</span>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>EXECUTION GATE</h4>
+              <div class="execution-gate" id="executionGate">
+                Execution remains locked until the NTP is issued and Client
+                approval evidence is recorded.
+              </div>
+              <button class="execution-btn" id="proceedExecutionBtn" disabled>
+                Proceed to Execution
+              </button>
+            </div>
+
+            <div class="side-section">
+              <button class="demo-reset" id="resetNtpDemo" type="button">
+                Reset NTP Demo State
+              </button>
+            </div>
+          </aside>
+          <section class="content">
+            <div class="ntp-banner" id="ntpBanner">
+              <strong>NTP Preparation:</strong> Review is complete. Prepare the
+              Notice to Proceed using the approved SOW and obtain Client
+              authorization before Execution.
+            </div>
+
+            <div class="ntp-context-bar">
+              <label>NTP Type</label>
+              <select id="ntpType">
+                <option value="original">Original NTP</option>
+                <option value="supplemental">Supplemental NTP</option>
+              </select>
+
+              <label id="changePackageLabel" style="display: none"
+                >Change Package</label
+              >
+              <select id="changePackageSelect" style="display: none">
+                <option value="CP-2026-001">
+                  CP-2026-001 — Additional SEC Amendment + BIR Processing
+                </option>
+                <option value="CP-2026-002">
+                  CP-2026-002 — Additional Corporate Records Update
+                </option>
+              </select>
+
+              <span class="ntp-context-pill" id="ntpTypePill"
+                >ORIGINAL NTP</span
+              >
+            </div>
+
+            <div class="change-package-box" id="changePackageBox">
+              <h3>CHANGE PACKAGE SCOPE</h3>
+              <div class="change-package-list" id="changePackageItems"></div>
+            </div>
+            <div class="ntp-document" id="ntpDocument">
+              <div class="ntp-title">
+                <h1>NOTICE TO PROCEED</h1>
+                <small>PROJ-F-003</small>
+              </div>
+
+              <div class="ntp-date">
+                Date Issued:
+                <input
+                  class="editable"
+                  id="dateIssued"
+                  type="date"
+                  value="2026-08-28"
+                />
+              </div>
+
+              <table class="ntp-info">
+                <tr>
+                  <td>
+                    <strong>NTP No.:</strong>
+                    <input class="editable" id="ntpNo" value="NTP-DRAFT" />
+                  </td>
+                  <td><strong>Engagement Type:</strong> Project</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Governing SOP No.:</strong>
+                    <span id="sopNo">PROJECT-SOP-001</span>
+                  </td>
+                  <td><strong>Project No.:</strong> PROJ-2026-120</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Condeal Reference No.:</strong> CONDEAL-2026-065
+                  </td>
+                  <td>
+                    <strong>Client Name:</strong> May Flor D. Dabatos and
+                    Stephan Tenten
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Business Name:</strong> X10 REAL ESTATE CORPORATION
+                  </td>
+                  <td><strong>Original SOW Ref No.:</strong> SOW-2026-032</td>
+                </tr>
+                <tr id="supplementalRefRow" style="display: none">
+                  <td>
+                    <strong>Change Package No.:</strong>
+                    <span id="changePackageNo">—</span>
+                  </td>
+                  <td>
+                    <strong>NTP Type:</strong>
+                    <span id="documentNtpType">Supplemental NTP</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Approved Start Date:</strong>
+                    <input
+                      class="editable"
+                      id="approvedStart"
+                      type="date"
+                      value="2026-08-29"
+                    />
+                  </td>
+                  <td>
+                    <strong>Target Completion Date:</strong>
+                    <input
+                      class="editable"
+                      id="targetCompletion"
+                      type="date"
+                      value="2026-09-18"
+                    />
+                  </td>
+                </tr>
+              </table>
+
+              <div class="ntp-body">
+                <p>
+                  This <span id="bodyNtpType">Notice to Proceed</span> confirms
+                  that the Client has reviewed the engagement details and hereby
+                  authorizes
+                  <strong>John Kelly &amp; Company (JK&amp;C Inc.)</strong> to
+                  commence the agreed services under the
+                  <span id="bodyScopeText">approved scope</span>, timelines,
+                  deliverables, and commercial terms.
+                </p>
+
+                <p>
+                  The Client acknowledges that work may officially begin upon
+                  execution of this document and that all services rendered
+                  thereafter shall be deemed duly authorized.
+                </p>
+
+                <p>
+                  Any additional requests, changes in scope, or delays requiring
+                  client action may be subject to separate confirmation,
+                  timeline adjustment, or corresponding charges, where
+                  applicable.
+                </p>
+
+                <p>
+                  I, the undersigned Client and/or duly authorized
+                  representative, hereby confirm approval and authorize
+                  <strong>John Kelly &amp; Company (JK&amp;C Inc.)</strong> to
+                  proceed with the commencement of the engagement stated above.
+                </p>
+              </div>
+
+              <table class="ntp-signatures">
+                <tr>
+                  <td class="sig-head">FOR THE CLIENT</td>
+                  <td class="sig-head">FOR JOHN KELLY &amp; COMPANY</td>
+                </tr>
+                <tr>
+                  <td class="sig-box tall" rowspan="2">
+                    <strong>Name, Signature and Date</strong><br />
+                    <strong>Authorized Representative</strong><br />
+                    Name/Client
+                    <div class="sig-name" id="clientSignatory">
+                      May Flor D. Dabatos / Authorized Representative
+                    </div>
+                  </td>
+                  <td class="sig-box">
+                    <strong>Name, Signature and Date</strong><br /><br />
+                    <strong>Lead Consultant</strong>
+                    <div class="sig-name" id="leadConsultantSig">
+                      John Kelly Abalde
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="sig-box">
+                    <strong>Name, Signature and Date</strong><br /><br />
+                    <strong>Lead Associate</strong>
+                    <div class="sig-name" id="leadAssociateSig">
+                      Rubeca Potayre
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <div class="ntp-footer">
+                John Kelly &amp; Company<br />
+                3F, Cebu Holdings Center, Cebu Business Park, Cebu City,
+                Philippines 6000<br />
+                Email: start@jknc.io • Website: jknc.io • Phone: 0995-535-8729
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../../assets/js/mock-data.js"></script>
+    <script src="../../assets/js/project-session.js"></script>
+    <script src="../../assets/js/common.js"></script>
+    <script>
+      (function () {
+        if (typeof window.ORDO_STATE === "undefined") {
+          const KEY = "ordoSowFunctionalV10State";
+          const DEFAULT_STATE = {
+            streams: [
+              {
+                id: "ws1",
+                name: "Share Transfer Documentation",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t1",
+                    title:
+                      "Review existing corporate and share ownership records",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-20",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t2",
+                    title: "Verify shares to be transferred",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-21",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t3",
+                    title: "Prepare applicable share transfer documents",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-21",
+                    end: "2026-08-22",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+              {
+                id: "ws2",
+                name: "BIR Share Transfer Processing",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t4",
+                    title: "Prepare BIR / ONETT requirements",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-24",
+                    end: "2026-08-25",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+            ],
+            files: [],
+            deliverables: [],
+            updates: [],
+            history: [],
+            projectTimer: { state: "stopped", seconds: 0, started: null },
+            taskTimers: {},
+            transmittal: null,
+            coc: null,
+            closed: false,
+          };
+          try {
+            window.ORDO_STATE =
+              JSON.parse(localStorage.getItem(KEY) || "null") ||
+              JSON.parse(JSON.stringify(DEFAULT_STATE));
+          } catch (e) {
+            window.ORDO_STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+          }
+          window.ORDO_SAVE = function () {
+            try {
+              localStorage.setItem(KEY, JSON.stringify(window.ORDO_STATE));
+            } catch (e) {}
+          };
+          window.ORDO_RESET = function () {
+            try {
+              localStorage.removeItem(KEY);
+            } catch (e) {}
+            location.reload();
+          };
+        }
+
+        if (typeof window.ORDO === "undefined") {
+          window.ORDO = {
+            stages: [
+              "Work Order",
+              "SOW",
+              "Review",
+              "NTP",
+              "Execution",
+              "Reporting",
+              "Presentation",
+              "Delivery",
+              "Completion",
+            ],
+            esc(s) {
+              return String(s ?? "").replace(
+                /[&<>"']/g,
+                (c) =>
+                  ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    '"': "&quot;",
+                    "'": "&#39;",
+                  })[c],
+              );
+            },
+            dur(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60);
+              return h ? `${h}h ${m}m` : `${m}m`;
+            },
+            fmt(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60),
+                s = sec % 60;
+              return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+            },
+            allTasks() {
+              return ORDO_STATE.streams.flatMap((w) =>
+                w.tasks.map((t) => ({ task: t, stream: w })),
+              );
+            },
+            findTask(id) {
+              return this.allTasks().find((x) => x.task.id === id)?.task;
+            },
+            findStream(id) {
+              return ORDO_STATE.streams.find((w) => w.id === id);
+            },
+            projectSeconds() {
+              const x = ORDO_STATE.projectTimer;
+              return (
+                Number(x.seconds || 0) +
+                (x.state === "running" && x.started
+                  ? Math.floor((Date.now() - x.started) / 1000)
+                  : 0)
+              );
+            },
+            save() {
+              ORDO_SAVE();
+            },
+            log(action) {
+              ORDO_STATE.history = ORDO_STATE.history || [];
+              ORDO_STATE.history.unshift({
+                action,
+                at: new Date().toLocaleString(),
+              });
+              this.save();
+            },
+            stopRunning() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.save();
+            },
+            startProject() {
+              this.stopRunning();
+              ORDO_STATE.projectTimer.state = "running";
+              ORDO_STATE.projectTimer.started = Date.now();
+              this.log("SOW planning timer started");
+            },
+            pauseProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state !== "running") return;
+              x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "paused";
+              x.started = null;
+              this.log("SOW planning timer paused");
+            },
+            stopProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.log("SOW planning timer stopped");
+            },
+            duplicateStream(id) {
+              const w = this.findStream(id);
+              if (!w) return;
+              ORDO_STATE.streams.push({
+                ...w,
+                id: "ws" + Date.now() + Math.random(),
+                name: w.name + " (Copy)",
+                tasks: w.tasks.map((t) => ({
+                  ...t,
+                  id: "t" + Date.now() + Math.random(),
+                  seconds: 0,
+                  status: "Ready",
+                })),
+              });
+              this.log("SOW workstream duplicated: " + w.name);
+            },
+          };
+        }
+      })();
+    </script>
+
+    <script>
+      (function () {
+        const current = 3;
+        const lifecyclePercentages = [
+          "0%",
+          "12.5%",
+          "25%",
+          "37.5%",
+          "50%",
+          "62.5%",
+          "75%",
+          "87.5%",
+          "100%",
+        ];
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}" type="button"><b>${lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+      })();
+    </script>
+
+    <div class="toast-stack" id="toastStack"></div>
+    <script>
+      (function () {
+        const KEY = "ordoNtpFunctionalV2-" + ORDO_PROJECT_ID;
+
+        const CHANGE_PACKAGES = {
+          "CP-2026-001": {
+            no: "CP-2026-001",
+            title: "Additional SEC Amendment + BIR Processing",
+            items: [
+              { ref: "OOS-001", title: "Additional SEC Amendment" },
+              { ref: "OOS-002", title: "Additional BIR Processing" },
+            ],
+            approvedStart: "2026-09-05",
+            targetCompletion: "2026-09-15",
+          },
+          "CP-2026-002": {
+            no: "CP-2026-002",
+            title: "Additional Corporate Records Update",
+            items: [
+              { ref: "OOS-003", title: "Additional Corporate Records Update" },
+            ],
+            approvedStart: "2026-09-10",
+            targetCompletion: new Date(ORDO_STATE.projects.find(p=>p.id===ORDO_PROJECT_ID).target).toISOString().slice(0,10),
+          },
+        };
+
+        function fresh() {
+          return {
+            demoVersion: 2,
+            status: "draft",
+            editMode: true,
+            autoSave: true,
+            ntpType: "original",
+            changePackage: "CP-2026-001",
+            sopNo: "PROJECT-SOP-001",
+            issuedAt: null,
+            approvedAt: null,
+            approvalMethod: "Signed NTP / Wet Signature",
+            approvalNote: "",
+            evidence: null,
+            timer: { state: "stopped", seconds: 0, started: null },
+            fields: {
+              dateIssued: new Date().toISOString().slice(0,10),
+              ntpNo: "NTP-DRAFT",
+              approvedStart: new Date().toISOString().slice(0,10),
+              targetCompletion: "2026-09-18",
+            },
+          };
+        }
+
+        function load() {
+          try {
+            const raw = localStorage.getItem(KEY);
+            if (raw) {
+              const v = JSON.parse(raw);
+              if (v && v.demoVersion === 2) return v;
+            }
+          } catch (e) {}
+          return fresh();
+        }
+
+        let N = load();
+        if (ORDO_STATE.ntpApproved && N.status === "draft")
+          N.status = "approved";
+
+        function save() {
+          ORDO_STATE.ntpApproved = N.status === "approved";
+          ORDO.save();
+          try {
+            localStorage.setItem(KEY, JSON.stringify(N));
+          } catch (e) {}
+        }
+
+        function toast(message, type = "success") {
+          const stack = document.getElementById("toastStack");
+          if (!stack) return;
+          const el = document.createElement("div");
+          el.className = "toast " + type;
+          el.textContent = message;
+          stack.appendChild(el);
+          setTimeout(() => el.remove(), 2500);
+        }
+
+        function timerSeconds() {
+          const t = N.timer;
+          return (
+            Number(t.seconds || 0) +
+            (t.state === "running" && t.started
+              ? Math.floor((Date.now() - t.started) / 1000)
+              : 0)
+          );
+        }
+
+        function fmt(sec) {
+          sec = Math.max(0, Math.floor(Number(sec) || 0));
+          const h = Math.floor(sec / 3600),
+            m = Math.floor((sec % 3600) / 60),
+            s = sec % 60;
+          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        }
+
+        function dur(sec) {
+          sec = Math.max(0, Math.floor(Number(sec) || 0));
+          const h = Math.floor(sec / 3600),
+            m = Math.floor((sec % 3600) / 60);
+          return h ? `${h}h ${m}m` : `${m}m`;
+        }
+
+        function stopTimer() {
+          const t = N.timer;
+          if (t.state === "running" && t.started)
+            t.seconds += Math.floor((Date.now() - t.started) / 1000);
+          t.state = "stopped";
+          t.started = null;
+          save();
+        }
+
+        function editable() {
+          return N.status === "draft" && N.editMode;
+        }
+
+        function statusText() {
+          return N.status === "draft"
+            ? "Draft"
+            : N.status === "issued"
+              ? "Issued"
+              : N.status === "approved"
+                ? "Approved"
+                : N.status === "reverted"
+                  ? "Reverted"
+                  : "Draft";
+        }
+
+        function selectedPackage() {
+          return (
+            CHANGE_PACKAGES[N.changePackage] || CHANGE_PACKAGES["CP-2026-001"]
+          );
+        }
+
+        function syncFieldsFromUI() {
+          ["dateIssued", "ntpNo", "approvedStart", "targetCompletion"].forEach(
+            (id) => {
+              const el = document.getElementById(id);
+              if (el) N.fields[id] = el.value;
+            },
+          );
+          N.ntpType = document.getElementById("ntpType").value;
+          N.changePackage = document.getElementById(
+            "changePackageSelect",
+          ).value;
+          N.approvalMethod = document.getElementById(
+            "clientApprovalMethod",
+          ).value;
+          N.approvalNote = document.getElementById("ntpActionNote").value;
+          save();
+        }
+
+        function syncFieldsToUI() {
+          Object.entries(N.fields).forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || "";
+          });
+
+          document.getElementById("ntpType").value = N.ntpType;
+          document.getElementById("changePackageSelect").value =
+            N.changePackage;
+          document.getElementById("clientApprovalMethod").value =
+            N.approvalMethod || "Signed NTP / Wet Signature";
+          document.getElementById("ntpActionNote").value = N.approvalNote || "";
+        }
+
+        function renderContext() {
+          const supp = N.ntpType === "supplemental";
+          const pkg = selectedPackage();
+
+          document.getElementById("changePackageLabel").style.display = supp
+            ? "inline"
+            : "none";
+          document.getElementById("changePackageSelect").style.display = supp
+            ? "inline-block"
+            : "none";
+          document
+            .getElementById("changePackageBox")
+            .classList.toggle("show", supp);
+          document.getElementById("supplementalRefRow").style.display = supp
+            ? "table-row"
+            : "none";
+
+          const pill = document.getElementById("ntpTypePill");
+          pill.textContent = supp ? "SUPPLEMENTAL NTP" : "ORIGINAL NTP";
+          pill.classList.toggle("supp", supp);
+
+          document.getElementById("sopNo").textContent = N.sopNo;
+          document.getElementById("changePackageNo").textContent = supp
+            ? pkg.no
+            : "—";
+          document.getElementById("documentNtpType").textContent = supp
+            ? "Supplemental NTP"
+            : "Original NTP";
+          document.getElementById("bodyNtpType").textContent = supp
+            ? "Supplemental Notice to Proceed"
+            : "Notice to Proceed";
+          document.getElementById("bodyScopeText").textContent = supp
+            ? `approved Change Package ${pkg.no} additional scope`
+            : "approved original scope";
+
+          document.getElementById("changePackageItems").innerHTML = supp
+            ? pkg.items
+                .map(
+                  (i) =>
+                    `<div class="change-package-item"><span><strong>${i.ref}</strong> — ${i.title}</span><span>Included</span></div>`,
+                )
+                .join("")
+            : "";
+
+          if (supp && N.status === "draft") {
+            N.fields.approvedStart = pkg.approvedStart;
+            N.fields.targetCompletion = pkg.targetCompletion;
+          }
+        }
+
+        function validateNtp() {
+          if (!N.sopNo) return "Governing SOP No. is required.";
+          if (!N.fields.dateIssued) return "Date Issued is required.";
+          if (!String(N.fields.ntpNo || "").trim())
+            return "NTP No. is required.";
+          if (!N.fields.approvedStart)
+            return "Approved Start Date is required.";
+          if (!N.fields.targetCompletion)
+            return "Target Completion Date is required.";
+          if (N.ntpType === "supplemental" && !N.changePackage)
+            return "Change Package is required for Supplemental NTP.";
+          return null;
+        }
+
+        function updateDocumentState() {
+          document
+            .getElementById("ntpDocument")
+            .classList.toggle("ntp-readonly", !editable());
+          document.querySelectorAll("#ntpDocument .editable").forEach((el) => {
+            el.disabled = !editable();
+          });
+
+          document.getElementById("ntpType").disabled = !editable();
+          document.getElementById("changePackageSelect").disabled = !editable();
+
+          const banner = document.getElementById("ntpBanner");
+          banner.className = "ntp-banner";
+
+          if (N.status === "approved") {
+            banner.classList.add("approved");
+            banner.innerHTML =
+              "<strong>NTP Approved:</strong> Client authorization is recorded. Execution is now permitted only for the scope authorized by this NTP.";
+          } else if (N.status === "reverted") {
+            banner.classList.add("reverted");
+            banner.innerHTML =
+              "<strong>NTP Reverted:</strong> NTP processing has been stopped. Return to Review / SOW / Change Package for correction before issuing a new NTP.";
+          } else if (N.status === "issued") {
+            banner.innerHTML =
+              "<strong>NTP Issued:</strong> Waiting for Client authorization / signed evidence.";
+          } else {
+            banner.innerHTML =
+              N.ntpType === "supplemental"
+                ? "<strong>Supplemental NTP Preparation:</strong> Prepare authorization for the approved Change Package. Only included Out-of-Scope items will become executable."
+                : "<strong>NTP Preparation:</strong> Review is complete. Prepare the Notice to Proceed using the approved original SOW and obtain Client authorization before Execution.";
+          }
+        }
+
+        function updateActions() {
+          const status = document.getElementById("ntpStatusPill");
+          status.textContent = statusText();
+          status.className =
+            "ntp-status-pill " +
+            (N.status === "approved"
+              ? "approved"
+              : N.status === "reverted"
+                ? "reverted"
+                : N.status === "issued"
+                  ? "pending"
+                  : "");
+
+          const approval = document.getElementById("clientApprovalPill");
+          approval.textContent =
+            N.status === "approved" ? "Approved" : "Pending";
+          approval.className =
+            "ntp-status-pill " +
+            (N.status === "approved" ? "approved" : "pending");
+
+          document.getElementById("saveNtpBtn").disabled = !(
+            N.status === "draft" && N.editMode
+          );
+          document.getElementById("editNtpBtn").disabled = !(
+            N.status === "draft" && !N.editMode
+          );
+          document.getElementById("issueNtpBtn").disabled =
+            N.status !== "draft";
+          document.getElementById("approveNtpBtn").disabled =
+            N.status !== "issued";
+          document.getElementById("uploadSignedBtn").disabled = !(
+            N.status === "issued" || N.status === "approved"
+          );
+          document.getElementById("revertNtpBtn").disabled =
+            N.status === "reverted";
+
+          document.getElementById("ntpAutosaveState").textContent = N.autoSave
+            ? "On"
+            : "Off";
+
+          const gate = document.getElementById("executionGate");
+          const go = document.getElementById("proceedExecutionBtn");
+
+          if (N.status === "approved") {
+            gate.classList.add("unlocked");
+            gate.innerHTML =
+              N.ntpType === "supplemental"
+                ? `<strong>Supplemental Scope Unlocked.</strong> Only items under ${N.changePackage} are now authorized for Execution.`
+                : "<strong>Execution Unlocked.</strong> Original approved SOW may now proceed to Execution.";
+            go.disabled = false;
+          } else {
+            gate.classList.remove("unlocked");
+            gate.textContent =
+              N.status === "reverted"
+                ? "Execution locked. NTP was reverted and must be corrected and re-issued."
+                : "Execution remains locked until this NTP is issued and Client approval evidence is recorded.";
+            go.disabled = true;
+          }
+
+          const chip = document.getElementById("signedEvidence");
+          chip.style.display = N.evidence ? "flex" : "none";
+          if (N.evidence) {
+            document.getElementById("signedEvidenceMeta").textContent =
+              `${N.evidence.name} · ${N.evidence.method} · ${new Date(N.evidence.at).toLocaleString()}`;
+          }
+
+          renderContext();
+          updateDocumentState();
+        }
+
+        function tick() {
+          const sec = timerSeconds();
+          document.getElementById("ntpTimerClock").textContent = fmt(sec);
+          document.getElementById("ntpHandlingTotal").textContent = dur(sec);
+
+          document.getElementById("ntpTimerState").textContent =
+            N.status === "approved"
+              ? "NTP Complete"
+              : N.status === "reverted"
+                ? "NTP Stopped"
+                : N.timer.state === "running"
+                  ? "NTP Handling"
+                  : N.timer.state === "paused"
+                    ? "Paused"
+                    : "NTP Preparation";
+
+          document.getElementById("ntpTimerStart").disabled =
+            N.status === "approved" || N.status === "reverted";
+          document.getElementById("ntpTimerPause").disabled =
+            N.status === "approved" ||
+            N.status === "reverted" ||
+            N.timer.state !== "running";
+          document.getElementById("ntpTimerStop").disabled =
+            N.status === "approved" ||
+            N.status === "reverted" ||
+            N.timer.state === "stopped";
+        }
+
+        document.querySelectorAll("#ntpDocument .editable").forEach((el) => {
+          el.addEventListener("change", () => {
+            if (!editable()) return;
+            syncFieldsFromUI();
+            if (N.autoSave) toast("NTP auto-saved.");
+          });
+        });
+
+        document.getElementById("ntpType").onchange = () => {
+          if (!editable()) return;
+          N.ntpType = document.getElementById("ntpType").value;
+          if (N.ntpType === "original") {
+            N.fields.approvedStart = "2026-08-29";
+            N.fields.targetCompletion = "2026-09-18";
+          } else {
+            const pkg = selectedPackage();
+            N.fields.approvedStart = pkg.approvedStart;
+            N.fields.targetCompletion = pkg.targetCompletion;
+          }
+          save();
+          renderContext();
+          syncFieldsToUI();
+          updateActions();
+          toast(
+            N.ntpType === "supplemental"
+              ? "Supplemental NTP selected."
+              : "Original NTP selected.",
+          );
+        };
+
+        document.getElementById("changePackageSelect").onchange = () => {
+          if (!editable()) return;
+          N.changePackage = document.getElementById(
+            "changePackageSelect",
+          ).value;
+          const pkg = selectedPackage();
+          N.fields.approvedStart = pkg.approvedStart;
+          N.fields.targetCompletion = pkg.targetCompletion;
+          save();
+          renderContext();
+          syncFieldsToUI();
+          toast(`${N.changePackage} loaded.`);
+        };
+
+        document.getElementById("ntpAutosaveRow").onclick = () => {
+          N.autoSave = !N.autoSave;
+          save();
+          updateActions();
+          toast(
+            "Auto-Save " + (N.autoSave ? "enabled" : "disabled"),
+            N.autoSave ? "success" : "warn",
+          );
+        };
+
+        document.getElementById("saveNtpBtn").onclick = () => {
+          if (!editable()) return;
+          syncFieldsFromUI();
+          N.editMode = false;
+          save();
+          updateActions();
+          toast("NTP draft saved.");
+        };
+
+        document.getElementById("editNtpBtn").onclick = () => {
+          if (N.status !== "draft") return;
+          N.editMode = true;
+          save();
+          updateActions();
+          toast("NTP is now editable.");
+        };
+
+        document.getElementById("issueNtpBtn").onclick = () => {
+          if (N.status !== "draft") return;
+          if (ORDO_STATE.sowWorkflow.status !== "final") {
+            toast("Complete SOW review first.", "error");
+            return;
+          }
+          syncFieldsFromUI();
+
+          const error = validateNtp();
+          if (error) {
+            toast(error, "error");
+            return;
+          }
+
+          const label =
+            N.ntpType === "supplemental"
+              ? `Issue Supplemental NTP for ${N.changePackage}?`
+              : "Issue Original NTP to the Client?";
+
+          if (!confirm(label)) return;
+
+          if (N.fields.ntpNo === "NTP-DRAFT") {
+            N.fields.ntpNo =
+              N.ntpType === "supplemental" ? "NTP-2026-033" : "NTP-2026-032";
+          }
+
+          N.status = "issued";
+          N.editMode = false;
+          N.issuedAt = Date.now();
+
+          if (N.timer.state === "stopped") {
+            N.timer.state = "running";
+            N.timer.started = Date.now();
+          }
+
+          save();
+          syncFieldsToUI();
+          updateActions();
+          tick();
+          toast("NTP issued. Waiting for Client approval.");
+        };
+
+        document.getElementById("approveNtpBtn").onclick = () => {
+          if (N.status !== "issued") return;
+
+          const note = document.getElementById("ntpActionNote").value.trim();
+          const method = document.getElementById("clientApprovalMethod").value;
+
+          if (!confirm(`Record Client approval via "${method}"?`)) return;
+
+          N.status = "approved";
+          N.approvedAt = Date.now();
+          N.approvalMethod = method;
+          N.approvalNote = note;
+          N.evidence = N.evidence || {
+            name:
+              N.ntpType === "supplemental"
+                ? "Signed Supplemental NTP.pdf"
+                : "Signed Notice to Proceed.pdf",
+            method,
+            at: Date.now(),
+          };
+
+          stopTimer();
+          save();
+          updateActions();
+          tick();
+
+          toast(
+            N.ntpType === "supplemental"
+              ? `${N.changePackage} authorized for Execution.`
+              : "Original SOW authorized for Execution.",
+          );
+        };
+
+        document.getElementById("uploadSignedBtn").onclick = () => {
+          if (!(N.status === "issued" || N.status === "approved")) return;
+
+          const method = document.getElementById("clientApprovalMethod").value;
+          N.evidence = {
+            name:
+              N.ntpType === "supplemental"
+                ? "Signed Supplemental NTP.pdf"
+                : "Signed Notice to Proceed.pdf",
+            method,
+            at: Date.now(),
+          };
+          save();
+          updateActions();
+          toast("Signed NTP evidence attached.");
+        };
+
+        document.getElementById("revertNtpBtn").onclick = () => {
+          const note = document.getElementById("ntpActionNote").value.trim();
+          if (!note) {
+            toast("Enter a revert reason first.", "error");
+            return;
+          }
+          if (!confirm("Revert this NTP for correction?")) return;
+
+          stopTimer();
+          N.status = "reverted";
+          N.approvalNote = note;
+          save();
+          updateActions();
+          tick();
+          toast("NTP reverted. Execution remains locked.", "warn");
+        };
+
+        document.getElementById("proceedExecutionBtn").onclick = () => {
+          if (N.status !== "approved") return;
+          toast(
+            N.ntpType === "supplemental"
+              ? `Opening Execution for ${N.changePackage}.`
+              : "Opening Project Execution.",
+          );
+          setTimeout(
+            () => (location.href = "execution.html?project=" + ORDO_PROJECT_ID),
+            400,
+          );
+        };
+
+        document.getElementById("resetNtpDemo").onclick = () => {
+          if (!confirm("Reset the NTP demo to a fresh editable Original NTP?"))
+            return;
+          N = fresh();
+          save();
+          syncFieldsToUI();
+          updateActions();
+          tick();
+          toast("NTP demo reset.");
+        };
+
+        document.getElementById("ntpTimerStart").onclick = () => {
+          if (
+            N.status === "approved" ||
+            N.status === "reverted" ||
+            N.timer.state === "running"
+          )
+            return;
+          N.timer.state = "running";
+          N.timer.started = Date.now();
+          save();
+          tick();
+          toast("NTP handling timer started.");
+        };
+
+        document.getElementById("ntpTimerPause").onclick = () => {
+          if (N.timer.state !== "running") return;
+          N.timer.seconds += Math.floor((Date.now() - N.timer.started) / 1000);
+          N.timer.state = "paused";
+          N.timer.started = null;
+          save();
+          tick();
+          toast("NTP handling timer paused.", "warn");
+        };
+
+        document.getElementById("ntpTimerStop").onclick = () => {
+          stopTimer();
+          tick();
+          toast("NTP handling timer stopped.");
+        };
+
+        syncFieldsToUI();
+        renderContext();
+        updateActions();
+        tick();
+        setInterval(tick, 1000);
+      })();
+    </script>
+    <script src="../../assets/js/workspace-fixes.js"></script>
+  </body>
+</html>

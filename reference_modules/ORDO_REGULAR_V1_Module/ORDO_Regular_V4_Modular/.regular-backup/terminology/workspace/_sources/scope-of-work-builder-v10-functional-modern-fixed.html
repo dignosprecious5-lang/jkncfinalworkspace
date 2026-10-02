@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Workspace</title>
+    <link rel="stylesheet" href="../../assets/css/project-workspace.css" />
+    <style>
+      .sow-builder-note {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        border-left: 4px solid #294b98;
+        background: #f6f8ff;
+        padding: 9px 11px;
+        margin: 0 0 10px;
+        font-size: 8px;
+        color: #56647a;
+      }
+      .builder-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        color: #48566c;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action:hover {
+        background: #f4f7fb;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus,
+      .scope-table select:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .add-row-wrap {
+        display: flex;
+        justify-content: flex-end;
+        margin: 7px 0 13px;
+      }
+      .outline-status {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        background: #f8fafc;
+        border: 1px solid #e0e6ef;
+        border-radius: 7px;
+        margin-bottom: 8px;
+        font-size: 8px;
+        color: #667085;
+      }
+      .outline-preview {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 9px;
+        line-height: 1.7;
+      }
+      .sow-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 9px;
+        margin: 16px 14px 6px;
+      }
+      .sow-summary-card {
+        border: 1px solid #cfd9e7;
+        background: #f8fafc;
+        padding: 9px;
+      }
+      .sow-summary-card label {
+        display: block;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+      .sow-summary-card strong {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 14px;
+        color: #344054;
+      }
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 11%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        color: #7f8a9b;
+        text-align: center;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow: 0 0 0 5px #eef3ff;
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      @media (max-width: 1000px) {
+        .sow-summary-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .life {
+          overflow-x: auto !important;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+    </style>
+
+    <style>
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .child-row-sow td:first-child {
+        background: #fbfcfe;
+      }
+      .child-label {
+        padding-left: 8px;
+      }
+      .hierarchy-mark {
+        color: #98a2b3;
+        margin-right: 4px;
+      }
+      .parent-actions,
+      .child-actions {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .builder-action.child-add {
+        color: #2d8a61;
+      }
+      .builder-action.workstream {
+        color: #3158e6;
+      }
+      .exclusion-modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+      }
+      .exclusion-modal-table th,
+      .exclusion-modal-table td {
+        border: 1px solid #d7dee8;
+        padding: 7px;
+        font-size: 9px;
+        vertical-align: middle;
+      }
+      .exclusion-modal-table th {
+        background: #f8fafc;
+        color: #667085;
+        font-weight: 700;
+      }
+      .exclusion-modal-table input {
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 5px;
+        font-size: 9px;
+      }
+      .exclusion-modal-table input:focus {
+        outline: none;
+        border-color: #b9caf2;
+        background: #fff;
+      }
+      .exclusion-count {
+        font-size: 9px;
+        color: #667085;
+      }
+      @media (max-width: 900px) {
+        .scope-table {
+          min-width: 1180px;
+        }
+      }
+    </style>
+
+    <style>
+      /* RSAT-specific Quick Actions */
+      .sidecard .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .sidecard .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .sidecard .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .sidecard .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .sidebtn.secondary-action {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sidebtn .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sidebtn.locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .statuspill.final {
+        background: #eef8f2;
+        border-color: #d5ebdf;
+        color: #2d8a61;
+      }
+      .statuspill.review {
+        background: #fff7e8;
+        border-color: #f0dfba;
+        color: #9f6816;
+      }
+      .statuspill.draft {
+        background: #eef3ff;
+        border-color: #dbe4fb;
+        color: #3158e6;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .secondary-action {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sow-view-tabs {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sow-view-tab {
+        height: 32px;
+        border: 1px solid #d9e1ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #48566c;
+        padding: 0 11px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .sow-view-tab.active {
+        background: #294998;
+        border-color: #294998;
+        color: #fff;
+      }
+      .sow-view-tab.outscope.active {
+        background: #815f24;
+        border-color: #815f24;
+        color: #fff;
+      }
+      .sow-builder-panel {
+        display: none;
+      }
+      .sow-builder-panel.active {
+        display: block;
+      }
+      #outScopePanel .scope-title {
+        background: #815f24;
+      }
+      #outScopePanel .parent-row td {
+        background: #fffaf4;
+      }
+      #outScopePanel .child-row-sow td:first-child {
+        background: #fffdf8;
+      }
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        text-align: center;
+        color: #344054;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #48566c;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 330px;
+      }
+      .toast {
+        background: #172033;
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.22);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 7px 5px !important;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+      .autosave-dot.off {
+        background: #98a2b3 !important;
+      }
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+      .sidebtn[disabled],
+      .builder-action[disabled],
+      .btn[disabled],
+      .tbtn[disabled] {
+        opacity: 0.42 !important;
+        cursor: not-allowed !important;
+      }
+    </style>
+
+    <style>
+      .docmeta {
+        grid-template-columns: 150px minmax(220px, 1fr) 150px minmax(
+            220px,
+            1fr
+          ) !important;
+      }
+      .docmeta > div:nth-child(odd) {
+        font-weight: 600;
+      }
+      .docmeta .line {
+        min-height: 24px;
+      }
+      @media (max-width: 1100px) {
+        .docmeta {
+          grid-template-columns: 150px 1fr !important;
+        }
+      }
+    </style>
+
+    <style>
+      /* ===== Modern RSAT row actions ===== */
+      .scope-table th:last-child,
+      .scope-table td:last-child {
+        width: 184px !important;
+        min-width: 184px;
+        max-width: 184px;
+        box-sizing: border-box;
+        overflow: visible;
+      }
+      .scope-table {
+        min-width: 1250px !important;
+      }
+      .builder-actions {
+        display: grid !important;
+        grid-template-columns: repeat(5, 30px);
+        align-items: center;
+        justify-content: center;
+        gap: 5px !important;
+        width: 170px;
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 2px 0;
+        box-sizing: border-box;
+      }
+      .builder-action {
+        position: relative;
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 30px !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+        border: 1px solid #dce3ed !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        color: #526176 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
+        transition: 0.15s ease;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+      }
+      .builder-action:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: #f8faff !important;
+        border-color: #b9c8e8 !important;
+        box-shadow: 0 4px 10px rgba(31, 63, 135, 0.09);
+      }
+      .builder-action.add {
+        color: #277653 !important;
+        background: #f2faf6 !important;
+        border-color: #d4eadf !important;
+      }
+      .builder-action.duplicate {
+        color: #3158e6 !important;
+        background: #f5f7ff !important;
+        border-color: #dbe3ff !important;
+      }
+      .builder-action.move {
+        color: #59667a !important;
+      }
+      .builder-action.remove {
+        color: #c44242 !important;
+        background: #fff7f7 !important;
+        border-color: #f0d7d7 !important;
+      }
+      .builder-action::after {
+        content: attr(data-tip);
+        pointer-events: none;
+        position: absolute;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%) translateY(2px);
+        background: #172033;
+        color: #fff;
+        border-radius: 6px;
+        padding: 5px 7px;
+        font-size: 7px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: 0.12s ease;
+        z-index: 50;
+      }
+      .builder-action:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+      .builder-action:disabled {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+      }
+      .sow-responsibility { position:relative; width:100%; font-family:Inter,Segoe UI,Arial,sans-serif; font-size:8px; }
+      .sow-responsibility summary { min-height:27px; padding:7px 20px 6px 7px; border:1px solid #dce3ed; border-radius:6px; background:#fff; color:#48566c; cursor:pointer; list-style:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sow-responsibility summary::-webkit-details-marker { display:none; }
+      .sow-responsibility summary::after { content:"⌄"; position:absolute; right:7px; color:#98a2b3; }
+      .sow-responsibility > div { position:absolute; z-index:60; top:32px; left:0; min-width:145px; padding:5px; border:1px solid #dce3ed; border-radius:7px; background:#fff; box-shadow:0 10px 24px rgba(27,45,78,.16); }
+      .sow-responsibility label { display:flex; align-items:center; gap:6px; padding:5px; white-space:nowrap; color:#526176; }
+      .scope-table .sow-responsibility input { width:auto; }
+      .sow-responsibility[data-disabled] summary { background:#f4f6f9; color:#98a2b3; cursor:not-allowed; }
+
+      /* Builder toolbar */
+      .builder-toolbar {
+        background: #f8faff;
+        border: 1px solid #e4e9f2;
+        border-radius: 10px;
+        padding: 9px 10px;
+        margin: 10px 0 12px !important;
+      }
+      .builder-toolbar .btn {
+        border-radius: 8px !important;
+        min-height: 34px;
+      }
+      .sow-view-tabs {
+        padding-left: 6px;
+        border-left: 1px solid #dfe5ee;
+      }
+      .sow-view-tab {
+        border-radius: 8px !important;
+      }
+
+      /* Side action panel */
+      .sidecard {
+        overflow: visible !important;
+      }
+      .secondary-action {
+        border-radius: 8px !important;
+      }
+      .secondary-action:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #cfd9ec;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 8px !important;
+        transition: 0.15s ease;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+
+      /* Feedback */
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 340px;
+      }
+      .toast {
+        color: #fff;
+        background: #172033;
+        border-radius: 9px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 10px 28px rgba(16, 24, 40, 0.23);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+
+      .demo-reset {
+        width: 100%;
+        height: 31px;
+        border: 1px dashed #d2d9e5;
+        background: #fafbfc;
+        border-radius: 8px;
+        color: #7a8495;
+        font-size: 8px;
+        cursor: pointer;
+        margin-top: 7px;
+      }
+      .demo-reset:hover {
+        color: #3158e6;
+        border-color: #b7c6e8;
+        background: #f6f8ff;
+      }
+    </style>
+  <link rel="stylesheet" href="../../assets/css/rsat-form.css"></head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="../project-dashboard.html">REGULAR DASHBOARD</a
+            ><a class="ptab" href="../work-order.html">WORK ORDER</a
+            ><a class="ptab active" href="../scope-of-work.html">RSAT</a
+            ><a class="ptab" href="../review.html">REVIEW</a
+            ><a class="ptab" href="../ntp.html">NTP</a
+            ><a class="ptab" href="../execution.html">EXECUTION</a
+            ><a class="ptab" href="../sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="../delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="../attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="../history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout"><aside class="sidecard"></aside><section class="content"><div id="rsatForm"></div></section></div></main></div>
+<script src="../../assets/js/mock-data.js"></script><script src="../../assets/js/project-session.js"></script><script src="../../assets/js/regular-cycle.js"></script><script src="../../assets/js/common.js"></script><script src="../../assets/js/workspace-fixes.js"></script><script src="../../assets/js/rsat-recurrence.js"></script><script src="../../assets/js/rsat-adapter.js"></script><script src="../../assets/js/rsat-form.js"></script><script src="../../assets/js/sow-stage-management.js"></script><script src="../../assets/js/regular-ui.js"></script></body></html>

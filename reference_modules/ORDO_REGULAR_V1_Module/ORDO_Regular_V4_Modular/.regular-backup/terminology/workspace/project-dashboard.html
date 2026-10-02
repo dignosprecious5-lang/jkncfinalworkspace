@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <link rel="stylesheet" href="../assets/css/dashboard-execution.css" />
+    <style>
+      /* Modern Regular Lifecycle Stepper */
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life-title strong {
+        font-size: 11px;
+        color: #26354f;
+      }
+      .life-title span {
+        font-size: 8px;
+        color: #8b96a8;
+        background: #f6f8fb;
+        border: 1px solid #e8edf4;
+        border-radius: 999px;
+        padding: 5px 8px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 44.5%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: #8290a3 !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+        box-shadow: 0 2px 7px rgba(16, 24, 40, 0.04);
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        line-height: 1.2;
+        color: #7f8a9b;
+        text-align: center;
+        max-width: 96px;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.done small {
+        color: #4c5e78;
+        font-weight: 700;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow:
+          0 0 0 5px #eef3ff,
+          0 3px 9px rgba(41, 75, 152, 0.16);
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      .life .stage:hover b {
+        transform: translateY(-1px);
+      }
+      @media (max-width: 1100px) {
+        .life {
+          overflow-x: auto !important;
+          padding-top: 2px;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+      .command-center{display:grid;gap:14px}.command-card{background:#fff;border:1px solid #e2e7ef;border-radius:12px;box-shadow:0 5px 18px rgba(25,42,72,.045);overflow:hidden}.command-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e7ebf1}.command-head h2,.command-head h3{margin:0;color:#22314a}.command-head h2{font-size:15px}.command-head h3{font-size:13px}.command-head p{margin:3px 0 0;color:#7a8799;font-size:10px}.command-body{padding:16px}.overview-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.overview-panel{padding:14px;background:#f8f9fc;border:1px solid #e8ecf2;border-radius:9px}.overview-panel h4{margin:0 0 10px;font-size:10px;letter-spacing:.08em;color:#6d798a}.overview-panel dl,.now-grid{display:grid;gap:8px;margin:0}.overview-panel dl div,.now-grid div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #dfe5ed;padding-bottom:7px}.overview-panel dt,.now-grid span{color:#7a8797}.overview-panel dd{margin:0;text-align:right;font-weight:700}.overview-panel a{color:#244fba}.attention-card{border-left:5px solid #df404b}.attention-list{display:grid;gap:9px}.attention-item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:12px;border:1px solid #edd1d4;background:#fff7f7;border-radius:9px}.attention-item.warning{border-color:#f0d2a8;background:#fff9f0}.attention-item.good{border-color:#bde2d1;background:#f1faf6}.severity{padding:5px 8px;border-radius:999px;background:#df404b;color:#fff;font-size:9px;font-weight:800;letter-spacing:.05em}.warning .severity{background:#d68118}.good .severity{background:#17845d}.attention-item strong{display:block;font-size:12px}.attention-item small{color:#748094}.attention-item a{font-weight:800;color:#244fba;font-size:10px}.command-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.command-kpi{padding:13px;border:1px solid #e4e8ef;border-radius:9px;background:#fff}.command-kpi span{display:block;color:#768295;font-size:9px;font-weight:800;letter-spacing:.05em}.command-kpi strong{display:block;margin-top:5px;font-size:18px}.command-kpi small{font-size:9px;color:#8993a2}.tone-good{color:#16845c}.tone-warning{color:#c57616}.tone-critical{color:#d53e49}.command-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.current-stage{background:linear-gradient(135deg,#1d376f,#2f59b2);color:#fff}.current-stage .command-head{border-color:rgba(255,255,255,.15)}.current-stage .command-head h2,.current-stage .command-head p{color:#fff}.current-stage .command-body{display:grid;grid-template-columns:1fr 1fr;gap:14px}.stage-hero span{font-size:10px;opacity:.75}.stage-hero strong{display:block;font-size:26px;margin:4px 0}.stage-status{display:inline-block;padding:5px 9px;background:rgba(255,255,255,.16);border-radius:999px;font-weight:700}.time-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.time-list div{padding:9px;background:rgba(255,255,255,.1);border-radius:7px}.time-list span{display:block;font-size:9px;opacity:.75}.time-list strong{font-size:13px}.pending-box{grid-column:1/-1;padding:11px;background:#fff;color:#263752;border-radius:8px}.stage-link{float:right;color:#244fba;font-weight:800}.performance-table{width:100%;border-collapse:collapse}.performance-table th,.performance-table td{padding:10px 9px;border-bottom:1px solid #e8ebf0;text-align:left;font-size:10px}.performance-table th{background:#f8f9fb;color:#6f7b8c;text-transform:uppercase;letter-spacing:.04em}.performance-table td:nth-child(n+3){font-variant-numeric:tabular-nums}.perf{display:inline-block;padding:4px 7px;border-radius:999px;font-weight:800}.perf.good{background:#e8f7f0;color:#16845c}.perf.warning{background:#fff2df;color:#b86a11}.perf.bad{background:#fdebed;color:#cc3440}.perf.neutral{background:#eef1f5;color:#778292}.summary-links{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.summary-links a{display:block;padding:13px;border:1px solid #e4e8ef;border-radius:9px;background:#fafbfc}.summary-links span{display:block;color:#788496;font-size:9px;font-weight:800}.summary-links strong{display:block;font-size:18px;margin-top:4px}.activity-list{display:grid}.activity-row{display:grid;grid-template-columns:100px 12px 1fr;gap:9px;padding:9px 0;border-bottom:1px solid #eceff3}.activity-row time{color:#687589;font-size:10px}.activity-row i{width:8px;height:8px;background:#3157aa;border-radius:50%;margin-top:4px}.empty-command{padding:18px;text-align:center;color:#778397}.indicator-key{display:flex;gap:10px;flex-wrap:wrap}.indicator-key span{font-size:9px;padding:4px 7px;border-radius:999px;background:#f1f3f6}@media(max-width:1180px){.overview-grid{grid-template-columns:1fr}.command-kpis{grid-template-columns:repeat(3,1fr)}.summary-links{grid-template-columns:repeat(3,1fr)}}@media(max-width:760px){.command-two,.current-stage .command-body{grid-template-columns:1fr}.command-kpis,.summary-links{grid-template-columns:repeat(2,1fr)}.attention-item{grid-template-columns:1fr}.performance-table{min-width:760px}.command-body.table-scroll{overflow:auto}}
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab active" href="project-dashboard.html"
+              >REGULAR DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">RSAT</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <section class="command-center" aria-label="Regular management command center">
+          <div class="command-card"><div class="command-head"><div><h2>Regular Overview</h2><p>Identity, accountability, source records and schedule</p></div><span class="badge blue" id="projectStatus"></span></div><div class="command-body overview-grid" id="overview"></div></div>
+          <div class="command-card attention-card"><div class="command-head"><div><h2>Attention Required</h2><p>Critical blockers and emerging risks, ordered by priority</p></div><span id="attentionCount" class="badge red"></span></div><div class="command-body attention-list" id="attention"></div></div>
+          <div class="command-kpis" id="healthKpis"></div>
+          <div class="command-two">
+            <div class="command-card current-stage"><div class="command-head"><div><h2>Current Stage</h2><p>Live operational position and pending requirement</p></div><div><strong id="timerClock">00:00:00</strong><span id="timerState">Regular Direct</span><div class="timer-actions"><button class="tbtn start" id="timerStart">▶ Start</button><button class="tbtn pause" id="timerPause">Ⅱ Pause</button><button class="tbtn stop" id="timerStop">■ Stop</button></div></div></div><div class="command-body" id="currentStage"></div></div>
+            <div class="command-card"><div class="command-head"><div><h2>What Is Happening Now</h2><p>Owner, activity, dependency and next move</p></div></div><div class="command-body now-grid" id="happeningNow"></div></div>
+          </div>
+          <div class="command-card"><div class="command-head"><div><h2>Regular Time &amp; Performance</h2><p>Aggregated from the existing Stage Management records</p></div><div class="indicator-key"><span class="tone-good">● Good</span><span class="tone-warning">● Warning</span><span class="tone-critical">● Critical</span></div></div><div class="command-body command-kpis" id="timePerformance"></div></div>
+          <div class="command-card"><div class="command-head"><div><h2>Stage Performance</h2><p>See which lifecycle stage is creating delay</p></div></div><div class="command-body table-scroll"><table class="performance-table"><thead><tr><th>Stage</th><th>Status</th><th>Handling</th><th>Waiting</th><th>Elapsed</th><th>Historical Avg.</th><th>Performance</th></tr></thead><tbody id="stagePerformance"></tbody></table></div></div>
+          <div class="command-card execution-command"><div class="command-head"><div><h2>Execution Performance</h2><p>Approved RSAT task progress, actual effort, schedule condition and responsibility</p></div><a class="stage-link" href="execution.html">Open Execution →</a></div><div class="command-body"><div class="execution-kpis" id="executionKpis"></div><div class="execution-progress-wrap"><div><strong>Approved RSAT Execution Progress</strong><span id="executionProgressLabel"></span></div><div class="execution-progress"><i id="executionProgressBar"></i></div></div><div class="table-scroll"><table class="performance-table execution-performance-table"><thead><tr><th>Main Task</th><th>Task Progress</th><th>Planned</th><th>Working</th><th>On Hold</th><th>Total</th><th>Schedule</th><th>Client Updates</th></tr></thead><tbody id="executionPerformance"></tbody></table></div></div></div>
+          <div class="command-card execution-report-command"><div class="command-head"><div><h2>Execution Reporting</h2><p>Permanent updates, attachments, client delivery and acknowledgment evidence</p></div><a class="stage-link" href="sow-report.html">Open RSAT Report →</a></div><div class="command-body"><div class="execution-report-kpis" id="executionReportKpis"></div><div class="execution-report-grid"><div><h4>Latest Client Reports</h4><div id="latestExecutionReports" class="execution-report-list"></div></div><div><h4>Reporting Attention</h4><div id="executionReportingAttention" class="execution-report-list"></div></div></div></div></div>
+          <div class="command-card"><div class="command-head"><div><h2>Regular Work Summary</h2><p>Completion, documents, approvals, issues and actions</p></div></div><div class="command-body summary-links" id="workSummary"></div></div>
+          <div class="command-card"><div class="command-head"><div><h2>Recent Activity</h2><p>Latest meaningful project events</p></div><a class="stage-link" href="history.html">View All Activity →</a></div><div class="command-body activity-list" id="recentActivity"></div></div>
+        </section>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function(){
+        const routes=["work-order","scope-of-work","review","ntp","execution","sow-report","attachment","delivery-completion","history"], benchmarks=[2700,5400,8400,2700,43200,10800,7200,5400,3600];
+        const esc=ORDO.esc.bind(ORDO), fmt=ORDO.fmt.bind(ORDO), now=()=>Date.now();
+        function elapsed(seconds,started,status){return Number(seconds||0)+(started&&status?Math.max(0,Math.floor((now()-new Date(started).getTime())/1000)):0)}
+        function stageMetrics(stage){const active=stage.status==="In Progress",held=stage.status==="On Hold",handling=elapsed(stage.inProgressSeconds,stage.inProgressStartedAt,active)+elapsed(stage.onHoldSeconds,stage.onHoldStartedAt,held);const start=stage.startedAt?new Date(stage.startedAt).getTime():null,end=stage.completedAt?new Date(stage.completedAt).getTime():now();const total=start?Math.max(0,Math.floor((end-start)/1000)):0,waiting=elapsed(stage.waitingSeconds,stage.waitingStartedAt,!!stage.waitingStartedAt);return{handling,elapsed:total,waiting}}
+        function tone(value,average){return value>average*1.35?"bad":value>average?"warning":"good"}
+        function human(sec){if(!sec)return "—";if(sec>=86400)return Math.floor(sec/86400)+"d "+Math.floor(sec%86400/3600)+"h";return fmt(sec)}
+        function link(stage,label){const i=ORDO.stages.indexOf(stage);return `${routes[Math.max(0,i)]}.html?project=${ORDO_PROJECT_ID}&stage=${Math.max(0,i)}">${label}`}
+        function render(){
+          const p=ORDO_STATE.projects.find(x=>x.id===ORDO_PROJECT_ID), management=ORDO_STATE.stageManagement, stages=management.stages,current=Math.max(0,ORDO.stages.indexOf(p.stage)),active=stages[current]||stages[management.selected]||stages[0],sm=stageMetrics(active),all=stages.map(stageMetrics),totalHandling=all.reduce((s,x)=>s+x.handling,0),totalWaiting=all.reduce((s,x)=>s+x.waiting,0),totalElapsed=all.reduce((s,x)=>s+x.elapsed,0),completed=stages.filter(x=>x.status==="Completed").length,onHold=stages.filter(x=>x.status==="On Hold").length,tasks=ORDO.allTasks(),taskDone=tasks.filter(x=>x.task.status==="Completed").length,deliverableDone=ORDO_STATE.deliverables.filter(x=>x.status==="Ready").length,pendingApprovals=(ORDO_STATE.sowWorkflow.status==="review"?1:0)+(!ORDO_STATE.ntpApproved?1:0),pendingActions=(ORDO_STATE.clientActions||[]).filter(x=>x.status!=="Completed"&&x.done!==true).length,issues=p.health==="At Risk"||p.health==="Needs Attention"?1:0;
+          document.getElementById("projectStatus").textContent=p.stage;
+          document.getElementById("overview").innerHTML=`<div class="overview-panel"><h4>REGULAR IDENTITY</h4><dl><div><dt>Regular</dt><dd>${esc(p.title)}</dd></div><div><dt>Client</dt><dd>${esc(p.client||"—")}</dd></div><div><dt>Status</dt><dd>${esc(p.stage)}</dd></div><div><dt>Overall progress</dt><dd>${p.progress||0}%</dd></div></dl></div><div class="overview-panel"><h4>OWNERSHIP</h4><dl><div><dt>Regular Manager</dt><dd>${esc(p.lead)}</dd></div><div><dt>Lead Associate</dt><dd>${esc(tasks.find(x=>x.task.assignee!==p.lead)?.task.assignee||"Unassigned")}</dd></div><div><dt>Health</dt><dd>${esc(p.health||"On Track")}</dd></div></dl></div><div class="overview-panel"><h4>REFERENCES & DATES</h4><dl><div><dt>Work Order</dt><dd><a HREF="${link("Work Order",esc(p.workOrder||"PROJ-WO-2026-"+p.id))}</a></dd></div><div><dt>Source Memo</dt><dd>SM-2026-087</dd></div><div><dt>Source START</dt><dd>START-2026-018</dd></div><div><dt>Source Deal</dt><dd>${esc(p.deal)}</dd></div><div><dt>Target End</dt><dd>${esc(p.target||"—")}</dd></div></dl></div>`;
+          const attention=[];if(!ORDO_STATE.ntpApproved)attention.push(["critical","NTP approval is blocking Execution","NTP","Pending approval","Approve and record the Notice to Proceed","NTP"]);if(active.status==="On Hold")attention.push(["critical",active.name+" is On Hold",active.name,human(sm.handling),"Review the hold reason and resume or resolve",active.name]);if(sm.waiting>benchmarks[current])attention.push(["warning",active.name+" waiting exceeds normal",active.name,human(sm.waiting)+" waiting","Complete the pending requirement",active.name]);if(issues)attention.push(["warning","Regular health needs attention",p.stage,esc(p.health),"Review current blockers and owner",p.stage]);if(!ORDO_STATE.files.length)attention.push(["warning","Required evidence is missing","Attachment","No documents","Upload supporting evidence","Presentation"]);
+          document.getElementById("attentionCount").textContent=attention.length?attention.length+" OPEN":"CLEAR";document.getElementById("attention").innerHTML=attention.length?attention.map(x=>`<div class="attention-item ${x[0]==="critical"?"":x[0]}"><span class="severity">${x[0].toUpperCase()}</span><div><strong>${x[1]}</strong><small>${x[2]} · ${x[3]} · ${x[4]}</small></div><a HREF="${link(x[5],"Open →")}</a></div>`).join(""):`<div class="attention-item good"><span class="severity">GOOD</span><div><strong>✓ REGULAR ON TRACK</strong><small>No items currently require management attention.</small></div></div>`;
+          const health=[ ["Lifecycle Progress",completed+" of 5",Math.round(completed/5*100)+"% complete"],["Overall Health",issues?"Warning":"Good",p.health||"On Track"],["Schedule",sm.waiting>benchmarks[current]?"At Risk":"On Track","Current stage"],["Stages On Hold",onHold,"Across lifecycle"],["Pending Approvals",pendingApprovals,"Blocking items"],["Open Issues",issues,"Critical/attention"],["Pending Actions",pendingActions,"Client actions"],["Documents",ORDO_STATE.files.length,"Attached evidence"],["Overdue Stages",all.filter((x,i)=>x.elapsed>benchmarks[i]*1.35&&stages[i].status!=="Not Started").length,"Against benchmark"] ];document.getElementById("healthKpis").innerHTML=health.map((x,i)=>`<div class="command-kpi"><span>${x[0]}</span><strong class="${i>0&&String(x[1]).match(/Warning|At Risk|[1-9]/)?"tone-warning":""}">${x[1]}</strong><small>${x[2]}</small></div>`).join("");
+          const inProgress=elapsed(active.inProgressSeconds,active.inProgressStartedAt,active.status==="In Progress"),hold=elapsed(active.onHoldSeconds,active.onHoldStartedAt,active.status==="On Hold"),pending=active.waitingReason||(!ORDO_STATE.ntpApproved?"Approval of Notice to Proceed":active.status==="On Hold"?"Resolve stage hold":"Complete current stage requirements");document.getElementById("currentStage").innerHTML=`<div class="stage-hero"><span>CURRENT STAGE</span><strong>${esc(active.name)}</strong><b class="stage-status">${esc(active.status)}</b><p>Started<br><b>${active.startedAt?new Date(active.startedAt).toLocaleString():"Not recorded"}</b></p></div><div class="time-list"><div><span>TOTAL HANDLING</span><strong>${fmt(sm.handling)}</strong></div><div><span>IN PROGRESS</span><strong>${fmt(inProgress)}</strong></div><div><span>ON HOLD</span><strong>${fmt(hold)}</strong></div><div><span>WAITING</span><strong>${fmt(sm.waiting)}</strong></div><div><span>ELAPSED</span><strong>${fmt(sm.elapsed)}</strong></div></div><div class="pending-box"><b>Pending:</b> ${esc(pending)}<a class="stage-link" HREF="${link(active.name,"View Stage →")}</a></div>`;
+          const currentTask=tasks.find(x=>x.task.status==="In Progress")?.task,waitingTask=tasks.find(x=>x.task.status==="Pending Client")?.task,next=ORDO.stages[Math.min(4,current+1)];document.getElementById("happeningNow").innerHTML=[["Current Stage",active.name],["Currently Being Handled By",currentTask?.assignee||active.responsiblePerson||p.lead],["Current Activity",currentTask?.title||"Stage requirements and coordination"],["Waiting For",active.waitingOn||waitingTask?.title||pending],["Waiting Since",active.waitingStartedAt?new Date(active.waitingStartedAt).toLocaleString():"Not waiting"],["Next Expected Stage",next],["Next Required Action",pending]].map(x=>`<div><span>${x[0]}</span><strong>${esc(x[1])}</strong></div>`).join("");
+          const historical=benchmarks.reduce((a,b)=>a+b,0),difference=totalElapsed-historical,performance=tone(totalElapsed,historical);document.getElementById("timePerformance").innerHTML=[["Total Handling",human(totalHandling),"In Progress + On Hold"],["Total In Progress",human(stages.reduce((s,x)=>s+elapsed(x.inProgressSeconds,x.inProgressStartedAt,x.status==="In Progress"),0)),"Active work"],["Total On Hold",human(stages.reduce((s,x)=>s+elapsed(x.onHoldSeconds,x.onHoldStartedAt,x.status==="On Hold"),0)),"Paused work"],["Total Waiting",human(totalWaiting),"Pending actions"],["Total Elapsed",human(totalElapsed),"Clock time"],["Average Stage",human(totalHandling/Math.max(1,completed||current+1)),"Handling average"],["Historical Average",human(historical),"Configured benchmark"],["Difference",(difference>=0?"+":"−")+human(Math.abs(difference)),"Versus historical"],["Performance",performance==="bad"?"Slower":performance==="warning"?"Warning":"Good","Than average"]].map((x,i)=>`<div class="command-kpi"><span>${x[0]}</span><strong class="${i===8?"tone-"+(performance==="bad"?"critical":performance):""}">${x[1]}</strong><small>${x[2]}</small></div>`).join("");
+          document.getElementById("stagePerformance").innerHTML=stages.map((stage,i)=>{const m=all[i],t=stage.status==="Not Started"?"neutral":tone(m.elapsed,benchmarks[i]);return `<tr><td><a HREF="${routes[i]}.html?project=${ORDO_PROJECT_ID}&stage=${i}"><strong>${esc(stage.name)}</strong></a></td><td>${esc(stage.status)}</td><td>${human(m.handling)}</td><td>${human(m.waiting)}</td><td>${human(m.elapsed)}</td><td>${human(benchmarks[i])}</td><td><span class="perf ${t}">${t==="bad"?"Slower than Average":t==="warning"?"Needs Attention":t==="good"?"Good":"No Data"}</span></td></tr>`}).join("");
+          const summary=[["Tasks",taskDone+" / "+tasks.length,"execution.html"],["Deliverables",deliverableDone+" / "+ORDO_STATE.deliverables.length,"delivery-completion.html"],["Documents",ORDO_STATE.files.length,"attachment.html"],["Pending Approvals",pendingApprovals,"review.html"],["Open Issues",issues,"history.html"],["Pending Actions",pendingActions,"history.html"]];document.getElementById("workSummary").innerHTML=summary.map(x=>`<a HREF="${x[2]}?project=${ORDO_PROJECT_ID}"><span>${x[0]}</span><strong>${x[1]}</strong></a>`).join("");
+          const activity=[...(active.history||[]).map(x=>({at:x.at,action:active.name+" "+x.action})),...(ORDO_STATE.history||[])].filter(x=>x.at).sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0,6);document.getElementById("recentActivity").innerHTML=activity.length?activity.map(x=>`<div class="activity-row"><time>${new Date(x.at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</time><i></i><span>${esc(x.action)}</span></div>`).join(""):`<div class="empty-command">No recorded activity yet.</div>`;
+          document.getElementById("timerClock").textContent=ORDO.fmt(ORDO.projectSeconds());document.getElementById("timerState").textContent=ORDO_STATE.projectTimer.state==="running"?"Running":ORDO_STATE.projectTimer.state==="paused"?"Paused":"Regular Direct";
+        }
+        document.getElementById("timerStart").onclick=()=>{ORDO.startProject();render()};document.getElementById("timerPause").onclick=()=>{ORDO.pauseProject();render()};document.getElementById("timerStop").onclick=()=>{ORDO.stopProject();render()};render();setInterval(render,1000);
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/dashboard-execution.js"></script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>

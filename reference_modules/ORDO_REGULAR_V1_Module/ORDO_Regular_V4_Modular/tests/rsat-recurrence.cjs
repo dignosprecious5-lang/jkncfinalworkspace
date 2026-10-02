@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');const R=require('../assets/js/rsat-recurrence.js');
+const rule=patch=>{const r=R.defaults();r.configured=true;patch?.(r);return r;};
+let r=rule();assert.deepEqual(R.occurrences(r,'2026-01-01',2),[{deadline:'2026-01-15',reminder:'2026-01-08'},{deadline:'2026-02-15',reminder:'2026-02-08'}]);
+r=rule(r=>{r.deadline.day=31;});assert.equal(R.occurrences(r,'2026-02-01',1)[0].deadline,'2026-02-28');assert.equal(R.occurrences(r,'2028-02-01',1)[0].deadline,'2028-02-29');
+r.shortMonth='skip';assert.equal(R.occurrences(r,'2026-02-01',1)[0].deadline,'2026-03-31');
+r=rule(r=>{r.deadline.type='nth_weekday';r.deadline.ordinal=1;r.deadline.weekday=1;});assert.equal(R.occurrences(r,'2026-03-01',1)[0].deadline,'2026-03-02');
+r.deadline.ordinal=-1;assert.equal(R.occurrences(r,'2026-03-01',1)[0].deadline,'2026-03-30');
+r.deadline.ordinal=5;assert.equal(R.occurrences(r,'2026-02-01',1)[0].deadline,'2026-03-30');
+r=rule(r=>{r.frequency.unit='quarter';r.deadline.type='period_end';r.deadline.offsetDays=30;});assert.deepEqual(R.occurrences(r,'2026-01-01',2).map(x=>x.deadline),['2026-04-30','2026-07-30']);
+r.anchor='2026-02-01';assert.equal(R.occurrences(r,'2026-02-01',1)[0].deadline,'2026-05-30');
+r=rule(r=>{r.frequency.unit='quarter';r.deadline.monthInPeriod=3;r.deadline.day=30;});assert.equal(R.occurrences(r,'2026-01-01',1)[0].deadline,'2026-03-30');
+r=rule(r=>{r.frequency.unit='year';r.deadline.monthInPeriod=4;r.deadline.day=15;});assert.deepEqual(R.occurrences(r,'2026-01-01',2).map(x=>x.deadline),['2026-04-15','2027-04-15']);
+r=rule(r=>{r.frequency.unit='day';r.frequency.interval=15;r.deadline.type='interval';});assert.deepEqual(R.occurrences(r,'2026-01-02',2).map(x=>x.deadline),['2026-01-16','2026-01-31']);
+r=rule(r=>{r.frequency.unit='month';r.frequency.interval=2;});assert.deepEqual(R.occurrences(r,'2026-02-01',2).map(x=>x.deadline),['2026-03-15','2026-05-15']);
+r=rule(r=>{r.frequency.unit='event';r.deadline.type='event';r.deadline.offsetDays=30;});assert.deepEqual(R.occurrences(r,'2026-01-01'),[]);r.deadline.eventDate='2026-05-20';assert.equal(R.occurrences(r,'2026-01-01')[0].deadline,'2026-06-19');
+r=rule(r=>{r.deadline.day=15;r.adjustment='next';r.holidays=['2026-02-16'];r.reminder={amount:3,unit:'business_days'};});assert.deepEqual(R.occurrences(r,'2026-02-01',1)[0],{deadline:'2026-02-17',reminder:'2026-02-11'});
+r.frequency.interval=0;assert.throws(()=>R.validate(r),/interval/);r.frequency.interval=1;r.anchor='2026-02-30';assert.throws(()=>R.validate(r),/valid/);
+console.log('Recurring deadlines passed: monthly, fiscal quarters, annual, nth weekday, day intervals, events, leap years, short months and business-day reminders.');

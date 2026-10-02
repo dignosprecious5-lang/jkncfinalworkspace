@@ -1,0 +1,2498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Regular Review</title>
+    <link rel="stylesheet" href="../../assets/css/project-workspace.css" />
+    <style>
+      .sow-builder-note {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        border-left: 4px solid #294b98;
+        background: #f6f8ff;
+        padding: 9px 11px;
+        margin: 0 0 10px;
+        font-size: 8px;
+        color: #56647a;
+      }
+      .builder-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        color: #48566c;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .builder-action:hover {
+        background: #f4f7fb;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus,
+      .scope-table select:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .add-row-wrap {
+        display: flex;
+        justify-content: flex-end;
+        margin: 7px 0 13px;
+      }
+      .outline-status {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 10px;
+        background: #f8fafc;
+        border: 1px solid #e0e6ef;
+        border-radius: 7px;
+        margin-bottom: 8px;
+        font-size: 8px;
+        color: #667085;
+      }
+      .outline-preview {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 9px;
+        line-height: 1.7;
+      }
+      .sow-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 9px;
+        margin: 16px 14px 6px;
+      }
+      .sow-summary-card {
+        border: 1px solid #cfd9e7;
+        background: #f8fafc;
+        padding: 9px;
+      }
+      .sow-summary-card label {
+        display: block;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+      .sow-summary-card strong {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 14px;
+        color: #344054;
+      }
+      .lifecycle {
+        background: #fff;
+        border: 1px solid #e4e9f1;
+        border-radius: 14px;
+        padding: 16px 18px 18px;
+        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+      }
+      .life-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .life {
+        display: flex !important;
+        align-items: flex-start;
+        position: relative;
+        border: 0 !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        padding: 0 6px;
+        gap: 0;
+      }
+      .life::before {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        right: 5.5%;
+        height: 3px;
+        background: #e8edf4;
+        border-radius: 999px;
+        z-index: 0;
+      }
+      .life::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        left: 5.5%;
+        width: 11%;
+        height: 3px;
+        background: linear-gradient(90deg, #24458e, #416ce6);
+        border-radius: 999px;
+        z-index: 1;
+      }
+      .life .stage {
+        flex: 1 1 0;
+        min-width: 92px;
+        min-height: 68px !important;
+        padding: 0 4px !important;
+        border: 0 !important;
+        background: transparent !important;
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+      }
+      .life .stage b {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 0 !important;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 11px !important;
+        font-weight: 800;
+        color: #7d899a !important;
+        background: #fff;
+        border: 2px solid #dfe5ee;
+      }
+      .life .stage small {
+        font-size: 7px !important;
+        color: #7f8a9b;
+        text-align: center;
+      }
+      .life .stage.done b {
+        color: #fff !important;
+        border-color: #294b98;
+        background: #294b98;
+      }
+      .life .stage.current b {
+        color: #294b98 !important;
+        border: 3px solid #294b98;
+        background: #fff;
+        box-shadow: 0 0 0 5px #eef3ff;
+      }
+      .life .stage.current small {
+        color: #294b98;
+        font-weight: 800;
+      }
+      .life .stage.current::after {
+        content: "CURRENT";
+        position: absolute;
+        top: -23px;
+        font-size: 6px;
+        font-weight: 800;
+        letter-spacing: 0.7px;
+        color: #294b98;
+        background: #eef3ff;
+        border: 1px solid #dce6ff;
+        border-radius: 999px;
+        padding: 3px 6px;
+      }
+      @media (max-width: 1000px) {
+        .sow-summary-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .life {
+          overflow-x: auto !important;
+        }
+        .life::before,
+        .life::after {
+          display: none;
+        }
+        .life .stage {
+          min-width: 105px;
+        }
+      }
+    </style>
+
+    <style>
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .child-row-sow td:first-child {
+        background: #fbfcfe;
+      }
+      .child-label {
+        padding-left: 8px;
+      }
+      .hierarchy-mark {
+        color: #98a2b3;
+        margin-right: 4px;
+      }
+      .parent-actions,
+      .child-actions {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .builder-action.child-add {
+        color: #2d8a61;
+      }
+      .builder-action.workstream {
+        color: #3158e6;
+      }
+      .exclusion-modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+      }
+      .exclusion-modal-table th,
+      .exclusion-modal-table td {
+        border: 1px solid #d7dee8;
+        padding: 7px;
+        font-size: 9px;
+        vertical-align: middle;
+      }
+      .exclusion-modal-table th {
+        background: #f8fafc;
+        color: #667085;
+        font-weight: 700;
+      }
+      .exclusion-modal-table input {
+        width: 100%;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 5px;
+        font-size: 9px;
+      }
+      .exclusion-modal-table input:focus {
+        outline: none;
+        border-color: #b9caf2;
+        background: #fff;
+      }
+      .exclusion-count {
+        font-size: 9px;
+        color: #667085;
+      }
+      @media (max-width: 900px) {
+        .scope-table {
+          min-width: 1180px;
+        }
+      }
+    </style>
+
+    <style>
+      /* RSAT-specific Quick Actions */
+      .sidecard .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .sidecard .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .sidecard .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .sidecard .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .sidebtn.secondary-action {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sidebtn .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sidebtn.locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .statuspill.final {
+        background: #eef8f2;
+        border-color: #d5ebdf;
+        color: #2d8a61;
+      }
+      .statuspill.review {
+        background: #fff7e8;
+        border-color: #f0dfba;
+        color: #9f6816;
+      }
+      .statuspill.draft {
+        background: #eef3ff;
+        border-color: #dbe4fb;
+        color: #3158e6;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .planning-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .autosave-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 8px;
+        color: #667085;
+        padding: 7px 0;
+      }
+      .autosave-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #2d8a61;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .workflow-note {
+        font-size: 8px;
+        line-height: 1.45;
+        color: #7a8495;
+        background: #f8fafc;
+        border: 1px solid #e5eaf2;
+        border-radius: 7px;
+        padding: 8px;
+        margin-top: 7px;
+      }
+      .secondary-action {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .action-state {
+        font-size: 7px;
+        color: #98a2b3;
+      }
+      .sow-view-tabs {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .sow-view-tab {
+        height: 32px;
+        border: 1px solid #d9e1ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #48566c;
+        padding: 0 11px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+      .sow-view-tab.active {
+        background: #294998;
+        border-color: #294998;
+        color: #fff;
+      }
+      .sow-view-tab.outscope.active {
+        background: #815f24;
+        border-color: #815f24;
+        color: #fff;
+      }
+      .sow-builder-panel {
+        display: none;
+      }
+      .sow-builder-panel.active {
+        display: block;
+      }
+      #outScopePanel .scope-title {
+        background: #815f24;
+      }
+      #outScopePanel .parent-row td {
+        background: #fffaf4;
+      }
+      #outScopePanel .child-row-sow td:first-child {
+        background: #fffdf8;
+      }
+      .item-code {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 8px;
+        font-weight: 800;
+        text-align: center;
+        color: #344054;
+      }
+      .parent-row td {
+        background: #f8faff;
+      }
+      .parent-row .main-task-input {
+        font-weight: 700;
+        color: #26364f;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .builder-action {
+        width: 25px;
+        height: 25px;
+        border: 1px solid #d9e0e9;
+        border-radius: 5px;
+        background: #fff;
+        font-size: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #48566c;
+      }
+      .builder-action.add {
+        color: #2d8a61;
+      }
+      .builder-action.duplicate {
+        color: #3158e6;
+      }
+      .builder-action.remove {
+        color: #c94343;
+      }
+      .builder-action.move {
+        color: #6b7280;
+      }
+      .scope-table input,
+      .scope-table select {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 8px;
+        padding: 2px;
+      }
+      .scope-table input:focus {
+        outline: 1px solid #b9caf2;
+        background: #f8faff;
+      }
+      .sow-locked-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d8a61;
+        background: #f0faf5;
+        font-size: 8px;
+        color: #426052;
+      }
+      .sow-locked-banner.show {
+        display: block;
+      }
+    </style>
+
+    <style>
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 330px;
+      }
+      .toast {
+        background: #172033;
+        color: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 8px 24px rgba(16, 24, 40, 0.22);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 7px 5px !important;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+      .autosave-dot.off {
+        background: #98a2b3 !important;
+      }
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+      .sidebtn[disabled],
+      .builder-action[disabled],
+      .btn[disabled],
+      .tbtn[disabled] {
+        opacity: 0.42 !important;
+        cursor: not-allowed !important;
+      }
+    </style>
+
+    <style>
+      .docmeta {
+        grid-template-columns: 150px minmax(220px, 1fr) 150px minmax(
+            220px,
+            1fr
+          ) !important;
+      }
+      .docmeta > div:nth-child(odd) {
+        font-weight: 600;
+      }
+      .docmeta .line {
+        min-height: 24px;
+      }
+      @media (max-width: 1100px) {
+        .docmeta {
+          grid-template-columns: 150px 1fr !important;
+        }
+      }
+    </style>
+
+    <style>
+      /* ===== Modern RSAT row actions ===== */
+      .scope-table th:last-child,
+      .scope-table td:last-child {
+        min-width: 150px;
+      }
+      .builder-actions {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 5px !important;
+        flex-wrap: nowrap !important;
+        padding: 2px;
+      }
+      .builder-action {
+        position: relative;
+        width: 30px !important;
+        height: 30px !important;
+        border: 1px solid #dce3ed !important;
+        border-radius: 8px !important;
+        background: #fff !important;
+        color: #526176 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
+        transition: 0.15s ease;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+      }
+      .builder-action:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: #f8faff !important;
+        border-color: #b9c8e8 !important;
+        box-shadow: 0 4px 10px rgba(31, 63, 135, 0.09);
+      }
+      .builder-action.add {
+        color: #277653 !important;
+        background: #f2faf6 !important;
+        border-color: #d4eadf !important;
+      }
+      .builder-action.duplicate {
+        color: #3158e6 !important;
+        background: #f5f7ff !important;
+        border-color: #dbe3ff !important;
+      }
+      .builder-action.move {
+        color: #59667a !important;
+      }
+      .builder-action.remove {
+        color: #c44242 !important;
+        background: #fff7f7 !important;
+        border-color: #f0d7d7 !important;
+      }
+      .builder-action::after {
+        content: attr(data-tip);
+        pointer-events: none;
+        position: absolute;
+        bottom: calc(100% + 7px);
+        left: 50%;
+        transform: translateX(-50%) translateY(2px);
+        background: #172033;
+        color: #fff;
+        border-radius: 6px;
+        padding: 5px 7px;
+        font-size: 7px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: 0.12s ease;
+        z-index: 50;
+      }
+      .builder-action:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+      .builder-action:disabled {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+      }
+
+      /* Builder toolbar */
+      .builder-toolbar {
+        background: #f8faff;
+        border: 1px solid #e4e9f2;
+        border-radius: 10px;
+        padding: 9px 10px;
+        margin: 10px 0 12px !important;
+      }
+      .builder-toolbar .btn {
+        border-radius: 8px !important;
+        min-height: 34px;
+      }
+      .sow-view-tabs {
+        padding-left: 6px;
+        border-left: 1px solid #dfe5ee;
+      }
+      .sow-view-tab {
+        border-radius: 8px !important;
+      }
+
+      /* Side action panel */
+      .sidecard {
+        overflow: visible !important;
+      }
+      .secondary-action {
+        border-radius: 8px !important;
+      }
+      .secondary-action:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #cfd9ec;
+      }
+      .autosave-row {
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 8px !important;
+        transition: 0.15s ease;
+      }
+      .autosave-row:hover {
+        background: #f7f9fc;
+      }
+
+      /* Feedback */
+      .toast-stack {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 340px;
+      }
+      .toast {
+        color: #fff;
+        background: #172033;
+        border-radius: 9px;
+        padding: 10px 12px;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 9px;
+        box-shadow: 0 10px 28px rgba(16, 24, 40, 0.23);
+      }
+      .toast.success {
+        background: #276749;
+      }
+      .toast.warn {
+        background: #8a5a14;
+      }
+      .toast.error {
+        background: #a63f3f;
+      }
+
+      .review-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b7791f;
+        background: #fff8e8;
+        color: #74520d;
+        font-size: 8px;
+      }
+      .review-banner.show {
+        display: block;
+      }
+
+      .demo-reset {
+        width: 100%;
+        height: 31px;
+        border: 1px dashed #d2d9e5;
+        background: #fafbfc;
+        border-radius: 8px;
+        color: #7a8495;
+        font-size: 8px;
+        cursor: pointer;
+        margin-top: 7px;
+      }
+      .demo-reset:hover {
+        color: #3158e6;
+        border-color: #b7c6e8;
+        background: #f6f8ff;
+      }
+    </style>
+
+    <style>
+      /* ===== Review Stage Controls ===== */
+      .review-total {
+        font-size: 8px;
+        color: #667085;
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid #e8edf4;
+      }
+      .review-progress {
+        height: 6px;
+        background: #edf1f6;
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 8px 0 5px;
+      }
+      .review-progress > span {
+        display: block;
+        height: 100%;
+        background: #294b98;
+        border-radius: 999px;
+        transition: width 0.2s ease;
+      }
+      .reviewer-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        margin-top: 7px;
+      }
+      .reviewer-card {
+        border: 1px solid #e0e6ef;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+      }
+      .reviewer-card.accepted {
+        background: #f3faf6;
+        border-color: #d7eadf;
+      }
+      .reviewer-card.clarification {
+        background: #fff9ec;
+        border-color: #eadbb9;
+      }
+      .reviewer-card.reverted {
+        background: #fff5f5;
+        border-color: #ebd4d4;
+      }
+      .reviewer-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 7px;
+        align-items: flex-start;
+      }
+      .reviewer-role {
+        font-size: 8px;
+        font-weight: 800;
+        color: #344054;
+      }
+      .reviewer-name {
+        font-size: 7px;
+        color: #7a8495;
+        margin-top: 2px;
+        line-height: 1.35;
+      }
+      .reviewer-time {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 8px;
+        font-weight: 700;
+        color: #475467;
+        white-space: nowrap;
+      }
+      .reviewer-meta {
+        font-size: 7px;
+        color: #8a94a5;
+        margin-top: 5px;
+      }
+      .review-status {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 6px;
+        font-size: 7px;
+        font-weight: 800;
+        margin-top: 5px;
+        background: #f2f4f7;
+        color: #667085;
+      }
+      .review-status.accepted {
+        background: #eaf7ef;
+        color: #2d7b59;
+      }
+      .review-status.clarification {
+        background: #fff2d8;
+        color: #996515;
+      }
+      .review-status.reverted {
+        background: #fdecec;
+        color: #b33d3d;
+      }
+      .review-status.pending {
+        background: #eef3ff;
+        color: #3158e6;
+      }
+
+      .review-form {
+        margin-top: 8px;
+      }
+      .review-form label {
+        display: block;
+        font-size: 7px;
+        color: #667085;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .review-form select,
+      .review-form textarea {
+        width: 100%;
+        border: 1px solid #dce3ed;
+        border-radius: 7px;
+        background: #fff;
+        font-size: 8px;
+        padding: 7px;
+        color: #475467;
+      }
+      .review-form textarea {
+        min-height: 55px;
+        resize: vertical;
+      }
+      .review-action-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-top: 7px;
+      }
+      .review-action-btn {
+        min-height: 33px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #fff;
+        color: #475467;
+        font-size: 8px;
+        font-weight: 700;
+        text-align: left;
+        padding: 0 9px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .review-action-btn:hover:not(:disabled) {
+        background: #f8faff;
+        border-color: #b9c8e8;
+      }
+      .review-action-btn.accept {
+        background: #f1faf5;
+        border-color: #d6eadf;
+        color: #277653;
+      }
+      .review-action-btn.question {
+        background: #fff9ec;
+        border-color: #eadbb9;
+        color: #8b651e;
+      }
+      .review-action-btn.revert {
+        background: #fff5f5;
+        border-color: #ebd4d4;
+        color: #b33d3d;
+      }
+      .review-action-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .ntp-gate {
+        margin-top: 8px;
+        padding: 9px;
+        border: 1px solid #dce3ed;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 8px;
+        color: #667085;
+        line-height: 1.45;
+      }
+      .ntp-gate.unlocked {
+        background: #eef9f3;
+        border-color: #cfe7da;
+        color: #286447;
+      }
+      .ntp-btn {
+        width: 100%;
+        height: 34px;
+        margin-top: 7px;
+        border-radius: 8px;
+        border: 1px solid #294b98;
+        background: #294b98;
+        color: #fff;
+        font-size: 8px;
+        font-weight: 800;
+      }
+      .ntp-btn:disabled {
+        background: #eef1f5;
+        border-color: #dfe4eb;
+        color: #98a2b3;
+        cursor: not-allowed;
+      }
+
+      .review-lock-banner {
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #3158e6;
+        background: #f3f6ff;
+        color: #4c5c7b;
+        font-size: 8px;
+      }
+      .review-reverted-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #b33d3d;
+        background: #fff5f5;
+        color: #7f3333;
+        font-size: 8px;
+      }
+      .review-reverted-banner.show {
+        display: block;
+      }
+      .review-complete-banner {
+        display: none;
+        font-family:
+          Inter,
+          Segoe UI,
+          Arial,
+          sans-serif;
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-left: 4px solid #2d7b59;
+        background: #eef9f3;
+        color: #286447;
+        font-size: 8px;
+      }
+      .review-complete-banner.show {
+        display: block;
+      }
+
+      /* Review presents the submitted RSAT without editor-only controls. */
+      .review-readonly .scope-table input,
+      .review-readonly .scope-table select {
+        pointer-events: none;
+        background: #fbfcfd !important;
+        color: #667085 !important;
+      }
+      .review-value-list,
+      .review-person-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+      }
+      .review-value-list span,
+      .review-person-list span {
+        display: inline-flex;
+        padding: 4px 7px;
+        border: 1px solid #d6def0;
+        border-radius: 999px;
+        background: #f4f7fd;
+        color: #304b8f;
+        font: 700 7px Inter, "Segoe UI", Arial, sans-serif;
+        line-height: 1.2;
+      }
+      .review-person-list span {
+        border-color: #dce3ec;
+        background: #fff;
+        color: #46566f;
+      }
+      .review-person-list span.empty {
+        color: #98a2b3;
+        font-weight: 600;
+      }
+    </style>
+
+    <style>
+      /* Lifecycle progress percentage markers */
+      .life .stage b {
+        width: auto !important;
+        min-width: 48px !important;
+        height: 30px !important;
+        padding: 0 8px !important;
+        border-radius: 999px !important;
+        font-size: 8px !important;
+        letter-spacing: 0 !important;
+      }
+      .life .stage.current b {
+        min-width: 54px !important;
+      }
+      .life::before,
+      .life::after {
+        top: 14px !important;
+      }
+      .life .stage.current::after {
+        top: -24px !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../../index.html">Regular</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">REGULAR WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="../project-dashboard.html">REGULAR DASHBOARD</a
+            ><a class="ptab" href="../work-order.html">WORK ORDER</a
+            ><a class="ptab" href="../scope-of-work.html">RSAT</a
+            ><a class="ptab active" href="../review.html">REVIEW</a
+            ><a class="ptab" href="../ntp.html">NTP</a
+            ><a class="ptab" href="../execution.html">EXECUTION</a
+            ><a class="ptab" href="../sow-report.html">RSAT REPORT</a
+            ><a class="ptab" href="../delivery-completion.html"
+              >DELIVERY &amp; COMPLETION</a
+            ><a class="ptab" href="../attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="../history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Regular Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div class="side-title">STAGE MANAGEMENT</div>
+
+            <div class="side-section">
+              <h4>STAGE HANDLING</h4>
+              <div class="timer-card">
+                <div class="timer-row">
+                  <span id="reviewTimerState">Review Running</span>
+                  <span class="clock" id="reviewTimerClock">00:00:00</span>
+                </div>
+                <div class="review-total">
+                  Review cycle: <strong id="reviewCycleNo">1</strong><br />
+                  Started: <strong id="reviewStartedAt">—</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE STATUS</h4>
+              <div class="review-progress">
+                <span id="reviewProgressBar" style="width: 0%"></span>
+              </div>
+              <div class="autosave-row" style="cursor: default">
+                <span>Accepted</span><strong id="acceptedCount">0 / 0</strong>
+              </div>
+              <div class="reviewer-list" id="reviewerList"></div>
+            </div>
+
+            <div class="side-section">
+              <h4>STAGE CONTROLS</h4>
+              <div class="review-form">
+                <label>Acting Reviewer</label>
+                <select id="actingReviewer"></select>
+              </div>
+              <div class="review-form">
+                <label>Questions / Clarification / Revert Note</label>
+                <textarea
+                  id="reviewNote"
+                  placeholder="Enter note when clarification or revert is needed..."
+                ></textarea>
+              </div>
+              <div class="review-action-grid">
+                <button class="review-action-btn accept" id="acceptReviewBtn">
+                  <span>Reviewed &amp; Accepted</span><span>✓</span>
+                </button>
+                <button
+                  class="review-action-btn question"
+                  id="clarificationBtn"
+                >
+                  <span>Questions / Clarification</span><span>?</span>
+                </button>
+                <button class="review-action-btn revert" id="revertBtn">
+                  <span>Revert to Planning</span><span>↩</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="side-section">
+              <h4>NTP GATE</h4>
+              <div class="ntp-gate" id="ntpGate">
+                NTP remains locked until every required reviewer has reviewed
+                and accepted the RSAT.
+              </div>
+              <button class="ntp-btn" id="prepareNtpBtn" disabled>
+                Prepare NTP
+              </button>
+            </div>
+
+            <div class="side-section">
+              <button class="demo-reset" id="resetReviewDemo" type="button">
+                Reset Review Demo State
+              </button>
+            </div>
+          </aside>
+          <section class="content">
+            <div class="docframe review-readonly" id="reviewDocument">
+              <div class="dochead">
+                <div class="docbrand">
+                  John Kelly
+                  <div>◉ Company</div>
+                </div>
+                <div class="doctitle">
+                  <h1>RSAT</h1>
+                  <small>PROJ-F-002</small>
+                </div>
+              </div>
+
+              <!-- Developer: bind these metadata values to Regular assignments / RSAT authors. Lead Consultant = Regular Manager. -->
+              <div class="docmeta">
+                <div>Condeal Reference No.:</div>
+                <div class="line">CONDEAL-2026-065</div>
+                <div>Version No.:</div>
+                <div class="line" id="reviewSowVersionNo">1.0</div>
+
+                <div>Business Name:</div>
+                <div class="line">X10 REAL ESTATE CORPORATION</div>
+                <div>RSAT No.:</div>
+                <div class="line">RSAT-2026-032</div>
+
+                <div>Client Name:</div>
+                <div class="line">May Flor D. Dabatos and Stephan Tenten</div>
+                <div>Date Prepared:</div>
+                <div class="line">08/20/2026</div>
+
+                <div>Lead Consultant / Regular Manager:</div>
+                <div class="line" id="leadConsultantName">
+                  John Kelly Abalde
+                </div>
+                <div>Lead Associate:</div>
+                <div class="line" id="leadAssociateName">Rubeca Potayre</div>
+
+                <div>Within Scope Prepared By:</div>
+                <div class="line" id="withinPreparedBy">
+                  John Kelly Abalde · Rubeca Potayre
+                </div>
+                <div>Out of Scope Prepared By:</div>
+                <div class="line" id="outScopePreparedBy">
+                  John Kelly Abalde · Rubeca Potayre
+                </div>
+              </div>
+
+              <div class="review-lock-banner" id="reviewLockBanner">
+                <strong>Under Review:</strong> The submitted RSAT is read-only.
+                Every required reviewer has an individual response timer
+                starting from submission.
+              </div>
+              <div class="review-reverted-banner" id="reviewRevertedBanner">
+                <strong>Reverted to Planning:</strong> Review timers are paused.
+                The RSAT must be revised in Planning and resubmitted for a new
+                review cycle.
+              </div>
+              <div class="review-complete-banner" id="reviewCompleteBanner">
+                <strong>Review Complete:</strong> All required reviewers have
+                reviewed and accepted the RSAT. NTP preparation is now unlocked.
+              </div>
+              <div class="builder-toolbar">
+                <div class="toolbar" style="margin: 0">
+                  <div class="sow-view-tabs">
+                    <button class="sow-view-tab active" id="withinTab">
+                      Within Scope
+                    </button>
+                    <button class="sow-view-tab outscope" id="outScopeTab">
+                      Out of Scope / Exclusions
+                    </button>
+                  </div>
+                </div>
+                <div class="imeta" id="viewHint">Building approved scope.</div>
+              </div>
+
+              <!-- WITHIN SCOPE -->
+              <div class="sow-builder-panel active" id="withinPanel">
+                <div class="scope-title">WITHIN SCOPE</div>
+                <div class="scope-wrap">
+                  <table class="scope-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 5%">Item</th>
+                        <th style="width: 20%">Main Task Description</th>
+                        <th style="width: 25%">Sub Task Description</th>
+                        <th style="width: 13%">Responsibility</th>
+                        <th style="width: 14%">Assigned Person</th>
+                        <th style="width: 7%">Duration</th>
+                        <th style="width: 8%">Start Date</th>
+                        <th style="width: 8%">End Date</th>
+                      </tr>
+                    </thead>
+                    <tbody id="withinRows"></tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="6"></td>
+                        <td style="text-align: right; font-weight: 700">
+                          Total:
+                        </td>
+                        <td id="withinTotal">0 item(s)</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- OUT OF SCOPE -->
+              <div class="sow-builder-panel" id="outScopePanel">
+                <div class="scope-title">OUT OF SCOPE</div>
+                <div class="scope-wrap">
+                  <table class="scope-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 5%">Item</th>
+                        <th style="width: 20%">Main Task Description</th>
+                        <th style="width: 25%">Sub Task Description</th>
+                        <th style="width: 13%">Responsibility</th>
+                        <th style="width: 14%">Assigned Person</th>
+                        <th style="width: 7%">Duration</th>
+                        <th style="width: 8%">Start Date</th>
+                        <th style="width: 8%">End Date</th>
+                      </tr>
+                    </thead>
+                    <tbody id="outScopeRows"></tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="6"></td>
+                        <td style="text-align: right; font-weight: 700">
+                          Total:
+                        </td>
+                        <td id="outScopeTotal">0 item(s)</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <div class="scope-title" id="summaryTitle">RSAT SUMMARY</div>
+              <div class="sow-summary-grid" id="sowSummary"></div>
+            </div>
+
+            <div class="modal" id="outlineModal">
+              <div class="modalbox">
+                <h3>RSAT Outline Builder</h3>
+                <div class="outline-status">
+                  <span
+                    >Outline is synchronized with the current Within Scope
+                    hierarchy.</span
+                  ><strong id="outlineSyncState">Synchronized</strong>
+                </div>
+                <div class="outline">
+                  <textarea id="outline"></textarea>
+                  <div class="card cardbody">
+                    <strong>Live Preview</strong>
+                    <div
+                      class="outline-preview"
+                      id="preview"
+                      style="margin-top: 8px"
+                    ></div>
+                  </div>
+                </div>
+                <div class="modal-actions">
+                  <button class="btn" id="cancel">Cancel</button>
+                  <button class="btn" id="refreshOutline">
+                    Reload from Current RSAT
+                  </button>
+                  <button class="btn primary" id="applyOutline">
+                    Apply Outline to RSAT
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../../assets/js/mock-data.js"></script>
+    <script src="../../assets/js/project-session.js"></script>
+<script src="../../assets/js/regular-cycle.js"></script>
+    <script src="../../assets/js/common.js"></script>
+    <script>
+      (function () {
+        if (typeof window.ORDO_STATE === "undefined") {
+          const KEY = "ordoSowFunctionalV10State";
+          const DEFAULT_STATE = {
+            streams: [
+              {
+                id: "ws1",
+                name: "Share Transfer Documentation",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t1",
+                    title:
+                      "Review existing corporate and share ownership records",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-20",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t2",
+                    title: "Verify shares to be transferred",
+                    assignee: "Rubeca Potayre",
+                    est: "1h",
+                    start: "2026-08-20",
+                    end: "2026-08-21",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                  {
+                    id: "t3",
+                    title: "Prepare applicable share transfer documents",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-21",
+                    end: "2026-08-22",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+              {
+                id: "ws2",
+                name: "BIR Share Transfer Processing",
+                owner: "John Kelly Abalde",
+                remarks: "",
+                tasks: [
+                  {
+                    id: "t4",
+                    title: "Prepare BIR / ONETT requirements",
+                    assignee: "Rubeca Potayre",
+                    est: "2h",
+                    start: "2026-08-24",
+                    end: "2026-08-25",
+                    remarks: "",
+                    status: "Ready",
+                    seconds: 0,
+                    report: true,
+                  },
+                ],
+              },
+            ],
+            files: [],
+            deliverables: [],
+            updates: [],
+            history: [],
+            projectTimer: { state: "stopped", seconds: 0, started: null },
+            taskTimers: {},
+            transmittal: null,
+            coc: null,
+            closed: false,
+          };
+          try {
+            window.ORDO_STATE =
+              JSON.parse(localStorage.getItem(KEY) || "null") ||
+              JSON.parse(JSON.stringify(DEFAULT_STATE));
+          } catch (e) {
+            window.ORDO_STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+          }
+          window.ORDO_SAVE = function () {
+            try {
+              localStorage.setItem(KEY, JSON.stringify(window.ORDO_STATE));
+            } catch (e) {}
+          };
+          window.ORDO_RESET = function () {
+            try {
+              localStorage.removeItem(KEY);
+            } catch (e) {}
+            location.reload();
+          };
+        }
+
+        if (typeof window.ORDO === "undefined") {
+          window.ORDO = {
+            stages: [
+              "Work Order",
+              "RSAT",
+              "Review",
+              "NTP",
+              "Execution",
+              "Reporting",
+              "Presentation",
+              "Delivery",
+              "Completion",
+            ],
+            esc(s) {
+              return String(s ?? "").replace(
+                /[&<>"']/g,
+                (c) =>
+                  ({
+                    "&": "&amp;",
+                    "<": "&lt;",
+                    ">": "&gt;",
+                    '"': "&quot;",
+                    "'": "&#39;",
+                  })[c],
+              );
+            },
+            dur(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60);
+              return h ? `${h}h ${m}m` : `${m}m`;
+            },
+            fmt(sec) {
+              sec = Math.max(0, Math.floor(Number(sec) || 0));
+              const h = Math.floor(sec / 3600),
+                m = Math.floor((sec % 3600) / 60),
+                s = sec % 60;
+              return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+            },
+            allTasks() {
+              return ORDO_STATE.streams.flatMap((w) =>
+                w.tasks.map((t) => ({ task: t, stream: w })),
+              );
+            },
+            findTask(id) {
+              return this.allTasks().find((x) => x.task.id === id)?.task;
+            },
+            findStream(id) {
+              return ORDO_STATE.streams.find((w) => w.id === id);
+            },
+            projectSeconds() {
+              const x = ORDO_STATE.projectTimer;
+              return (
+                Number(x.seconds || 0) +
+                (x.state === "running" && x.started
+                  ? Math.floor((Date.now() - x.started) / 1000)
+                  : 0)
+              );
+            },
+            save() {
+              ORDO_SAVE();
+            },
+            log(action) {
+              ORDO_STATE.history = ORDO_STATE.history || [];
+              ORDO_STATE.history.unshift({
+                action,
+                at: new Date().toLocaleString(),
+              });
+              this.save();
+            },
+            stopRunning() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.save();
+            },
+            startProject() {
+              this.stopRunning();
+              ORDO_STATE.projectTimer.state = "running";
+              ORDO_STATE.projectTimer.started = Date.now();
+              this.log("RSAT planning timer started");
+            },
+            pauseProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state !== "running") return;
+              x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "paused";
+              x.started = null;
+              this.log("RSAT planning timer paused");
+            },
+            stopProject() {
+              const x = ORDO_STATE.projectTimer;
+              if (x.state === "running" && x.started)
+                x.seconds += Math.floor((Date.now() - x.started) / 1000);
+              x.state = "stopped";
+              x.started = null;
+              this.log("RSAT planning timer stopped");
+            },
+            duplicateStream(id) {
+              const w = this.findStream(id);
+              if (!w) return;
+              ORDO_STATE.streams.push({
+                ...w,
+                id: "ws" + Date.now() + Math.random(),
+                name: w.name + " (Copy)",
+                tasks: w.tasks.map((t) => ({
+                  ...t,
+                  id: "t" + Date.now() + Math.random(),
+                  seconds: 0,
+                  status: "Ready",
+                })),
+              });
+              this.log("RSAT workstream duplicated: " + w.name);
+            },
+          };
+        }
+      })();
+    </script>
+
+    <script>
+      (function () {
+        const current = 2;
+        const lifecyclePercentages = [
+          "0%",
+          "12.5%",
+          "25%",
+          "37.5%",
+          "50%",
+          "62.5%",
+          "75%",
+          "87.5%",
+          "100%",
+        ];
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}" type="button"><b>${lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+      })();
+    </script>
+
+    <script>
+      (function () {
+        const REVIEW_KEY = "ordoSowReviewV2-" + ORDO_PROJECT_ID;
+
+        function now() {
+          return Date.now();
+        }
+        function clone(x) {
+          return JSON.parse(JSON.stringify(x));
+        }
+
+        // Source RSAT people / assignment data.
+        ORDO_STATE.sowPeople = ORDO_STATE.sowPeople || {
+          leadConsultant: "John Kelly Abalde",
+          leadAssociate: "Rubeca Potayre",
+          withinPreparedBy: ["John Kelly Abalde", "Rubeca Potayre"],
+          outScopePreparedBy: ["John Kelly Abalde", "Rubeca Potayre"],
+        };
+
+        function uniqueResponsiblePeople() {
+          const names = [];
+          ORDO_STATE.streams.forEach((ws) =>
+            ws.tasks.forEach((t) => {
+              const n = String(t.assignee || "").trim();
+              if (n && !names.includes(n)) names.push(n);
+            }),
+          );
+          return names;
+        }
+
+        function reviewerSeed() {
+          const p = ORDO_STATE.sowPeople;
+          const assignments = ORDO_STATE.workOrder?.stageAssignments || [];
+          const seed = [];
+          ["Reviewer", "Approver"].forEach((group) => {
+            const names = [...new Set(assignments.filter((row) => row.stage === "Plan" && row.responsibilities?.includes(group)).flatMap((row) => row.persons || []))];
+            names.forEach((name, i) => seed.push({ key: group.toLowerCase()+"-"+i, group, name, required:true }));
+          });
+          if (!seed.length) seed.push({ key:"reviewer-fallback", group:"Reviewer", name:p.leadConsultant||"Assigned Reviewer", required:true });
+
+          return seed.map((r) => ({
+            ...r,
+            status: "pending", // pending | clarification | accepted | reverted
+            responseStartedAt: null,
+            firstActionAt: null,
+            finalActionAt: null,
+            accumulatedMs: 0,
+            note: "",
+            actedBy: null,
+          }));
+        }
+
+        function freshState() {
+          const submitted = now();
+          const reviewers = reviewerSeed().map((r) => ({
+            ...r,
+            responseStartedAt: submitted,
+          }));
+          return {
+            demoVersion: 2,
+            cycle: 1,
+            state: "reviewing", // reviewing | reverted | complete
+            submittedAt: submitted,
+            reviewStartedAt: submitted,
+            pausedAt: null,
+            accumulatedReviewMs: 0,
+            reviewers,
+            events: [
+              {
+                at: submitted,
+                action: "RSAT submitted for review",
+                actor: "System",
+              },
+            ],
+          };
+        }
+
+        function loadReview() {
+          try {
+            const raw = localStorage.getItem(REVIEW_KEY);
+            if (raw) {
+              const state = JSON.parse(raw);
+              if (state && state.demoVersion === 2) return state;
+            }
+          } catch (e) {}
+          return freshState();
+        }
+
+        let R = loadReview();
+        if (ORDO_STATE.sowWorkflow.status === "final") {
+          R.reviewers.forEach((r) => {
+            r.status = "accepted";
+            r.responseStartedAt = null;
+          });
+          R.state = "complete";
+        }
+        if (ORDO_STATE.sowWorkflow.status === "draft") R.state = "reverted";
+        ORDO_STATE.ntpApproved = false;
+        ORDO.save();
+
+        function saveReview() {
+          try {
+            localStorage.setItem(REVIEW_KEY, JSON.stringify(R));
+          } catch (e) {}
+        }
+
+        function toast(message, type = "success") {
+          const stack = document.getElementById("toastStack");
+          if (!stack) return;
+          const el = document.createElement("div");
+          el.className = "toast " + type;
+          el.textContent = message;
+          stack.appendChild(el);
+          setTimeout(() => el.remove(), 2600);
+        }
+
+        function fmtDate(ms) {
+          if (!ms) return "—";
+          return new Date(ms).toLocaleString();
+        }
+
+        function fmtDuration(ms) {
+          ms = Math.max(0, Number(ms) || 0);
+          const total = Math.floor(ms / 1000);
+          const h = Math.floor(total / 3600);
+          const m = Math.floor((total % 3600) / 60);
+          const s = total % 60;
+          return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        }
+
+        function reviewElapsedMs() {
+          if (R.state === "reviewing") {
+            return R.accumulatedReviewMs + (now() - R.reviewStartedAt);
+          }
+          return R.accumulatedReviewMs;
+        }
+
+        function reviewerElapsedMs(reviewer) {
+          if (
+            reviewer.status === "accepted" ||
+            reviewer.status === "reverted"
+          ) {
+            return reviewer.accumulatedMs;
+          }
+          if (R.state === "reviewing" && reviewer.responseStartedAt) {
+            return (
+              reviewer.accumulatedMs + (now() - reviewer.responseStartedAt)
+            );
+          }
+          return reviewer.accumulatedMs;
+        }
+
+        function stopAllRunningReviewerTimers() {
+          if (R.state !== "reviewing") return;
+          const t = now();
+
+          R.reviewers.forEach((r) => {
+            if (
+              (r.status === "pending" || r.status === "clarification") &&
+              r.responseStartedAt
+            ) {
+              r.accumulatedMs += t - r.responseStartedAt;
+              r.responseStartedAt = null;
+            }
+          });
+
+          R.accumulatedReviewMs += t - R.reviewStartedAt;
+          R.reviewStartedAt = null;
+        }
+
+        function currentReviewer() {
+          const key = document.getElementById("actingReviewer").value;
+          return R.reviewers.find((r) => r.key === key);
+        }
+
+        function allAccepted() {
+          return R.reviewers
+            .filter((r) => r.required)
+            .every((r) => r.status === "accepted");
+        }
+
+        function statusLabel(status) {
+          return (
+            {
+              pending: "Pending Review",
+              clarification: "Clarification Requested",
+              accepted: "Reviewed & Accepted",
+              reverted: "Reverted",
+            }[status] || status
+          );
+        }
+
+        function statusClass(status) {
+          return status === "accepted"
+            ? "accepted"
+            : status === "clarification"
+              ? "clarification"
+              : status === "reverted"
+                ? "reverted"
+                : "pending";
+        }
+
+        function renderPeople() {
+          const p = ORDO_STATE.sowPeople || {};
+          const join = (v) => (Array.isArray(v) ? v.join(" · ") : v || "—");
+          const map = {
+            leadConsultantName: p.leadConsultant || "—",
+            leadAssociateName: p.leadAssociate || "—",
+            withinPreparedBy: join(p.withinPreparedBy),
+            outScopePreparedBy: join(p.outScopePreparedBy),
+          };
+          Object.entries(map).forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+          });
+        }
+
+        // Review uses the same RSAT document rows, but read-only.
+        function parseEst(v) {
+          const m = String(v || "").match(/([0-9.]+)/);
+          return m ? Number(m[1]) : 0;
+        }
+
+        function parentRollup(ws) {
+          const starts = ws.tasks
+            .map((t) => t.start)
+            .filter(Boolean)
+            .sort();
+          const ends = ws.tasks
+            .map((t) => t.end)
+            .filter(Boolean)
+            .sort();
+          return {
+            duration: ws.tasks.reduce((s, t) => s + parseEst(t.est), 0),
+            start: starts[0] || "",
+            end: ends.length ? ends[ends.length - 1] : "",
+          };
+        }
+
+        function reviewResponsibility(value) {
+          const items = Array.isArray(value) && value.length
+            ? value
+            : ["Responsible"];
+          return `<div class="review-value-list">${items
+            .map((item) => `<span>${ORDO.esc(item)}</span>`)
+            .join("")}</div>`;
+        }
+
+        function reviewAssignees(value, fallback) {
+          const items = Array.isArray(value)
+            ? value.filter(Boolean)
+            : value
+              ? [value]
+              : fallback
+                ? [fallback]
+                : [];
+          return `<div class="review-person-list">${items.length
+            ? items.map((item) => `<span>${ORDO.esc(item)}</span>`).join("")
+            : "<span class=\"empty\">Unassigned</span>"}</div>`;
+        }
+
+        function renderWithin() {
+          const rows = [];
+
+          ORDO_STATE.streams.forEach((ws, wi) => {
+            const pno = String(wi + 1);
+            const p = parentRollup(ws);
+            rows.push(`
+        <tr class="parent-row">
+          <td class="item-code">${pno}</td>
+          <td><input value="${ORDO.esc(ws.name)}" disabled></td>
+          <td><span class="imeta">Main scope item / workstream</span></td>
+          <td>${reviewResponsibility(ws.responsibilities)}</td>
+          <td>${reviewAssignees(ws.assignees, ws.owner || "Regular Manager")}</td>
+          <td>${p.duration ? p.duration + "h" : "—"}</td>
+          <td>${p.start || "—"}</td>
+          <td>${p.end || "—"}</td>
+        </tr>
+      `);
+
+            ws.tasks.forEach((t, ti) => {
+              const no = `${pno}.${ti + 1}`;
+              rows.push(`
+          <tr class="child-row-sow">
+            <td class="item-code">${no}</td>
+            <td><span class="imeta">↳ ${ORDO.esc(ws.name)}</span></td>
+            <td><input value="${ORDO.esc(t.title)}" disabled></td>
+            <td>${reviewResponsibility(t.responsibilities)}</td>
+            <td>${reviewAssignees(t.assignees, t.assignee)}</td>
+            <td><input value="${ORDO.esc(t.est || "")}" disabled></td>
+            <td><input type="date" value="${ORDO.esc(t.start || "")}" disabled></td>
+            <td><input type="date" value="${ORDO.esc(t.end || "")}" disabled></td>
+          </tr>
+        `);
+            });
+          });
+
+          const body = document.getElementById("withinRows");
+          if (body) body.innerHTML = rows.join("");
+
+          const children = ORDO_STATE.streams.reduce(
+            (s, w) => s + w.tasks.length,
+            0,
+          );
+          const total = document.getElementById("withinTotal");
+          if (total)
+            total.textContent =
+              ORDO_STATE.streams.length + children + " item(s)";
+        }
+
+        function renderOut() {
+          const out = ORDO_STATE.sowOutOfScope || [];
+          const rows = [];
+
+          out.forEach((ws, wi) => {
+            const pno = String(wi + 1);
+            const p = parentRollup(ws);
+
+            rows.push(`
+        <tr class="parent-row">
+          <td class="item-code">${pno}</td>
+          <td><input value="${ORDO.esc(ws.name)}" disabled></td>
+          <td><span class="imeta">Out of scope main item</span></td>
+          <td>${reviewResponsibility(ws.responsibilities)}</td>
+          <td>${reviewAssignees(ws.assignees, ws.owner || "Regular Manager")}</td>
+          <td>${p.duration ? p.duration + "h" : "—"}</td>
+          <td>${p.start || "—"}</td>
+          <td>${p.end || "—"}</td>
+        </tr>
+      `);
+
+            ws.tasks.forEach((t, ti) => {
+              const no = `${pno}.${ti + 1}`;
+              rows.push(`
+          <tr class="child-row-sow">
+            <td class="item-code">${no}</td>
+            <td><span class="imeta">↳ ${ORDO.esc(ws.name)}</span></td>
+            <td><input value="${ORDO.esc(t.title)}" disabled></td>
+            <td>${reviewResponsibility(t.responsibilities)}</td>
+            <td>${reviewAssignees(t.assignees, t.assignee)}</td>
+            <td><input value="${ORDO.esc(t.est || "")}" disabled></td>
+            <td><input type="date" value="${ORDO.esc(t.start || "")}" disabled></td>
+            <td><input type="date" value="${ORDO.esc(t.end || "")}" disabled></td>
+          </tr>
+        `);
+            });
+          });
+
+          const body = document.getElementById("outScopeRows");
+          if (body) body.innerHTML = rows.join("");
+          const children = out.reduce((s, w) => s + w.tasks.length, 0);
+          const total = document.getElementById("outScopeTotal");
+          if (total) total.textContent = out.length + children + " item(s)";
+        }
+
+        function summaryFor(collection) {
+          const tasks = collection.flatMap((w) => w.tasks);
+          const planned = tasks.reduce((s, t) => s + parseEst(t.est), 0);
+          const starts = tasks
+            .map((t) => t.start)
+            .filter(Boolean)
+            .sort();
+          const ends = tasks
+            .map((t) => t.end)
+            .filter(Boolean)
+            .sort();
+          return { tasks, planned, starts, ends };
+        }
+
+        let scopeView = "within";
+
+        function renderSummary() {
+          const collection =
+            scopeView === "within"
+              ? ORDO_STATE.streams
+              : ORDO_STATE.sowOutOfScope || [];
+          const d = summaryFor(collection);
+
+          document.getElementById("summaryTitle").textContent =
+            scopeView === "within" ? "RSAT SUMMARY" : "OUT OF SCOPE RSAT SUMMARY";
+
+          document.getElementById("sowSummary").innerHTML = [
+            ["TOTAL ITEMS", collection.length + d.tasks.length],
+            ["MAIN TASKS", collection.length],
+            ["CHILD TASKS", d.tasks.length],
+            ["PLANNED DURATION", d.planned ? d.planned + "h" : "—"],
+            ["PLANNED START", d.starts[0] || "—"],
+            ["PLANNED END", d.ends.length ? d.ends[d.ends.length - 1] : "—"],
+          ]
+            .map(
+              (x) =>
+                `<div class="sow-summary-card"><label>${x[0]}</label><strong>${x[1]}</strong></div>`,
+            )
+            .join("");
+        }
+
+        function switchScope(view) {
+          scopeView = view === "out" ? "out" : "within";
+          document
+            .getElementById("withinPanel")
+            .classList.toggle("active", scopeView === "within");
+          document
+            .getElementById("outScopePanel")
+            .classList.toggle("active", scopeView === "out");
+          document
+            .getElementById("withinTab")
+            .classList.toggle("active", scopeView === "within");
+          document
+            .getElementById("outScopeTab")
+            .classList.toggle("active", scopeView === "out");
+
+          document.getElementById("viewHint").textContent =
+            scopeView === "within"
+              ? "Reviewing approved scope."
+              : "Reviewing Out of Scope / Exclusions.";
+
+          renderSummary();
+        }
+
+        function renderReviewerSelect() {
+          const select = document.getElementById("actingReviewer");
+          const previous = select.value;
+
+          select.innerHTML = R.reviewers
+            .map(
+              (r) =>
+                `<option value="${r.key}">${ORDO.esc(r.group)} — ${ORDO.esc(r.name)}</option>`,
+            )
+            .join("");
+
+          if (previous && R.reviewers.some((r) => r.key === previous))
+            select.value = previous;
+        }
+
+        function renderReviewers() {
+          const list = document.getElementById("reviewerList");
+
+          list.innerHTML = R.reviewers
+            .map(
+              (r) => `
+      <div class="reviewer-card ${statusClass(r.status)}">
+        <div class="reviewer-top">
+          <div>
+            <div class="reviewer-role">${ORDO.esc(r.group)}</div>
+            <div class="reviewer-name">${ORDO.esc(r.name)}</div>
+          </div>
+          <div class="reviewer-time" data-reviewer-time="${r.key}">
+            ${fmtDuration(reviewerElapsedMs(r))}
+          </div>
+        </div>
+        <span class="review-status ${statusClass(r.status)}">${statusLabel(r.status)}</span>
+        ${r.note ? `<div class="reviewer-meta">${ORDO.esc(r.note)}</div>` : ""}
+        ${r.firstActionAt ? `<div class="reviewer-meta">First action: ${fmtDate(r.firstActionAt)}</div>` : ""}
+      </div>
+    `,
+            )
+            .join("");
+        }
+
+        function renderGate() {
+          const accepted = R.reviewers.filter(
+            (r) => r.required && r.status === "accepted",
+          ).length;
+          const required = R.reviewers.filter((r) => r.required).length;
+          const complete = allAccepted() && R.state !== "reverted";
+
+          document.getElementById("acceptedCount").textContent =
+            `${accepted} / ${required}`;
+          document.getElementById("reviewProgressBar").style.width =
+            `${required ? Math.round((accepted / required) * 100) : 0}%`;
+
+          const gate = document.getElementById("ntpGate");
+          const btn = document.getElementById("prepareNtpBtn");
+
+          if (complete) {
+            R.state = "complete";
+            ORDO_STATE.sowWorkflow.status = "final";
+            ORDO_STATE.sowWorkflow.editMode = false;
+            const sowStage=ORDO_STATE.stageManagement.stages[1],reviewStage=ORDO_STATE.stageManagement.stages[2],completedAt=new Date().toISOString();
+            const finishWaiting=(stage)=>{if(stage.waitingStartedAt){stage.waitingSeconds=Number(stage.waitingSeconds||0)+Math.max(0,Math.floor((Date.now()-new Date(stage.waitingStartedAt).getTime())/1000));stage.waitingStartedAt=null;}stage.waitingOn=null;stage.waitingReason=null;};
+            finishWaiting(reviewStage);sowStage.status="Completed";sowStage.completedAt=completedAt;reviewStage.status="Completed";reviewStage.completedAt=completedAt;
+            ORDO.save();
+
+            if (R.reviewStartedAt) {
+              const t = now();
+              R.accumulatedReviewMs += t - R.reviewStartedAt;
+              R.reviewStartedAt = null;
+            }
+
+            gate.classList.add("unlocked");
+            gate.innerHTML =
+              "<strong>NTP Unlocked.</strong> All required reviewers have reviewed and accepted the RSAT.";
+            btn.disabled = false;
+          } else {
+            gate.classList.remove("unlocked");
+            gate.textContent =
+              R.state === "reverted"
+                ? "NTP locked. RSAT was reverted to Planning and must be revised and resubmitted."
+                : "NTP remains locked until every required reviewer has reviewed and accepted the RSAT.";
+            btn.disabled = true;
+          }
+
+          document.getElementById("reviewLockBanner").style.display =
+            R.state === "reviewing" ? "block" : "none";
+          document
+            .getElementById("reviewRevertedBanner")
+            .classList.toggle("show", R.state === "reverted");
+          document
+            .getElementById("reviewCompleteBanner")
+            .classList.toggle("show", complete);
+
+          saveReview();
+        }
+
+        function renderActionState() {
+          const r = currentReviewer();
+          const blocked = R.state !== "reviewing";
+
+          document.getElementById("acceptReviewBtn").disabled =
+            blocked || !r || r.status === "accepted" || r.status === "reverted";
+
+          document.getElementById("clarificationBtn").disabled =
+            blocked || !r || r.status === "accepted" || r.status === "reverted";
+
+          document.getElementById("revertBtn").disabled =
+            blocked || !r || r.status === "accepted" || r.status === "reverted";
+        }
+
+        function acceptCurrent() {
+          if (R.state !== "reviewing") return;
+          const r = currentReviewer();
+          if (!r) return;
+
+          const t = now();
+
+          if (!r.firstActionAt) r.firstActionAt = t;
+          if (r.responseStartedAt) {
+            r.accumulatedMs += t - r.responseStartedAt;
+            r.responseStartedAt = null;
+          }
+
+          r.status = "accepted";
+          r.finalActionAt = t;
+          r.note = document.getElementById("reviewNote").value.trim();
+          r.actedBy = r.name;
+
+          R.events.unshift({
+            at: t,
+            action: "Reviewed & Accepted",
+            actor: r.name,
+            role: r.group,
+            note: r.note,
+          });
+
+          document.getElementById("reviewNote").value = "";
+          saveReview();
+          renderAll();
+          toast(`${r.group} accepted the RSAT.`);
+        }
+
+        function clarifyCurrent() {
+          if (R.state !== "reviewing") return;
+          const r = currentReviewer();
+          if (!r) return;
+
+          const note = document.getElementById("reviewNote").value.trim();
+          if (!note) {
+            toast("Enter the question or clarification first.", "error");
+            return;
+          }
+
+          const t = now();
+          if (!r.firstActionAt) r.firstActionAt = t;
+
+          // Clarification counts as first response, but final review timer continues.
+          r.status = "clarification";
+          r.note = note;
+
+          R.events.unshift({
+            at: t,
+            action: "Question / Clarification",
+            actor: r.name,
+            role: r.group,
+            note,
+          });
+
+          saveReview();
+          renderAll();
+          toast("Clarification recorded. Review timer continues.", "warn");
+        }
+
+        function revertCurrent() {
+          if (R.state !== "reviewing") return;
+          const r = currentReviewer();
+          if (!r) return;
+
+          const note = document.getElementById("reviewNote").value.trim();
+          if (!note) {
+            toast("A revert reason is required.", "error");
+            return;
+          }
+
+          if (
+            !confirm(
+              "Revert the RSAT to Planning? All pending review timers will pause.",
+            )
+          )
+            return;
+
+          const t = now();
+          if (!r.firstActionAt) r.firstActionAt = t;
+
+          if (r.responseStartedAt) {
+            r.accumulatedMs += t - r.responseStartedAt;
+            r.responseStartedAt = null;
+          }
+
+          r.status = "reverted";
+          r.finalActionAt = t;
+          r.note = note;
+
+          stopAllRunningReviewerTimers();
+          R.state = "reverted";
+          R.pausedAt = t;
+          ORDO_STATE.sowWorkflow.revisionApprovalStatus = "pending";
+          ORDO_STATE.sowWorkflow.editMode = false;
+          const reviewStage=ORDO_STATE.stageManagement.stages[2];
+          if(reviewStage.waitingStartedAt){reviewStage.waitingSeconds=Number(reviewStage.waitingSeconds||0)+Math.max(0,Math.floor((Date.now()-new Date(reviewStage.waitingStartedAt).getTime())/1000));reviewStage.waitingStartedAt=null;}
+          reviewStage.status="Returned for Revision";reviewStage.waitingOn="Operations Representative";reviewStage.waitingReason="Approval to revise RSAT";
+
+          R.events.unshift({
+            at: t,
+            action: "RSAT reverted to Planning",
+            actor: r.name,
+            role: r.group,
+            note,
+          });
+
+          saveReview();
+          renderAll();
+          toast("RSAT reverted. Review timers paused.", "warn");
+        }
+
+        function resetReview() {
+          if (!confirm("Reset the Review demo to a fresh submitted state?"))
+            return;
+          R = freshState();
+          saveReview();
+          renderAll();
+          toast("Review demo reset.");
+        }
+
+        function tick() {
+          document.getElementById("reviewTimerClock").textContent =
+            fmtDuration(reviewElapsedMs());
+          document.getElementById("reviewTimerState").textContent =
+            R.state === "reviewing"
+              ? "Review Running"
+              : R.state === "reverted"
+                ? "Review Paused"
+                : R.state === "complete"
+                  ? "Review Complete"
+                  : "Review";
+
+          document.querySelectorAll("[data-reviewer-time]").forEach((el) => {
+            const r = R.reviewers.find(
+              (x) => x.key === el.dataset.reviewerTime,
+            );
+            if (r) el.textContent = fmtDuration(reviewerElapsedMs(r));
+          });
+
+          renderActionState();
+        }
+
+        function renderAll() {
+          renderPeople();
+          renderWithin();
+          renderOut();
+          renderReviewerSelect();
+          renderReviewers();
+
+          document.getElementById("reviewCycleNo").textContent = R.cycle;
+          document.getElementById("reviewStartedAt").textContent = fmtDate(
+            R.submittedAt,
+          );
+
+          switchScope(scopeView);
+          renderGate();
+          renderActionState();
+          tick();
+        }
+
+        document.getElementById("withinTab").onclick = () =>
+          switchScope("within");
+        document.getElementById("outScopeTab").onclick = () =>
+          switchScope("out");
+
+        document.getElementById("actingReviewer").onchange = renderActionState;
+        document.getElementById("acceptReviewBtn").onclick = acceptCurrent;
+        document.getElementById("clarificationBtn").onclick = clarifyCurrent;
+        document.getElementById("revertBtn").onclick = revertCurrent;
+
+        document.getElementById("prepareNtpBtn").onclick = () => {
+          if (!allAccepted() || R.state === "reverted") return;
+          toast("NTP preparation unlocked.");
+          setTimeout(() => {
+            location.href = "ntp.html?project=" + ORDO_PROJECT_ID;
+          }, 450);
+        };
+
+        document.getElementById("resetReviewDemo").onclick = resetReview;
+
+        // Remove builder actions that should not be used during Review.
+        ["addWithinBottom", "addOutScopeItem"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.disabled = true;
+        });
+
+        renderAll();
+        setInterval(tick, 1000);
+      })();
+    </script>
+    <div class="toast-stack" id="toastStack"></div>
+    <script src="../../assets/js/workspace-fixes.js"></script>
+    <script src="../../assets/js/policy-stage-layout.js"></script>
+  <script src="../../assets/js/regular-ui.js"></script>
+</body>
+</html>

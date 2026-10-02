@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Reports</title>
+    <link rel="stylesheet" href="../assets/css/project-list.css" />
+  </head>
+  <body>
+    <div class="app shell">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co brand-sub">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools user-tools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="sidebar">
+        <div class="enterprise">
+          <div><strong>Enterprise Menu</strong><small>Navigation</small></div>
+          <span>»</span>
+        </div>
+        <div class="nav">
+          <button class="nav-row"><span class="nav-icon">♙</span>Admin</button
+          ><button class="nav-row">
+            <span class="nav-icon">⚑</span>Town Hall</button
+          ><button class="nav-row">
+            <span class="nav-icon">▤</span>Corporate</button
+          ><button class="nav-row">
+            <span class="nav-icon">▧</span>Policies</button
+          ><button class="nav-row">
+            <span class="nav-icon">▥</span>Finance</button
+          ><button class="nav-row">
+            <span class="nav-icon">♟</span>Human Capital</button
+          ><button class="nav-row">
+            <span class="nav-icon">◎</span>Marketing<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">⌁</span>Sales<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">▣</span>Accounts<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row active-parent">
+            <span class="nav-icon">⌘</span>Operations<span class="chev">⌄</span>
+          </button>
+          <div class="ops-children">
+            <button class="child-row">Activities</button
+            ><button class="child-row">Regular</button
+            ><button class="child-row project-parent active">
+              Project <span>⌄</span>
+            </button>
+            <div class="project-submenu open">
+              <a href="../index.html" class="">All Projects</a
+              ><a href="../modules/for-me.html" class="">For Me</a
+              ><a href="../modules/reports.html" class="active">Reports</a
+              ><a href="../modules/settings.html" class="">Settings</a>
+            </div>
+            <button class="child-row">Transmittal</button>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Reports</h1>
+            <p>
+              Portfolio, process, time, AHT, quality, workload, waiting and
+              completion reports.
+            </p>
+          </div>
+        </div>
+        <div class="kpi-grid kpis">
+          <div class="kpi">
+            <span>PROJECT AHT</span><strong>16h 42m</strong>
+          </div>
+          <div class="kpi"><span>AVG CYCLE</span><strong>18.6d</strong></div>
+          <div class="kpi good green">
+            <span>ON-TIME</span><strong>87%</strong>
+          </div>
+          <div class="kpi">
+            <span>CLIENT WAITING</span><strong>3.4d</strong>
+          </div>
+          <div class="kpi good green">
+            <span>FIRST PASS</span><strong>91%</strong>
+          </div>
+        </div>
+        <div class="two-col" id="cards"></div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        const x = [
+          "Executive Portfolio",
+          "Project Registry",
+          "Health & Exceptions",
+          "Schedule / TAT",
+          "SOW & Deliverables",
+          "Task & Activity",
+          "Workload & Assignment",
+          "Collaboration / Handoff",
+          "Pending Client",
+          "Project Change",
+          "Quality / Rework",
+          "Completion",
+          "Documents / Records",
+          "Time & AHT",
+        ];
+        document.getElementById("cards").innerHTML = x
+          .map(
+            (n) =>
+              `<div class="card card-pad"><strong>${n}</strong><p class="small">Preview / Export</p><button class="btn sm" onclick="alert('${n} preview')">Preview</button></div>`,
+          )
+          .join("");
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+  </body>
+</html>
