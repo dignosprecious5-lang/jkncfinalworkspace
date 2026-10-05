@@ -319,18 +319,6 @@ class FinanceController extends Controller
 
     private function financeResolveOfficialApproverUser(?string $officerName, string $role, ?string $officialEmail = null): ?User
     {
-        static $resolvedUsers = [];
-        static $users = null;
-
-        $cacheKey = implode('|', [
-            $this->financeNormalizePersonName($officerName),
-            Str::lower(trim($role)),
-            Str::lower(trim((string) $officialEmail)),
-        ]);
-
-        if (array_key_exists($cacheKey, $resolvedUsers)) {
-            return $resolvedUsers[$cacheKey];
-        }
 
         if (filled($officialEmail)) {
             $emailMatch = User::query()
@@ -338,18 +326,18 @@ class FinanceController extends Controller
                 ->first();
 
             if ($emailMatch) {
-                return $resolvedUsers[$cacheKey] = $emailMatch;
+                return $emailMatch;
             }
         }
 
-        $users ??= User::query()
+        $users = User::query()
             ->with(['employeeProfile', 'contactProfile'])
             ->get();
 
         $normalizedOfficerName = $this->financeNormalizePersonName($officerName);
         $roleNeedle = Str::lower($role);
 
-        return $resolvedUsers[$cacheKey] = $users
+        return $users
             ->map(function (User $user) use ($normalizedOfficerName, $roleNeedle) {
                 $candidateNames = collect([
                     $user->name,
@@ -403,11 +391,6 @@ class FinanceController extends Controller
 
     private function financeOfficialApproverDirectory(): array
     {
-        static $directory = null;
-
-        if ($directory !== null) {
-            return $directory;
-        }
 
         $officialRows = collect();
         $gisRecord = $this->financeLatestApprovedGisRecord();
@@ -490,7 +473,7 @@ class FinanceController extends Controller
             ->unique(fn(array $option) => (int) $option['user_id'])
             ->values();
 
-        return $directory = [
+        return [
             'options' => $options->all(),
             'default_steps' => $defaults->map(fn(array $option, int $index) => [
                 'step' => $index + 1,
@@ -2438,7 +2421,7 @@ SVG;
 
     private function financeActiveRecords(): \Illuminate\Support\Collection
     {
-        static $cache = null;
+        $cache = null;
 
         if ($cache === null) {
             $cache = FinanceRecord::query()
@@ -2453,7 +2436,7 @@ SVG;
 
     private function financeActiveRecordById(int $recordId): ?FinanceRecord
     {
-        static $cache = null;
+        $cache = null;
 
         if ($cache === null) {
             $cache = $this->financeActiveRecords()->keyBy(fn(FinanceRecord $record) => (int) $record->id);
@@ -2464,7 +2447,7 @@ SVG;
 
     private function financeActiveRecordsByModule(string $moduleKey): \Illuminate\Support\Collection
     {
-        static $cache = [];
+        $cache = [];
 
         if (!array_key_exists($moduleKey, $cache)) {
             $cache[$moduleKey] = $this->financeActiveRecords()
@@ -3822,7 +3805,7 @@ SVG;
     {
         $normalized = Str::of((string) $taxType)
             ->trim()
-            ->replace(['_', 'â€“'], [' ', '-'])
+            ->replace(['_', '–'], [' ', '-'])
             ->replaceMatches('/\s+/', ' ')
             ->lower()
             ->toString();

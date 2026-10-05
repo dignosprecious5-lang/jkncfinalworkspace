@@ -29,9 +29,9 @@ class PayrollController extends Controller
         'Monday to Sunday - 8:00 AM to 5:00 PM',
         'Monday to Saturday - 8:00 AM to 5:00 PM',
         'Monday to Friday - 8:00 AM to 5:00 PM',
-        'Monday to Sunday â€“ 8:00 AM to 5:00 PM',
-        'Monday to Saturday â€“ 8:00 AM to 5:00 PM',
-        'Monday to Friday â€“ 8:00 AM to 5:00 PM',
+        'Monday to Sunday – 8:00 AM to 5:00 PM',
+        'Monday to Saturday – 8:00 AM to 5:00 PM',
+        'Monday to Friday – 8:00 AM to 5:00 PM',
         'Shifting Schedule',
         'Night Shift',
         'Hybrid',
@@ -584,9 +584,9 @@ class PayrollController extends Controller
     private function mapPayrollWorkScheduleCode(?string $label): ?string
     {
         return match ($label) {
-            'Monday to Sunday - 8:00 AM to 5:00 PM', 'Monday to Sunday â€“ 8:00 AM to 5:00 PM' => 'every_day',
-            'Monday to Saturday - 8:00 AM to 5:00 PM', 'Monday to Saturday â€“ 8:00 AM to 5:00 PM' => 'no_sunday',
-            'Monday to Friday - 8:00 AM to 5:00 PM', 'Monday to Friday â€“ 8:00 AM to 5:00 PM' => 'no_sat_sun',
+            'Monday to Sunday - 8:00 AM to 5:00 PM', 'Monday to Sunday – 8:00 AM to 5:00 PM' => 'every_day',
+            'Monday to Saturday - 8:00 AM to 5:00 PM', 'Monday to Saturday – 8:00 AM to 5:00 PM' => 'no_sunday',
+            'Monday to Friday - 8:00 AM to 5:00 PM', 'Monday to Friday – 8:00 AM to 5:00 PM' => 'no_sat_sun',
             default => null,
         };
     }

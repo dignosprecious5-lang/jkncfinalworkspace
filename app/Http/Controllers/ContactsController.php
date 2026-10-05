@@ -728,6 +728,9 @@ class ContactsController extends Controller
     {
         $contactModel = Contact::query()->find($contact);
         abort_unless($contactModel, 404);
+        $user = $request->user();
+
+        abort_unless($user instanceof User, 401);
 
         $tab = strtolower((string) $request->query('tab', 'kyc'));
         if (! array_key_exists($tab, self::TABS)) {
@@ -740,7 +743,7 @@ class ContactsController extends Controller
             'contact' => $contactModel,
             'tab' => $tab,
             'tabs' => self::TABS,
-            'tabData' => $this->tabData($contactModel),
+            'tabData' => $this->tabData($contactModel, $user),
             'cifData' => $this->loadCifData($contactModel),
             'cifDocuments' => $this->loadCifDocuments($contactModel),
             'cifEditMode' => $request->boolean('edit_cif') || $this->hasCifFormErrors($request),
@@ -2990,7 +2993,7 @@ class ContactsController extends Controller
             ->all();
     }
 
-    private function tabData(Contact $contact): array
+    private function tabData(Contact $contact, User $user): array
     {
         $deals = $this->linkedDealsForContact($contact);
         $projects = $this->linkedProjectsForContact($contact);
@@ -3004,7 +3007,7 @@ class ContactsController extends Controller
                 'items' => $this->contactHistoryItems($contact),
             ],
             'consultation-notes' => $this->contactConsultationNotes($contact),
-            'activities' => $this->contactActivities($contact),
+            'activities' => $this->contactActivities($contact, $user),
             'deals' => $deals,
             'projects' => $projects,
             'regular' => $regular,
@@ -3319,9 +3322,9 @@ class ContactsController extends Controller
             ->all();
     }
 
-    private function contactActivities(Contact $contact): array
+    private function contactActivities(Contact $contact, User $user): array
     {
-        return collect(app(ActivityTimelineBuilder::class)->forContact($contact))
+        return collect(app(ActivityTimelineBuilder::class)->forContact($contact, $user))
             ->map(function (array $activity): array {
                 $showUrl = route('activities');
 
@@ -3587,7 +3590,7 @@ class ContactsController extends Controller
         if (filled($contact->cif_submitted_at ?? null)) {
             $logs[] = [
                 'message' => 'CIF submitted for verification',
-                'timestamp' => optional($contact->cif_submitted_at)->format('F d, Y â€¢ h:i A'),
+                'timestamp' => optional($contact->cif_submitted_at)->format('F d, Y • h:i A'),
             ];
         }
 
@@ -3595,7 +3598,7 @@ class ContactsController extends Controller
             $decision = strtolower((string) ($contact->cif_status ?? '')) === 'rejected' ? 'rejected' : 'approved';
             $logs[] = [
                 'message' => "CIF {$decision} by {$contact->cif_reviewed_by}",
-                'timestamp' => optional($contact->cif_reviewed_at)->format('F d, Y â€¢ h:i A'),
+                'timestamp' => optional($contact->cif_reviewed_at)->format('F d, Y • h:i A'),
             ];
         }
 
