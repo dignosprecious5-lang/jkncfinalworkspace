@@ -44,6 +44,7 @@ return [
         'bridge_url' => env('GOOGLE_CALENDAR_BRIDGE_URL'),
         'bridge_secret' => env('GOOGLE_CALENDAR_BRIDGE_SECRET'),
         'api_base' => env('GOOGLE_CALENDAR_API_BASE', 'https://www.googleapis.com/calendar/v3'),
+        'meet_api_base' => env('GOOGLE_MEET_API_BASE', 'https://meet.googleapis.com/v2'),
         'oauth_base' => env('GOOGLE_CALENDAR_OAUTH_BASE', 'https://oauth2.googleapis.com'),
         'timezone' => env('GOOGLE_CALENDAR_TIMEZONE', env('APP_TIMEZONE', 'Asia/Manila')),
         'timeout' => (int) env('GOOGLE_CALENDAR_TIMEOUT', 15),

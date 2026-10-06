@@ -10,6 +10,7 @@ use App\Models\OfficialBusinessTrip;
 use App\Models\OfficialBusinessTripTicket;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\GoogleMeetSpaceService;
 use App\Support\ActivityTimelineBuilder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\QueryException;
@@ -1250,6 +1251,9 @@ test('activity feeds and account timelines preserve per-type read visibility', f
 
 test('hybrid meeting creates one calendar event and meet without default external email and updates idempotently', function () {
     Mail::fake();
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')->zeroOrMoreTimes();
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
     config()->set('services.google_calendar', [
         'calendar_id' => 'primary@example.test',
         'access_token' => 'fake-calendar-token',
@@ -1306,6 +1310,9 @@ test('hybrid meeting creates one calendar event and meet without default externa
 
 test('explicit meeting notification setting is passed to google calendar with external attendees', function () {
     Mail::fake();
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')->zeroOrMoreTimes();
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
     config()->set('services.google_calendar', [
         'calendar_id' => 'primary@example.test',
         'access_token' => 'fake-calendar-token',
@@ -1374,6 +1381,65 @@ test('calendar validation and failed external sync preserve an explicit retryabl
         'calendar_provider' => 'google',
         'calendar_sync_status' => 'failed',
     ]);
+});
+
+test('Meet OPEN-access failure preserves the Calendar event and retry reuses it', function () {
+    config()->set('services.google_calendar', [
+        'calendar_id' => 'primary@example.test',
+        'access_token' => 'fake-calendar-token',
+        'api_base' => 'https://calendar.test/v3',
+        'meet_api_base' => 'https://meet.test/v2',
+        'timezone' => 'Asia/Manila',
+        'timeout' => 5,
+    ]);
+    $meetRequests = 0;
+    Http::fake(function ($request) use (&$meetRequests) {
+        if (str_contains($request->url(), 'meet.test')) {
+            $meetRequests++;
+
+            if ($meetRequests > 1) {
+                return Http::response([
+                    'name' => 'spaces/CalendarCreatedSpace',
+                    'config' => ['accessType' => 'OPEN'],
+                ]);
+            }
+
+            return Http::response(['error' => ['status' => 'PERMISSION_DENIED']], 403);
+        }
+
+        return Http::response([
+            'id' => 'ordomeeting1',
+            'hangoutLink' => 'https://meet.google.com/abc-defg-hij',
+        ]);
+    });
+
+    $created = $this->postJson('/api/meetings', [
+        'title' => 'OPEN-access retryable meeting',
+        'mode' => 'Online',
+        'date' => '2026-08-30',
+        'time' => '10:00',
+        'add_to_calendar' => true,
+        'create_google_meet' => true,
+    ])->assertStatus(202)
+        ->assertJsonPath('external_calendar_event_id', 'ordomeeting1')
+        ->assertJsonPath('conference_url', 'https://meet.google.com/abc-defg-hij')
+        ->assertJsonPath('calendar_sync_status', 'failed')
+        ->assertJsonPath('calendar_sync_warning', 'The meeting Calendar event and Meet link were saved, but Google Meet OPEN access could not be configured.');
+
+    $meetingId = $created->json('id');
+    expect(Http::recorded()->filter(fn (array $pair): bool => $pair[0]->method() === 'POST'
+        && str_contains($pair[0]->url(), 'calendar.test'))->count())->toBe(1);
+
+    $this->postJson('/api/meetings/'.$meetingId.'/calendar/retry')
+        ->assertOk()
+        ->assertJsonPath('external_calendar_event_id', 'ordomeeting1')
+        ->assertJsonPath('conference_url', 'https://meet.google.com/abc-defg-hij')
+        ->assertJsonPath('calendar_sync_status', 'synced');
+
+    expect(Http::recorded()->filter(fn (array $pair): bool => $pair[0]->method() === 'POST'
+        && str_contains($pair[0]->url(), 'calendar.test'))->count())->toBe(1);
+    Http::assertSent(fn ($request): bool => $request->method() === 'PATCH'
+        && str_contains($request->url(), '/events/ordomeeting1'));
 });
 
 test('meeting workspace finalizes structured minutes and converts action items to linked tasks', function () {
@@ -1493,6 +1559,9 @@ test('a link never grants visibility to an unauthorized official business source
 });
 
 test('an authorized retry reuses the failed meeting and deterministic Google event identity', function () {
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')->zeroOrMoreTimes();
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
     config()->set('services.google_calendar', [
         'calendar_id' => 'primary@example.test',
         'access_token' => 'fake-calendar-token',

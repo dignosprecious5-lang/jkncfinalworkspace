@@ -18,6 +18,7 @@ use App\Services\ActivityAuditService;
 use App\Services\ActivityTypeRegistry;
 use App\Services\EventCalendarSyncService;
 use App\Services\MeetingCalendarSyncService;
+use App\Services\MeetingCalendarSyncException;
 use App\Services\TaskCalendarSyncService;
 use App\Services\TaskWorkflowService;
 use App\Support\ActivityDuplicateGuard;
@@ -1639,14 +1640,23 @@ public function analyzeMeeting(Request $request, $id)
             ])->save();
         } catch (Throwable $exception) {
             report($exception);
-            $meeting->forceFill([
+            $failureState = [
                 'calendar_sync_status' => 'failed',
                 'calendar_sync_error' => Str::limit($exception->getMessage(), 2000),
-            ])->save();
+            ];
+
+            if ($exception instanceof MeetingCalendarSyncException) {
+                $failureState['external_calendar_event_id'] = $exception->eventId;
+                $failureState['conference_url'] = $exception->conferenceUrl;
+            }
+
+            $meeting->forceFill($failureState)->save();
 
             return response()->json(
                 $meeting->fresh()->load($this->activityRelationshipLoads())->toArray() + [
-                    'calendar_sync_warning' => 'Google Calendar synchronization failed.',
+                    'calendar_sync_warning' => $exception instanceof MeetingCalendarSyncException
+                        ? 'The Calendar event and Meet link were saved, but Google Meet OPEN access could not be configured.'
+                        : 'Google Calendar synchronization failed.',
                 ],
                 202
             );
@@ -1778,14 +1788,23 @@ public function analyzeMeeting(Request $request, $id)
                 });
             } catch (Throwable $exception) {
                 report($exception);
-                $warning = 'The meeting was saved, but Google Calendar synchronization failed.';
+                $warning = $exception instanceof MeetingCalendarSyncException
+                    ? 'The meeting Calendar event and Meet link were saved, but Google Meet OPEN access could not be configured.'
+                    : 'The meeting was saved, but Google Calendar synchronization failed.';
                 $status = 202;
 
                 DB::transaction(function () use ($meeting, $exception): void {
-                    $meeting->forceFill([
+                    $failureState = [
                         'calendar_sync_status' => 'failed',
                         'calendar_sync_error' => Str::limit($exception->getMessage(), 2000),
-                    ])->save();
+                    ];
+
+                    if ($exception instanceof MeetingCalendarSyncException) {
+                        $failureState['external_calendar_event_id'] = $exception->eventId;
+                        $failureState['conference_url'] = $exception->conferenceUrl;
+                    }
+
+                    $meeting->forceFill($failureState)->save();
                 });
             }
         }

@@ -2,6 +2,7 @@
 
 use App\Models\Meeting;
 use App\Services\GoogleCalendarBridgeClient;
+use App\Services\GoogleMeetSpaceService;
 use App\Services\MeetingCalendarSyncService;
 use Illuminate\Support\Facades\Http;
 
@@ -26,6 +27,34 @@ beforeEach(function () {
     ]);
     $this->meeting->id = 23;
     $this->meetUrl = 'https://meet.google.com/abc-defg-hij';
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')->zeroOrMoreTimes();
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
+});
+
+test('Online and Hybrid calendar-created Meet links are configured for OPEN access', function ($mode) {
+    $this->meeting->mode = $mode;
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')
+        ->once()
+        ->with($this->meetUrl);
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
+    Http::fake(fn () => Http::response([
+        'id' => 'ordomeeting23',
+        'hangoutLink' => $this->meetUrl,
+    ]));
+
+    app(MeetingCalendarSyncService::class)->sync($this->meeting, true, false);
+})->with(['Online', 'Hybrid']);
+
+test('physical meeting synchronization never configures a Meet space', function () {
+    $this->meeting->mode = 'Physical';
+    $meetSpace = Mockery::mock(GoogleMeetSpaceService::class);
+    $meetSpace->shouldReceive('configureOpenAccess')->never();
+    app()->instance(GoogleMeetSpaceService::class, $meetSpace);
+    Http::fake(fn () => Http::response(['id' => 'ordomeeting23']));
+
+    app(MeetingCalendarSyncService::class)->sync($this->meeting, true, false);
 });
 
 test('online and hybrid creates native Meet then publishes returned URL in popup location', function ($mode) {

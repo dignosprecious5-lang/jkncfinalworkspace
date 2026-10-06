@@ -7,11 +7,13 @@ use Carbon\Carbon;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class MeetingCalendarSyncService
 {
     public function __construct(
-        private GoogleCalendarAccessToken $calendarAccessToken
+        private GoogleCalendarAccessToken $calendarAccessToken,
+        private GoogleMeetSpaceService $meetSpace
     ) {
     }
 
@@ -50,10 +52,12 @@ class MeetingCalendarSyncService
                 );
             }
 
-            $this->publishConferenceLocation($meeting, $remote['event_id'], $conferenceUrl, $payload);
+            $resolvedEventId = $remote['event_id'];
+            $this->configureMeetOpenAccess($resolvedEventId, $conferenceUrl, $createMeet);
+            $this->publishConferenceLocation($meeting, $resolvedEventId, $conferenceUrl, $payload);
 
             return [
-                'event_id' => $remote['event_id'],
+                'event_id' => $resolvedEventId,
                 'conference_url' => filled($conferenceUrl)
                     ? (string) $conferenceUrl
                     : null,
@@ -108,10 +112,12 @@ class MeetingCalendarSyncService
             throw new RuntimeException('Google Calendar did not return a Google Meet URL.');
         }
 
-        $this->publishConferenceLocation($meeting, (string) ($remote['id'] ?? $eventId), $conferenceUrl, $payload);
+        $resolvedEventId = (string) ($remote['id'] ?? $eventId);
+        $this->configureMeetOpenAccess($resolvedEventId, $conferenceUrl, $createMeet);
+        $this->publishConferenceLocation($meeting, $resolvedEventId, $conferenceUrl, $payload);
 
         return [
-            'event_id' => (string) ($remote['id'] ?? $eventId),
+            'event_id' => $resolvedEventId,
             'conference_url' => filled($conferenceUrl) ? (string) $conferenceUrl : null,
         ];
     }
@@ -217,6 +223,24 @@ class MeetingCalendarSyncService
         }
 
         return $location;
+    }
+
+    private function configureMeetOpenAccess(string $eventId, ?string $conferenceUrl, bool $createMeet): void
+    {
+        if (! $createMeet || blank($conferenceUrl)) {
+            return;
+        }
+
+        try {
+            $this->meetSpace->configureOpenAccess((string) $conferenceUrl);
+        } catch (Throwable $exception) {
+            throw new MeetingCalendarSyncException(
+                $exception->getMessage(),
+                $eventId,
+                (string) $conferenceUrl,
+                $exception
+            );
+        }
     }
 
     private function publishConferenceLocation(
