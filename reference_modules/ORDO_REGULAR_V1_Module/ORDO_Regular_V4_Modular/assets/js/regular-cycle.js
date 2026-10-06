@@ -39,7 +39,8 @@
       stopAll();s.regular.status=status;s.regular.reason=String(reason).trim();s.closed=true;
       ORDO.log(`Regular engagement ${status.toLowerCase()}: ${reason}`);ORDO_SAVE();
     },
-    resume() {if(s.regular.status!=='Suspended')throw new Error('Only suspended engagements can be resumed.');s.regular.status='Active';s.closed=false;ORDO.log('Regular engagement resumed');ORDO_SAVE();}
+    resume() {if(s.regular.status!=="Suspended")throw new Error("Only suspended engagements can be resumed.");s.regular.status="Active";s.closed=false;ORDO.log("Regular engagement resumed");ORDO_SAVE();}, completeCycle(transmittalNumber) { if(!executionAllowed())throw new Error("Approve the current RSAT and NTP before completing the cycle."); const archive = { cycle: s.regular.cycle, period: s.regular.period, at: now(), transmittalNumber: transmittalNumber || null, reports: clone(s.regular.reports), streams: clone(s.streams) }; s.regular.archives.unshift(archive); s.regular.status = "Cycle Completed"; ORDO_SAVE(); return archive; }, nextCycle(nextPeriod) { s.regular.cycle = (s.regular.cycle || 1) + 1; if(nextPeriod) s.regular.period = nextPeriod; s.regular.status = "Active"; s.ntpApproved = false; s.sowWorkflow.status = "draft"; s.regular.reports = []; ORDO_SAVE(); }
   };
   ORDO_SAVE();
 })();
+

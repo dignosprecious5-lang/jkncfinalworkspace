@@ -42,6 +42,6 @@ http
       res.end(body);
     });
   })
-  .listen(8080, "127.0.0.1", () =>
-    console.log("ORDO prototype: http://127.0.0.1:8080"),
+  .listen(process.env.PORT || 8080, "127.0.0.1", () =>
+    console.log(`ORDO prototype: http://127.0.0.1:${process.env.PORT || 8080}`),
   );

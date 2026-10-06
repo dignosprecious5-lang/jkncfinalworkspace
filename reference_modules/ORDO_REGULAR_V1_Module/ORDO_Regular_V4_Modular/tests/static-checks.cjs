@@ -198,7 +198,7 @@ w = page("workspace/scope-of-work.html", 119);
 w.ORDO_STATE.regular.period="September 2026";
 w.RSAT_FORM.rows().forEach(row=>row.schedules.forEach(rule=>rule.configured=true));
 w.RSAT_ADAPTER.save(w.RSAT_FORM.rows());
-assert.equal(w.document.querySelectorAll(".rsat-table th").length,6);
+assert.equal(w.document.querySelectorAll(".rsat-table th").length,7);
 assert.ok(!/Within Scope|Out of Scope/.test(w.document.body.textContent));
 w.document.getElementById("submitReviewBtn").onclick();
 assert.equal(w.ORDO_STATE.sowWorkflow.status, "review");
