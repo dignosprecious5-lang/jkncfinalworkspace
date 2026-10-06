@@ -1,0 +1,5 @@
+/.qa/
+.phpunit.result.cache
+laravel-app-backup/
+.regular-backup/
+

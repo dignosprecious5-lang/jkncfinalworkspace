@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Settings</title>
+    <link rel="stylesheet" href="../assets/css/project-list.css" />
+  </head>
+  <body>
+    <div class="app shell">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co brand-sub">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools user-tools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="sidebar">
+        <div class="enterprise">
+          <div><strong>Enterprise Menu</strong><small>Navigation</small></div>
+          <span>»</span>
+        </div>
+        <div class="nav">
+          <button class="nav-row"><span class="nav-icon">♙</span>Admin</button
+          ><button class="nav-row">
+            <span class="nav-icon">⚑</span>Town Hall</button
+          ><button class="nav-row">
+            <span class="nav-icon">▤</span>Corporate</button
+          ><button class="nav-row">
+            <span class="nav-icon">▧</span>Policies</button
+          ><button class="nav-row">
+            <span class="nav-icon">▥</span>Finance</button
+          ><button class="nav-row">
+            <span class="nav-icon">♟</span>Human Capital</button
+          ><button class="nav-row">
+            <span class="nav-icon">◎</span>Marketing<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">⌁</span>Sales<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">▣</span>Accounts<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row active-parent">
+            <span class="nav-icon">⌘</span>Operations<span class="chev">⌄</span>
+          </button>
+          <div class="ops-children">
+            <button class="child-row">Activities</button
+            ><button class="child-row">Regular</button
+            ><button class="child-row project-parent active">
+              Regular <span>⌄</span>
+            </button>
+            <div class="project-submenu open">
+              <a href="../index.html" class="">All Regular Services</a
+              ><a href="../modules/for-me.html" class="">For Me</a
+              ><a href="../modules/reports.html" class="">Reports</a
+              ><a href="../modules/settings.html" class="active">Settings</a>
+            </div>
+            <button class="child-row">Transmittal</button>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Regular Settings</h1>
+            <p>
+              Configurable behavior stays separate from mandatory Regular policy
+              gates.
+            </p>
+          </div>
+        </div>
+        <div class="settings-grid settings">
+          <div class="card card-pad">
+            <h3>Access & Visibility</h3>
+            <div class="setting-row">
+              All Regular Services registry access <strong>Enabled</strong>
+            </div>
+            <div class="setting-row">For Me <strong>Enabled</strong></div>
+            <div class="setting-row">
+              Management regular service oversight <strong>Enabled</strong>
+            </div>
+          </div>
+          <div class="card card-pad">
+            <h3>Time / Task Features</h3>
+            <div class="setting-row">
+              Regular Direct Timer <strong>Enabled</strong>
+            </div>
+            <div class="setting-row">
+              Task / Child Task Timer <strong>Enabled</strong>
+            </div>
+            <div class="setting-row">
+              One active timer / user <strong>Enabled</strong>
+            </div>
+            <div class="setting-row">
+              Quick Add / Duplicate / Templates <strong>Enabled</strong>
+            </div>
+          </div>
+          <div class="card card-pad">
+            <h3>Policy Gates</h3>
+            <div class="policy-lock">
+              <strong
+                >No Service Memo / Work Order → No Regular Registration</strong
+              >
+            </div>
+            <div class="policy-lock">
+              <strong>No approved RSAT / NTP → No Execution</strong>
+            </div>
+            <div class="policy-lock">
+              <strong>No Report → No Delivery</strong>
+            </div>
+            <div class="policy-lock">
+              <strong>No Transmittal → No Completion</strong>
+            </div>
+            <div class="policy-lock"><strong>No COC → No Closure</strong></div>
+          </div>
+          <div class="card card-pad">
+            <h3>Laravel Note</h3>
+            <p class="small">
+              Convert repeated shell to Blade layouts/partials. Keep gates in
+              server-side Policies/Services. Reuse existing Task Manager
+              timer/task models.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>

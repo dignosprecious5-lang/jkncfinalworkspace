@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>For Me</title>
+    <link rel="stylesheet" href="../assets/css/project-list.css" />
+    <link rel="stylesheet" href="../assets/css/overview-registry.css" />
+  </head>
+  <body data-registry-scope="me">
+    <div class="app shell">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co brand-sub">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools user-tools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="sidebar">
+        <div class="enterprise">
+          <div><strong>Enterprise Menu</strong><small>Navigation</small></div>
+          <span>»</span>
+        </div>
+        <div class="nav">
+          <button class="nav-row"><span class="nav-icon">♙</span>Admin</button
+          ><button class="nav-row">
+            <span class="nav-icon">⚑</span>Town Hall</button
+          ><button class="nav-row">
+            <span class="nav-icon">▤</span>Corporate</button
+          ><button class="nav-row">
+            <span class="nav-icon">▧</span>Policies</button
+          ><button class="nav-row">
+            <span class="nav-icon">▥</span>Finance</button
+          ><button class="nav-row">
+            <span class="nav-icon">♟</span>Human Capital</button
+          ><button class="nav-row">
+            <span class="nav-icon">◎</span>Marketing<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">⌁</span>Sales<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row">
+            <span class="nav-icon">▣</span>Accounts<span class="chev"
+              >›</span
+            ></button
+          ><button class="nav-row active-parent">
+            <span class="nav-icon">⌘</span>Operations<span class="chev">⌄</span>
+          </button>
+          <div class="ops-children">
+            <button class="child-row">Activities</button
+            ><button class="child-row">Regular</button
+            ><button class="child-row project-parent active">
+              Regular <span>⌄</span>
+            </button>
+            <div class="project-submenu open">
+              <a href="../index.html" class="">All Regular Services</a
+              ><a href="../modules/for-me.html" class="active">For Me</a
+              ><a href="../modules/reports.html" class="">Reports</a
+              ><a href="../modules/settings.html" class="">Settings</a>
+            </div>
+            <button class="child-row">Transmittal</button>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>For Me</h1>
+            <p>Regular Services where I have an assigned regular service role, lifecycle responsibility, or approved execution task.</p>
+          </div>
+        </div>
+        <div hidden><span id="kpiTotal"></span><span id="kpiApproval"></span><span id="kpiExecution"></span><span id="kpiDelivery"></span><span id="kpiCompleted"></span></div>
+        <div class="stage-filter-grid" id="stageFilters" aria-label="Filter my regular services by lifecycle stage"></div>
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>My Regular Management Registry</h2>
+              <p>My current ownership, lifecycle position, health, schedule, accountability, and completion status.</p>
+            </div>
+            <div class="registry-head-actions"><input class="field" id="q" placeholder="Search my regular service, reference, business, client, or assignment..." /><button class="registry-menu-button" id="registryMenuButton" type="button" aria-label="Registry options" aria-expanded="false">•••</button><div class="registry-menu" id="registryMenu"><button type="button" id="exportRegistryExcel">Download Excel</button><button type="button" id="exportRegistryPdf">Download / Print PDF</button><div class="registry-menu-divider"></div><strong>Visible Columns</strong><div id="columnChooser" class="column-chooser"></div></div></div>
+          </div>
+          <div class="registry-filters"><label>From Date<input type="date" id="filterFrom"></label><label>To Date<input type="date" id="filterTo"></label><label>Current Stage<select id="filterStage"><option value="">All stages</option></select></label><label>Health<select id="filterHealth"><option value="">All health statuses</option></select></label><label>Progress<select id="filterProgress"><option value="">All progress</option><option value="not-started">Not started</option><option value="active">1%–99%</option><option value="completed">100% completed</option></select></label><label>Regular Lead<select id="filterLead"><option value="">All regular service leads</option></select></label><label>Lead Associate<select id="filterAssociate"><option value="">All lead associates</option></select></label><button class="btn" type="button" id="clearRegistryFilters">Clear Filters</button></div>
+          <div class="registry-result-bar"><span id="registryResultCount">0 regular services</span><span id="activeRegistryFilter">All lifecycle stages</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-column="project">REGULAR / REFERENCE</th>
+                  <th data-column="business">BUSINESS / CLIENT</th>
+                  <th data-column="stage">CURRENT STAGE</th>
+                  <th data-column="health">HEALTH</th>
+                  <th data-column="progress">PROGRESS</th>
+                  <th data-column="target">TARGET COMPLETION</th>
+                  <th data-column="lead">REGULAR LEAD</th>
+                  <th data-column="associate">LEAD ASSOCIATE</th>
+                  <th data-column="assigned">ASSIGNED PERSONS</th>
+                  <th data-column="action">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+<script src="../assets/js/regular-cycle.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/overview-registry.js"></script>
+    <script>
+      (function () {
+        const rows = document.getElementById("rows");
+        const correctProjectLinks = () => rows.querySelectorAll('a[href^="workspace/"]').forEach((link) => link.setAttribute("href", "../" + link.getAttribute("href")));
+        new MutationObserver(correctProjectLinks).observe(rows, { childList: true, subtree: true });
+        correctProjectLinks();
+      })();
+    </script>
+  <script src="../assets/js/regular-ui.js"></script>
+</body>
+</html>
