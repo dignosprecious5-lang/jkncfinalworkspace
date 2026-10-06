@@ -10,6 +10,11 @@ use RuntimeException;
 
 class MeetingCalendarSyncService
 {
+    public function __construct(
+        private GoogleCalendarAccessToken $calendarAccessToken
+    ) {
+    }
+
     /** @return array{event_id: string, conference_url: ?string} */
     public function sync(Meeting $meeting, bool $createMeet, bool $notifyExternalAttendees): array
     {
@@ -61,17 +66,13 @@ class MeetingCalendarSyncService
             )
         );
 
-        $accessToken = trim(
-            (string) config(
-                'services.google_calendar.access_token'
-            )
-        );
-
-        if ($calendarId === '' || $accessToken === '') {
+        if ($calendarId === '') {
             throw new RuntimeException(
                 'Google Calendar credentials are not configured.'
             );
         }
+
+        $accessToken = $this->calendarAccessToken->get();
 
         $query = http_build_query($options);
         $calendar = rawurlencode($calendarId);
@@ -131,11 +132,11 @@ class MeetingCalendarSyncService
         }
 
         $calendarId = trim((string) config('services.google_calendar.calendar_id'));
-        $accessToken = trim((string) config('services.google_calendar.access_token'));
-
-        if ($calendarId === '' || $accessToken === '') {
+        if ($calendarId === '') {
             throw new RuntimeException('Google Calendar credentials are not configured.');
         }
+
+        $accessToken = $this->calendarAccessToken->get();
 
         $baseUrl = rtrim((string) config('services.google_calendar.api_base', 'https://www.googleapis.com/calendar/v3'), '/');
         $url = $baseUrl.'/calendars/'.rawurlencode($calendarId).'/events/'
@@ -247,7 +248,7 @@ class MeetingCalendarSyncService
         $baseUrl = rtrim((string) config('services.google_calendar.api_base', 'https://www.googleapis.com/calendar/v3'), '/');
         $url = $baseUrl.'/calendars/'.rawurlencode((string) config('services.google_calendar.calendar_id'))
             .'/events/'.rawurlencode($eventId).'?'.http_build_query($options);
-        $response = $this->client((string) config('services.google_calendar.access_token'))
+        $response = $this->client($this->calendarAccessToken->get())
             ->patch($url, ['location' => $location]);
 
         if (! $response->successful()) {

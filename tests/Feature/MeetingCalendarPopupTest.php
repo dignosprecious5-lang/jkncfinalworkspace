@@ -105,6 +105,9 @@ test('explicit attendee notifications apply only to main sync and display patch 
 });
 
 test('bridge forwards conference options and extracts video entry points for the popup', function () {
+    config()->set('services.google_calendar.client_id', 'calendar-client');
+    config()->set('services.google_calendar.client_secret', 'calendar-secret');
+    config()->set('services.google_calendar.refresh_token', 'calendar-refresh-token');
     $bridge = Mockery::mock(GoogleCalendarBridgeClient::class)->makePartial();
     $bridge->shouldReceive('enabled')->andReturn(true);
     app()->instance(GoogleCalendarBridgeClient::class, $bridge);
@@ -130,6 +133,43 @@ test('bridge forwards conference options and extracts video entry points for the
         ->and($requests[1][0]['event_id'])->toBe('ordomeeting23')
         ->and($requests[1][0]['event'])->toBe(['location' => $this->meetUrl])
         ->and($requests[1][0]['options'])->toBe(['conferenceDataVersion' => 1, 'sendUpdates' => 'none']);
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/token'));
+});
+
+test('direct OAuth refresh is used when no bridge is enabled', function () {
+    config()->set('services.google_calendar', [
+        'calendar_id' => 'calendar@example.test',
+        'client_id' => 'calendar-client',
+        'client_secret' => 'calendar-secret',
+        'refresh_token' => 'calendar-refresh-token',
+        'access_token' => null,
+        'api_base' => 'https://calendar.test/v3',
+        'oauth_base' => 'https://oauth.test',
+        'bridge_url' => null,
+        'bridge_secret' => null,
+        'timezone' => 'Asia/Manila',
+        'timeout' => 5,
+    ]);
+    Http::fake(function ($request) {
+        if ($request->url() === 'https://oauth.test/token') {
+            return Http::response(['access_token' => 'refreshed-calendar-token']);
+        }
+
+        return Http::response(['id' => 'ordomeeting23', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij']);
+    });
+
+    $result = app(MeetingCalendarSyncService::class)->sync($this->meeting, true, false);
+
+    expect($result['conference_url'])->toBe($this->meetUrl);
+    Http::assertSent(fn ($request) => $request->url() === 'https://oauth.test/token'
+        && $request['grant_type'] === 'refresh_token'
+        && $request['refresh_token'] === 'calendar-refresh-token');
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && str_contains($request->url(), '/calendars/calendar%40example.test/events?')
+        && $request->hasHeader('Authorization', 'Bearer refreshed-calendar-token'));
+    expect(collect(Http::recorded())->filter(
+        fn (array $pair) => $pair[0]->url() === 'https://oauth.test/token'
+    ))->toHaveCount(1);
 });
 
 test('pending conference can be retried with same event ID and request ID', function () {

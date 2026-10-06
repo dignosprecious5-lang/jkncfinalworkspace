@@ -37,10 +37,14 @@ return [
 
     'google_calendar' => [
         'calendar_id' => env('GOOGLE_CALENDAR_ID'),
+        'client_id' => env('GOOGLE_CALENDAR_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CALENDAR_CLIENT_SECRET'),
+        'refresh_token' => env('GOOGLE_CALENDAR_REFRESH_TOKEN'),
         'access_token' => env('GOOGLE_CALENDAR_ACCESS_TOKEN'),
         'bridge_url' => env('GOOGLE_CALENDAR_BRIDGE_URL'),
         'bridge_secret' => env('GOOGLE_CALENDAR_BRIDGE_SECRET'),
         'api_base' => env('GOOGLE_CALENDAR_API_BASE', 'https://www.googleapis.com/calendar/v3'),
+        'oauth_base' => env('GOOGLE_CALENDAR_OAUTH_BASE', 'https://oauth2.googleapis.com'),
         'timezone' => env('GOOGLE_CALENDAR_TIMEZONE', env('APP_TIMEZONE', 'Asia/Manila')),
         'timeout' => (int) env('GOOGLE_CALENDAR_TIMEOUT', 15),
     ],

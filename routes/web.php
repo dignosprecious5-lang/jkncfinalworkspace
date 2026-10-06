@@ -253,6 +253,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
         Route::post('/events', [ActivityController::class, 'storeEvent']);
         Route::post('/calls', [ActivityController::class, 'storeCall']);
         Route::post('/meetings', [ActivityController::class, 'storeMeeting']);
+        Route::post('/meetings/{id}/calendar/retry', [ActivityController::class, 'retryMeetingCalendarSync']);
         Route::get('/email-activities', [\App\Http\Controllers\EmailActivityController::class, 'index']);
         Route::post('/email-activities/sync', [\App\Http\Controllers\EmailActivityController::class, 'sync']);
         Route::get('/email-activities/{id}', [\App\Http\Controllers\EmailActivityController::class, 'show']);

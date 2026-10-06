@@ -145,15 +145,9 @@ class GoogleCalendarBridgeClient
         }
 
         if (($result['ok'] ?? false) !== true) {
-            $error = trim(
-                (string) ($result['error'] ?? '')
-            );
-
-            throw new RuntimeException(
-                $error !== ''
-                    ? 'Google Calendar bridge request failed: '.$error
-                    : 'Google Calendar bridge request failed.'
-            );
+            // Bridge/provider messages can contain implementation details. Keep
+            // the stored meeting error safe for normal Activities responses.
+            throw new RuntimeException('Google Calendar bridge request failed.');
         }
 
         return $result;

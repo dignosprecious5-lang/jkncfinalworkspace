@@ -1492,6 +1492,89 @@ test('a link never grants visibility to an unauthorized official business source
         ->assertJsonPath('related_activities.0.type', 'OFFICIAL_BUSINESS_TRAVEL');
 });
 
+test('an authorized retry reuses the failed meeting and deterministic Google event identity', function () {
+    config()->set('services.google_calendar', [
+        'calendar_id' => 'primary@example.test',
+        'access_token' => 'fake-calendar-token',
+        'api_base' => 'https://calendar.test/v3',
+        'timezone' => 'Asia/Manila',
+        'timeout' => 5,
+    ]);
+    $meeting = Meeting::query()->create([
+        'title' => 'Retry existing calendar meeting',
+        'mode' => 'Online',
+        'date' => '2026-08-30',
+        'time' => '10:00',
+        'duration_minutes' => 30,
+        'prepared_by_user_id' => $this->user->id,
+        'calendar_provider' => 'google',
+        'calendar_sync_status' => 'failed',
+        'calendar_sync_error' => 'Google Calendar credentials are not configured.',
+    ]);
+    Http::fake(function ($request) use ($meeting) {
+        if ($request->method() === 'POST') {
+            return Http::response([], 409);
+        }
+
+        if ($request->method() === 'GET') {
+            return Http::response([
+                'id' => 'ordomeeting'.$meeting->id,
+                'hangoutLink' => 'https://meet.google.com/retry-test',
+            ]);
+        }
+
+        return Http::response(['id' => 'ordomeeting'.$meeting->id]);
+    });
+
+    $this->postJson('/api/meetings/'.$meeting->id.'/calendar/retry')
+        ->assertOk()
+        ->assertJsonPath('id', $meeting->id)
+        ->assertJsonPath('external_calendar_event_id', 'ordomeeting'.$meeting->id)
+        ->assertJsonPath('conference_url', 'https://meet.google.com/retry-test')
+        ->assertJsonPath('calendar_sync_status', 'synced');
+
+    expect(Meeting::query()->count())->toBe(1);
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && data_get($request->data(), 'id') === 'ordomeeting'.$meeting->id);
+});
+
+test('an unauthorized user cannot retry a failed meeting calendar sync', function () {
+    $meeting = Meeting::query()->create([
+        'title' => 'Protected retry',
+        'prepared_by_user_id' => $this->user->id,
+        'calendar_provider' => 'google',
+        'calendar_sync_status' => 'failed',
+    ]);
+    $otherUser = User::query()->create([
+        'name' => 'Unauthorised Employee',
+        'email' => 'unauthorised@example.test',
+        'role' => 'Employee',
+    ]);
+
+    $this->actingAs($otherUser)
+        ->postJson('/api/meetings/'.$meeting->id.'/calendar/retry')
+        ->assertForbidden();
+
+    expect($meeting->fresh()->calendar_sync_status)->toBe('failed');
+});
+
+test('meeting calendar OAuth secrets never appear in Activities JSON', function () {
+    config()->set('services.google_calendar.client_secret', 'calendar-client-secret');
+    config()->set('services.google_calendar.refresh_token', 'calendar-refresh-token');
+    $meeting = Meeting::query()->create([
+        'title' => 'Secret-safe meeting',
+        'prepared_by_user_id' => $this->user->id,
+        'calendar_provider' => 'google',
+        'calendar_sync_status' => 'failed',
+    ]);
+
+    $this->getJson('/api/activities')
+        ->assertOk()
+        ->assertDontSee('calendar-client-secret')
+        ->assertDontSee('calendar-refresh-token')
+        ->assertJsonPath('meetings.0.id', $meeting->id);
+});
+
 test('per employee Gmail connections isolate content, sending, threads and disconnects', function () {
     config()->set('services.gmail.enabled', true);
     $employeeA = User::query()->create(['name' => 'Gmail Employee A', 'email' => 'gmail-a@example.test', 'role' => 'Employee']);

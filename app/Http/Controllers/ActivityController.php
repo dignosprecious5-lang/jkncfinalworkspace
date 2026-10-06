@@ -1606,6 +1606,55 @@ public function analyzeMeeting(Request $request, $id)
         return $this->meetingCalendarResponse($meeting->fresh(), $calendar, $calendarOptions);
     }
 
+    public function retryMeetingCalendarSync(Request $request, $id, MeetingCalendarSyncService $calendar)
+    {
+        $meeting = Meeting::findOrFail($id);
+        $this->authorizeMeeting($request, $meeting);
+
+        abort_unless(
+            $meeting->calendar_provider === 'google'
+                && $meeting->calendar_sync_status === 'failed',
+            422,
+            'Only failed Google Calendar meeting synchronizations can be retried.'
+        );
+
+        $meeting->forceFill([
+            'calendar_sync_status' => 'pending',
+            'calendar_sync_error' => null,
+        ])->save();
+
+        try {
+            $result = $calendar->sync(
+                $meeting,
+                in_array($meeting->mode, ['Online', 'Hybrid'], true),
+                (bool) $meeting->notify_external_attendees
+            );
+
+            $meeting->forceFill([
+                'external_calendar_event_id' => $result['event_id'],
+                'conference_url' => $result['conference_url'],
+                'calendar_sync_status' => 'synced',
+                'calendar_synced_at' => now(),
+                'calendar_sync_error' => null,
+            ])->save();
+        } catch (Throwable $exception) {
+            report($exception);
+            $meeting->forceFill([
+                'calendar_sync_status' => 'failed',
+                'calendar_sync_error' => Str::limit($exception->getMessage(), 2000),
+            ])->save();
+
+            return response()->json(
+                $meeting->fresh()->load($this->activityRelationshipLoads())->toArray() + [
+                    'calendar_sync_warning' => 'Google Calendar synchronization failed.',
+                ],
+                202
+            );
+        }
+
+        return response()->json($meeting->fresh()->load($this->activityRelationshipLoads()));
+    }
+
     private function automaticCalendarResponse($record, $calendar, array $loads, string $activityLabel)
     {
         $status = 200;
