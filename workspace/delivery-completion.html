@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Project Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <link rel="stylesheet" href="../assets/css/delivery-completion.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Project</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">PROJECT WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">PROJECT DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">SCOPE OF WORK</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab" href="sow-report.html">SOW REPORT</a
+            ><a class="ptab active" href="delivery-completion.html"
+              >DELIVERY & COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Project Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div id="deliveryV2"></div>
+        <div class="layout legacy-delivery-layout">
+          <aside class="sidecard">
+            <div class="side-title">STAGE MANAGEMENT</div>
+            <div class="side-section">
+              <h4>STAGE STATUS</h4>
+              <div class="statuspill">✓ SOW approved</div>
+              <div class="statuspill">✓ NTP approved</div>
+              <div class="statuspill">● Execution in progress</div>
+              <div class="statuspill">○ COC pending</div>
+            </div>
+            <div class="side-section">
+              <h4>STAGE HANDLING</h4>
+              <div class="timer-card">
+                <div class="timer-row">
+                  <span id="timerState">Project Direct</span
+                  ><span class="clock" id="timerClock">00:00:00</span>
+                </div>
+                <div class="timer-actions">
+                  <button class="tbtn start" id="timerStart">▶ Start</button
+                  ><button class="tbtn pause" id="timerPause">Ⅱ Pause</button
+                  ><button class="tbtn stop" id="timerStop">■ Stop</button>
+                </div>
+              </div>
+            </div>
+            <div class="side-section">
+              <h4>STAGE CONTROLS</h4>
+              <a
+                class="sidebtn primary quick-link"
+                href="project-dashboard.html"
+                >Dashboard</a
+              ><a class="sidebtn quick-link" href="scope-of-work.html"
+                >Scope of Work</a
+              ><a class="sidebtn quick-link" href="execution.html">Execution</a
+              ><a class="sidebtn quick-link" href="sow-report.html"
+                >SOW Report</a
+              ><a class="sidebtn quick-link" href="delivery-completion.html"
+                >Delivery & Completion</a
+              >
+            </div>
+          </aside>
+          <section class="content">
+            <div class="two">
+              <div class="card">
+                <div class="cardhead">
+                  <div>
+                    <strong>Completion Readiness</strong>
+                    <div class="imeta">
+                      Policy gates control Transmittal, COC and Closure.
+                    </div>
+                  </div>
+                </div>
+                <div class="cardbody" id="checks"></div>
+                <div class="cardbody">
+                  <div class="actions">
+                    <button class="btn" id="trans">Generate Transmittal</button
+                    ><button class="btn green" id="coc">Issue COC</button
+                    ><button class="btn primary" id="close">
+                      Close Project
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="cardhead">
+                  <strong>Client Completion Package</strong>
+                </div>
+                <div class="cardbody" id="package"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        const current = 4;
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+        function tick() {
+          document.getElementById("timerClock").textContent = ORDO.fmt(
+            ORDO.projectSeconds(),
+          );
+          document.getElementById("timerState").textContent =
+            ORDO_STATE.projectTimer.state === "running"
+              ? "Running"
+              : ORDO_STATE.projectTimer.state === "paused"
+                ? "Paused"
+                : "Project Direct";
+        }
+        document.getElementById("timerStart").onclick = () => {
+          ORDO.startProject();
+          tick();
+        };
+        document.getElementById("timerPause").onclick = () => {
+          ORDO.pauseProject();
+          tick();
+        };
+        document.getElementById("timerStop").onclick = () => {
+          ORDO.stopProject();
+          tick();
+        };
+        tick();
+        setInterval(tick, 1000);
+      })();
+    </script>
+    <script>
+      (function () {
+        function c() {
+          const tasks =
+              ORDO_STATE.closed ||
+              ORDO.allTasks().every((x) => x.task.status === "Completed"),
+            dels =
+              ORDO_STATE.closed ||
+              ORDO_STATE.deliverables.every((d) => d.status === "Ready"),
+            report =
+              ORDO_STATE.closed ||
+              ORDO_STATE.deliverables.find((d) => d.name === "Final SOW Report")
+                ?.status === "Ready",
+            trans = !!ORDO_STATE.transmittal || ORDO_STATE.closed,
+            coc = !!ORDO_STATE.coc || ORDO_STATE.closed;
+          return { tasks, dels, report, trans, coc };
+        }
+        function r() {
+          const x = c(),
+            checks = [
+              [
+                "Approved SOW / NTP valid",
+                ORDO_STATE.sowWorkflow.status === "final" &&
+                  ORDO_STATE.ntpApproved,
+              ],
+              ["All required Tasks completed", x.tasks],
+              ["All Deliverables ready", x.dels],
+              ["Final SOW Report approved", x.report],
+              ["Presentation complete / N/A", true],
+              ["Transmittal issued", x.trans],
+              ["No critical unresolved issue", true],
+              ["COC issued", x.coc],
+            ];
+          document.getElementById("checks").innerHTML = checks
+            .map(
+              (v) =>
+                `<div class="checkline"><span>${v[1] ? "✓" : "○"}</span><span style="flex:1">${v[0]}</span>${ORDO.badge(v[1] ? "Completed" : "Pending")}</div>`,
+            )
+            .join("");
+          document.getElementById("trans").disabled =
+            !(x.tasks && x.dels && x.report) || x.trans;
+          document.getElementById("coc").disabled = !x.trans || x.coc;
+          document.getElementById("close").disabled =
+            !x.coc || ORDO_STATE.closed;
+          document.getElementById("package").innerHTML =
+            `<div class="checkline"><span style="flex:1">Final SOW Report</span><strong>${x.report ? "Ready" : "Pending"}</strong></div><div class="checkline"><span style="flex:1">Deliverables</span><strong>${ORDO_STATE.deliverables.filter((d) => d.status === "Ready").length}/${ORDO_STATE.deliverables.length}</strong></div><div class="checkline"><span style="flex:1">Transmittal</span><strong>${x.trans ? "Issued" : "Pending"}</strong></div><div class="checkline"><span style="flex:1">COC</span><strong>${x.coc ? "Issued" : "Pending"}</strong></div>`;
+        }
+        document.getElementById("trans").onclick = () => {
+          if (!ORDO_STATE.ntpApproved || !c().tasks || !c().dels || !c().report)
+            return alert(
+              "Complete approval, task, deliverable and report gates first.",
+            );
+          ORDO_STATE.transmittal = "TRN-2026-DEMO";
+          ORDO.log("Transmittal issued");
+          r();
+        };
+        document.getElementById("coc").onclick = () => {
+          if (!ORDO_STATE.transmittal) return;
+          ORDO_STATE.coc = "COC-2026-DEMO";
+          ORDO.log("Certificate of Completion issued");
+          r();
+        };
+        document.getElementById("close").onclick = () => {
+          if (!ORDO_STATE.coc || !c().tasks || !c().dels || !c().report) return;
+          ORDO.stopRunning();
+          ORDO_STATE.closed = true;
+          ORDO.log("Project formally closed");
+          r();
+          alert("Project closed. Workspace remains accessible.");
+        };
+        r();
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/delivery-completion.js"></script>
+  </body>
+</html>

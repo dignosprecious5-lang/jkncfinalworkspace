@@ -1,0 +1,520 @@
+[
+  {
+    "id": 120,
+    "ref": "PROJ-2026-120",
+    "deal": "CONDEAL-2026-065",
+    "title": "Transfer of Share From Dany and Ronald to X10",
+    "business": "X10 REAL ESTATE CORPORATION",
+    "client": "May Flor D. Dabatos",
+    "stage": "Execution",
+    "progress": 64,
+    "target": "Sep 18, 2026",
+    "health": "On Track",
+    "lead": "John Kelly Abalde",
+    "myRole": "Lead Consultant",
+    "handling": "21h 42m",
+    "aht": "1h 13m",
+    "elapsed": "11d 7h",
+    "waiting": "3d 8h",
+    "workOrder": "WO-120",
+    "collaborators": [
+      "Rubeca Potayre"
+    ],
+    "scope": "Transfer of Share From Dany and Ronald to X10",
+    "exclusions": "",
+    "sow": "approved",
+    "reviewers": {
+      "Management": true,
+      "Lead Consultant": true,
+      "Lead Associate": true,
+      "Operations": true,
+      "Accounting": true
+    },
+    "ntp": true,
+    "ntpNote": "Seeded approval record",
+    "tasks": [
+      {
+        "id": "t1",
+        "title": "Review existing corporate and share ownership records",
+        "assignee": "Rubeca Potayre",
+        "done": true,
+        "timer": {
+          "seconds": 2880,
+          "started": null
+        }
+      },
+      {
+        "id": "t2",
+        "title": "Verify shares to be transferred by Dany and Ronald",
+        "assignee": "Rubeca Potayre",
+        "done": true,
+        "timer": {
+          "seconds": 3180,
+          "started": null
+        }
+      },
+      {
+        "id": "t3",
+        "title": "Prepare applicable share transfer documents",
+        "assignee": "Rubeca Potayre",
+        "done": false,
+        "timer": {
+          "seconds": 4200,
+          "started": null
+        }
+      },
+      {
+        "id": "t4",
+        "title": "Coordinate documentary requirements with transferors",
+        "assignee": "Rubeca Potayre",
+        "done": false,
+        "timer": {
+          "seconds": 1800,
+          "started": null
+        }
+      },
+      {
+        "id": "t5",
+        "title": "Facilitate execution and signing of transfer documents",
+        "assignee": "Rubeca Potayre",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      },
+      {
+        "id": "t6",
+        "title": "Prepare and organize applicable BIR requirements",
+        "assignee": "Rubeca Potayre",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      },
+      {
+        "id": "t7",
+        "title": "Prepare ONETT / documentary stamp requirements",
+        "assignee": "John Kelly Abalde",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      },
+      {
+        "id": "t8",
+        "title": "Submit and monitor BIR share transfer processing",
+        "assignee": "Rubeca Potayre",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-120",
+        "name": "Client closing package",
+        "ready": false
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [],
+      "approved": false
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": null,
+    "coc": null,
+    "closed": false
+  },
+  {
+    "id": 119,
+    "ref": "PROJ-2026-119",
+    "deal": "CONDEAL-2026-066",
+    "title": "Transfer Shares Ronald to Stephan",
+    "business": "Individual",
+    "client": "Stephan Tenten",
+    "stage": "SOW",
+    "progress": 18,
+    "target": "Sep 18, 2026",
+    "health": "On Track",
+    "lead": "Lyndon Earl Rio",
+    "myRole": "Consultant",
+    "handling": "5h 30m",
+    "aht": "55m",
+    "elapsed": "4d 2h",
+    "waiting": "8h",
+    "workOrder": "WO-119",
+    "collaborators": [],
+    "scope": "Transfer Shares Ronald to Stephan",
+    "exclusions": "",
+    "sow": "draft",
+    "reviewers": {
+      "Management": false,
+      "Lead Consultant": false,
+      "Lead Associate": false,
+      "Operations": false,
+      "Accounting": false
+    },
+    "ntp": false,
+    "ntpNote": "",
+    "tasks": [
+      {
+        "id": "task-119",
+        "title": "Transfer Shares Ronald to Stephan",
+        "assignee": "Lyndon Earl Rio",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-119",
+        "name": "Client closing package",
+        "ready": false
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [],
+      "approved": false
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": null,
+    "coc": null,
+    "closed": false
+  },
+  {
+    "id": 118,
+    "ref": "PROJ-2026-118",
+    "deal": "CONDEAL-2026-054",
+    "title": "Transfer Shares Mandaluyong and Makati",
+    "business": "Sanarex Med Group Inc.",
+    "client": "Doc Willy Dublin",
+    "stage": "Execution",
+    "progress": 52,
+    "target": "Sep 11, 2026",
+    "health": "Needs Attention",
+    "lead": "John Kelly Abalde",
+    "myRole": "Lead Consultant",
+    "handling": "19h 10m",
+    "aht": "1h 21m",
+    "elapsed": "14d 6h",
+    "waiting": "5d 3h",
+    "workOrder": "WO-118",
+    "collaborators": [],
+    "scope": "Transfer Shares Mandaluyong and Makati",
+    "exclusions": "",
+    "sow": "approved",
+    "reviewers": {
+      "Management": true,
+      "Lead Consultant": true,
+      "Lead Associate": true,
+      "Operations": true,
+      "Accounting": true
+    },
+    "ntp": true,
+    "ntpNote": "Seeded approval record",
+    "tasks": [
+      {
+        "id": "task-118",
+        "title": "Transfer Shares Mandaluyong and Makati",
+        "assignee": "John Kelly Abalde",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-118",
+        "name": "Client closing package",
+        "ready": false
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [],
+      "approved": false
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": null,
+    "coc": null,
+    "closed": false
+  },
+  {
+    "id": 115,
+    "ref": "PROJ-2026-115",
+    "deal": "CONDEAL-2026-061",
+    "title": "SEC Registration",
+    "business": "Clear Path",
+    "client": "Chris Anderson",
+    "stage": "Reporting",
+    "progress": 88,
+    "target": "Sep 11, 2026",
+    "health": "On Track",
+    "lead": "John Kelly Abalde",
+    "myRole": "Lead Consultant",
+    "handling": "27h 40m",
+    "aht": "1h 33m",
+    "elapsed": "21d",
+    "waiting": "6d 1h",
+    "workOrder": "WO-115",
+    "collaborators": [],
+    "scope": "SEC Registration",
+    "exclusions": "",
+    "sow": "approved",
+    "reviewers": {
+      "Management": true,
+      "Lead Consultant": true,
+      "Lead Associate": true,
+      "Operations": true,
+      "Accounting": true
+    },
+    "ntp": true,
+    "ntpNote": "Seeded approval record",
+    "tasks": [
+      {
+        "id": "task-115",
+        "title": "SEC Registration",
+        "assignee": "John Kelly Abalde",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-115",
+        "name": "Client closing package",
+        "ready": false
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [],
+      "approved": false
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": null,
+    "coc": null,
+    "closed": false
+  },
+  {
+    "id": 113,
+    "ref": "PROJ-2026-113",
+    "deal": "CONDEAL-2026-034",
+    "title": "BIR and LGU Business Closure",
+    "business": "X10 REAL ESTATE CORPORATION",
+    "client": "X10",
+    "stage": "Execution",
+    "progress": 48,
+    "target": "Sep 11, 2026",
+    "health": "At Risk",
+    "lead": "Lyndon Earl Rio",
+    "myRole": "Consultant",
+    "handling": "23h 10m",
+    "aht": "1h 17m",
+    "elapsed": "18d",
+    "waiting": "7d",
+    "workOrder": "WO-113",
+    "collaborators": [],
+    "scope": "BIR and LGU Business Closure",
+    "exclusions": "",
+    "sow": "approved",
+    "reviewers": {
+      "Management": true,
+      "Lead Consultant": true,
+      "Lead Associate": true,
+      "Operations": true,
+      "Accounting": true
+    },
+    "ntp": true,
+    "ntpNote": "Seeded approval record",
+    "tasks": [
+      {
+        "id": "task-113",
+        "title": "BIR and LGU Business Closure",
+        "assignee": "Lyndon Earl Rio",
+        "done": false,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-113",
+        "name": "Client closing package",
+        "ready": false
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [],
+      "approved": false
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": null,
+    "coc": null,
+    "closed": false
+  },
+  {
+    "id": 110,
+    "ref": "PROJ-2026-110",
+    "deal": "CONDEAL-2026-036",
+    "title": "Tax Clearance",
+    "business": "Criminology Anti Crime Agency, Inc.",
+    "client": "Criminology Anti Crime Agency",
+    "stage": "Completed",
+    "progress": 100,
+    "target": "Aug 07, 2026",
+    "health": "Completed",
+    "lead": "Lyndon Earl Rio",
+    "myRole": "Lead Consultant",
+    "handling": "15h 22m",
+    "aht": "58m",
+    "elapsed": "17d 3h",
+    "waiting": "6d 8h",
+    "workOrder": "WO-110",
+    "collaborators": [],
+    "scope": "Tax Clearance",
+    "exclusions": "",
+    "sow": "approved",
+    "reviewers": {
+      "Management": true,
+      "Lead Consultant": true,
+      "Lead Associate": true,
+      "Operations": true,
+      "Accounting": true
+    },
+    "ntp": true,
+    "ntpNote": "Seeded approval record",
+    "tasks": [
+      {
+        "id": "task-110",
+        "title": "Tax Clearance",
+        "assignee": "Lyndon Earl Rio",
+        "done": true,
+        "timer": {
+          "seconds": 0,
+          "started": null
+        }
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "d-110",
+        "name": "Client closing package",
+        "ready": true
+      }
+    ],
+    "files": [],
+    "actions": [],
+    "updates": [],
+    "history": [
+      {
+        "at": "2026-09-05T00:00:00Z",
+        "action": "Demo project imported"
+      }
+    ],
+    "report": {
+      "issues": "",
+      "recommendations": "",
+      "way": "",
+      "selected": [
+        "task-110"
+      ],
+      "approved": true
+    },
+    "timer": {
+      "seconds": 0,
+      "started": null
+    },
+    "transmittal": "TRN-110",
+    "coc": "COC-110",
+    "closed": true
+  }
+]

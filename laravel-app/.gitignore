@@ -8,7 +8,3 @@
 /storage/framework/views/*
 /storage/logs/*.log
 /.phpunit.cache/
-/.qa/
-.phpunit.result.cache
-laravel-app/storage/framework/testing/
-**/testing/disks/

@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ORDO Project Workspace</title>
+    <link rel="stylesheet" href="../assets/css/project-workspace.css" />
+    <style>
+      .report-task-record { margin:12px 0; padding:12px; border:1px solid #dce4f2; border-radius:9px; background:#fff; }
+      .report-task-record h4 { margin:0 0 4px; color:#203a7c; font-size:11px; }
+      .report-task-meta { color:#7a8599; font-size:8px; }
+      .report-task-record h5 { margin:12px 0 5px; color:#40506d; font-size:9px; text-transform:uppercase; letter-spacing:.4px; }
+      .report-task-record ul { margin:5px 0 0; padding-left:18px; }
+      .report-task-record li { margin:5px 0; line-height:1.45; }
+      .report-empty { color:#8a94a7; font-style:italic; }
+      .client-report-history { display:grid; gap:9px; }
+      .client-report-entry { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; padding:12px 13px; border:1px solid #dce4f2; border-radius:9px; background:#fff; }
+      .client-report-entry h4 { margin:0 0 4px; color:#203a7c; font-size:10px; }
+      .client-report-entry p { margin:7px 0 0; color:#4d5b73; font-size:8px; line-height:1.5; }
+      .delivery-proof { display:flex; flex-wrap:wrap; gap:5px 12px; color:#7a8599; font-size:7px; }
+      .delivery-status { color:#277653; font-weight:800; }
+      .report-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; margin:12px 0; }
+      .report-summary-card { padding:12px; border:1px solid #dce4f2; border-radius:10px; background:linear-gradient(145deg,#fff,#f6f8fc); }
+      .report-summary-card span { display:block; color:#8791a4; font-size:7px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
+      .report-summary-card strong { display:block; margin-top:5px; color:#203a7c; font-size:17px; }
+      .report-document { border:1px solid #d8dfeb; background:#fff; box-shadow:0 12px 28px rgba(33,51,91,.08); }
+      .report-dochead { display:flex; justify-content:space-between; align-items:flex-start; padding:22px 26px 18px; border-bottom:5px solid #203a7c; }
+      .report-docbrand { color:#111827; font-family:Georgia,serif; font-size:17px; font-weight:700; }
+      .report-doctitle { text-align:right; color:#203a7c; }
+      .report-doctitle h1 { margin:0; font-family:Georgia,serif; font-size:23px; letter-spacing:1px; }
+      .report-doctitle small { color:#667085; }
+      .report-docmeta { display:grid; grid-template-columns:150px 1fr 130px 1fr; gap:0; border-bottom:1px solid #d8dfeb; }
+      .report-docmeta > div { padding:8px 10px; border-right:1px solid #e2e7ef; border-bottom:1px solid #e2e7ef; font-size:8px; }
+      .report-docmeta .value { color:#243a73; font-weight:700; }
+      .project-info-heading { padding:13px 18px 9px; border-bottom:1px solid #d8dfeb; }
+      .project-info-heading strong { display:block; color:#203a7c; font-family:Georgia,serif; font-size:12px; }
+      .project-info-heading span { display:block; margin-top:3px; color:#7b879b; font-size:8px; }
+      .report-body { padding:18px 22px 24px; }
+      .report-scope-title { margin:0; padding:8px 12px; background:#203a7c; color:#fff; font-family:Georgia,serif; font-size:11px; font-weight:700; text-align:center; }
+      .report-table-wrap { overflow:auto; border:1px solid #cfd7e5; border-top:0; }
+      .report-table { width:100%; min-width:900px; border-collapse:collapse; table-layout:fixed; }
+      .report-table th { padding:8px 6px; background:#f0f3f9; color:#46546d; border:1px solid #d8dfeb; font-size:7px; text-transform:uppercase; letter-spacing:.25px; text-align:left; }
+      .report-table td { padding:8px 6px; border:1px solid #e0e5ed; color:#46546d; font-size:8px; vertical-align:top; line-height:1.4; }
+      .report-table tr.main-task td { background:#f7f9fd; font-weight:700; color:#243a73; }
+      .report-update-btn { width:100%; padding:6px 8px; border:1px solid #bfcceb; border-radius:7px; background:#f2f6ff; color:#25499a; font:700 8px inherit; cursor:pointer; }
+      .report-update-btn:hover { background:#e8efff; }
+      .report-status { display:inline-flex; padding:4px 7px; border-radius:999px; background:#eef2f7; color:#5e6a7d; font-weight:800; white-space:nowrap; }
+      .report-status.completed { background:#e8f6ee; color:#26704e; }
+      .report-status.done { background:#e8f6ee; color:#26704e; }
+      .report-status.in-progress { background:#eeeaff; color:#5c48a7; }
+      .report-status.on-hold { background:#fff2df; color:#9a6518; }
+      .report-status.pending-client { background:#fff0dc; color:#9a6114; }
+      .report-role { color:#304b8f; font-weight:700; }
+      .report-narrative { margin-top:14px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+      .report-narrative textarea { min-height:90px; }
+      .report-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+      .report-modal { position:fixed; inset:0; z-index:1000; display:none; align-items:center; justify-content:center; padding:24px; background:rgba(17,28,52,.58); }
+      .report-modal.open { display:flex; }
+      .report-modal-card { width:min(820px,96vw); max-height:85vh; overflow:hidden; border-radius:14px; background:#fff; box-shadow:0 22px 60px rgba(15,26,50,.3); display:flex; flex-direction:column; }
+      .report-modal-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding:16px 18px; border-bottom:1px solid #dce3ef; }
+      .report-modal-head h3 { margin:0; color:#203a7c; font-size:13px; }
+      .report-modal-body { padding:14px 18px 18px; overflow:auto; display:grid; gap:10px; }
+      .report-update-card { padding:12px; border:1px solid #dce4f2; border-radius:9px; background:#fafbfe; }
+      .report-update-card p { margin:6px 0; color:#43516a; line-height:1.55; }
+      .report-section-label { margin:14px 0 8px; color:#203a7c; font-size:9px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
+      .report-summary-label { margin:10px 0 6px; color:#53627b; font-size:8px; font-weight:800; letter-spacing:.35px; text-transform:uppercase; }
+      @media (max-width:700px) { .client-report-entry { grid-template-columns:1fr; } }
+      @media (max-width:1050px) { .report-summary { grid-template-columns:repeat(3,minmax(0,1fr)); } .report-docmeta { grid-template-columns:130px 1fr; } }
+      @media (max-width:700px) { .report-coverage-row { grid-template-columns:1fr 1fr; } .report-coverage-row > div:first-child { grid-column:1/-1; } }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          John Kelly
+          <div class="co">
+            <span class="brandmark">C</span><span>Company</span>
+          </div>
+        </div>
+        <div class="searchwrap"><div class="search">⌕ &nbsp; Search</div></div>
+        <div class="toptools">
+          <span>♧</span>
+          <div class="avatar">J</div>
+        </div>
+      </header>
+      <aside class="rail">
+        <button class="railbtn">▰</button><button class="railbtn">♙</button
+        ><button class="railbtn">⚑</button><button class="railbtn">▤</button
+        ><button class="railbtn">▧</button><button class="railbtn">▥</button
+        ><button class="railbtn">♟</button><button class="railbtn">◎</button
+        ><button class="railbtn">⌁</button><button class="railbtn">▣</button
+        ><button class="railbtn active">⌘</button>
+        <div class="railspace"></div>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">
+          ← <a href="../index.html">Project</a> &nbsp;/&nbsp;
+          <strong>PROJ-2026-120</strong>
+        </div>
+        <section class="workspace-head">
+          <div class="workspace-top">
+            <div>
+              <div class="eyebrow">PROJECT WORKSPACE</div>
+              <div class="workspace-title">
+                Transfer of Share From Dany and Ronald to X10
+              </div>
+              <div class="refline">
+                PROJ-2026-120 · CONDEAL-2026-065 · START-2026-018 · SM-2026-087
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip"
+                >Business <strong>X10 REAL ESTATE CORPORATION</strong></span
+              ><span class="chip">Client <strong>May Flor Dabatos</strong></span
+              ><span class="chip"
+                >Planned Start <strong>Aug 17, 2026</strong></span
+              ><span class="chip"
+                >Target Completion <strong>Sep 18, 2026</strong></span
+              >
+            </div>
+          </div>
+          <div class="primary-tabs">
+            <a class="ptab" href="project-dashboard.html">PROJECT DASHBOARD</a
+            ><a class="ptab" href="work-order.html">WORK ORDER</a
+            ><a class="ptab" href="scope-of-work.html">SCOPE OF WORK</a
+            ><a class="ptab" href="review.html">REVIEW</a
+            ><a class="ptab" href="ntp.html">NTP</a
+            ><a class="ptab" href="execution.html">EXECUTION</a
+            ><a class="ptab active" href="sow-report.html">SOW REPORT</a
+            ><a class="ptab" href="delivery-completion.html"
+              >DELIVERY & COMPLETION</a
+            ><a class="ptab" href="attachment.html">ATTACHMENT</a
+            ><a class="ptab" href="history.html">HISTORY</a>
+          </div>
+        </section>
+        <div class="lifecycle">
+          <div class="life-title">
+            <strong>Project Lifecycle</strong
+            ><span>Policy-controlled process</span>
+          </div>
+          <div class="life" id="life"></div>
+        </div>
+        <div class="layout">
+          <aside class="sidecard">
+            <div id="reportStageManagement" aria-live="polite"></div>
+          </aside>
+          <section class="content">
+            <article class="report-document">
+              <header class="report-dochead">
+                <div class="report-docbrand">John Kelly<br />&amp; Company</div>
+                <div class="report-doctitle"><h1>SOW REPORT</h1><small>Live execution reporting record</small></div>
+              </header>
+              <div class="project-info-heading"><strong>Project Information</strong><span>Auto-filled from the Deal, START, and issued Service Memo.</span></div>
+              <div class="report-docmeta">
+                <div>NTP No. (All Notices to Proceed)</div><div class="value" id="reportNtpNumbers"></div>
+                <div>Engagement Proposal Agreement (EPA) No.</div><div class="value" id="reportEpaNo"></div>
+                <div>Work Order No.</div><div class="value" id="reportWorkOrderNo"></div>
+                <div>Project Ref No.</div><div class="value" id="reportProjectRef"></div>
+                <div>Source Service Memo</div><div class="value" id="reportServiceMemo"></div>
+                <div>Source START</div><div class="value" id="reportStartRef"></div>
+                <div>Source Deal</div><div class="value" id="reportDeal"></div>
+                <div>Client</div><div class="value" id="reportClient"></div>
+                <div>Business / Company</div><div class="value" id="reportBusiness"></div>
+                <div>Service / Project</div><div class="value" id="reportService"></div>
+                <div>Service Area</div><div class="value" id="reportServiceArea"></div>
+                <div>Engagement Type</div><div class="value" id="reportEngagementType"></div>
+                <div>Target Start Date</div><div class="value" id="reportTargetStart"></div>
+                <div>Target Project End Date</div><div class="value" id="reportTargetEnd"></div>
+              </div>
+              <div class="report-body">
+                <div class="report-scope-title">WITHIN SCOPE — EXECUTION STATUS &amp; CLIENT UPDATES</div>
+                <div class="report-table-wrap">
+                  <table class="report-table">
+                    <thead><tr><th style="width:5%">Item</th><th style="width:19%">Main Task Description</th><th style="width:25%">Sub Task Description</th><th style="width:13%">Responsibility</th><th style="width:15%">Assigned Person</th><th style="width:12%">Updates Sent to Client</th><th style="width:11%">Status</th></tr></thead>
+                    <tbody id="items"></tbody>
+                  </table>
+                </div>
+                <div class="report-scope-title" style="margin-top:14px">OUT OF SCOPE — EXECUTION STATUS &amp; CLIENT UPDATES</div>
+                <div class="report-table-wrap">
+                  <table class="report-table">
+                    <thead><tr><th style="width:5%">Item</th><th style="width:19%">Main Task Description</th><th style="width:25%">Sub Task Description</th><th style="width:13%">Responsibility</th><th style="width:15%">Assigned Person</th><th style="width:12%">Updates Sent to Client</th><th style="width:11%">Status</th></tr></thead>
+                    <tbody id="outScopeItems"></tbody>
+                  </table>
+                </div>
+                <div class="report-section-label">SOW Report Summary</div>
+                <div class="report-summary-label">Within Scope</div>
+                <div class="report-summary" id="reportSummary"></div>
+                <div class="report-summary-label">Out of Scope</div>
+                <div class="report-summary" id="outScopeReportSummary"></div>
+                <div class="report-section-label">Final Report Narrative</div>
+                <div class="report-narrative">
+                  <div class="form-group"><label>Issues &amp; Observations</label><textarea id="issues">Client execution copies were received in batches.</textarea></div>
+                  <div class="form-group"><label>Recommendations</label><textarea id="recommendations">Maintain updated corporate records with the closing package.</textarea></div>
+                  <div class="form-group"><label>Summary / Way Forward</label><textarea id="way">Complete remaining processing and corporate record updates, then transmit the final package and issue the COC.</textarea></div>
+                </div>
+                <div hidden aria-hidden="true"><button id="refresh" type="button">Refresh</button><button id="approve" type="button">Generate Report</button></div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </main>
+    </div>
+    <div class="report-modal" id="updatesModal" role="dialog" aria-modal="true" aria-labelledby="updatesModalTitle">
+      <div class="report-modal-card"><div class="report-modal-head"><div><h3 id="updatesModalTitle">Client Updates</h3><div class="imeta" id="updatesModalMeta"></div></div><button class="btn" id="closeUpdatesModal" type="button">Close</button></div><div class="report-modal-body" id="updatesModalBody"></div></div>
+    </div>
+    <script src="../assets/js/mock-data.js"></script>
+    <script src="../assets/js/project-session.js"></script>
+    <script src="../assets/js/common.js"></script>
+    <script>
+      (function () {
+        const current = 5, stage = ORDO_STATE.stageManagement.stages[current], tasks = ORDO.allTasks();
+        document.getElementById("life").innerHTML = ORDO.stages
+          .map(
+            (s, i) =>
+              `<button class="stage ${i < current ? "done" : i === current ? "current" : ""}"><b>${ORDO.lifecyclePercentages[i]}</b><small>${s}</small></button>`,
+          )
+          .join("");
+        const allExecutionComplete = tasks.length > 0 && tasks.every(({task}) => task.status === "Completed");
+        if (allExecutionComplete && stage.status !== "Completed" && !stage.startedAt) { const at = new Date().toISOString(); stage.startedAt = at; stage.inProgressStartedAt = at; stage.status = "In Progress"; ORDO.log("Reporting started automatically after Execution completion"); ORDO.save(); }
+        const seconds = (stored, started) => Number(stored || 0) + (started ? Math.max(0,Math.floor((Date.now()-new Date(started).getTime())/1000)) : 0);
+        const assigned = (responsibility) => [...new Set((ORDO_STATE.workOrder?.stageAssignments || []).filter((row) => row.stage === "Reporting" && (row.responsibilities || []).includes(responsibility)).flatMap((row) => row.persons || []))];
+        function renderManagement(){
+          const progress=seconds(stage.inProgressSeconds,stage.inProgressStartedAt),hold=seconds(stage.onHoldSeconds,stage.onHoldStartedAt),waiting=seconds(stage.waitingSeconds,stage.waitingStartedAt),elapsed=stage.startedAt?Math.max(0,Math.floor(((stage.completedAt?new Date(stage.completedAt):new Date())-new Date(stage.startedAt))/1000)):0;
+          const status=allExecutionComplete?(stage.status||"In Progress"):"Receiving Execution Updates";
+          document.getElementById("reportStageManagement").innerHTML=`<div class="side-title">STAGE MANAGEMENT</div><div class="stage-management-panel wo-management"><section><h4>STAGE STATUS</h4><div class="stage-status-value ${status.toLowerCase().replaceAll(" ","-")}">${status}</div></section><section><h4>STAGE HANDLING</h4><div class="stage-total"><span>Total Stage Handling<br>Time</span><strong id="reportHandling">${ORDO.fmt(progress+hold)}</strong></div><dl class="stage-handling"><div><dt>In Progress</dt><dd id="reportProgress">${ORDO.fmt(progress)}</dd></div><div><dt>On Hold</dt><dd id="reportHold">${ORDO.fmt(hold)}</dd></div><div><dt>Waiting</dt><dd id="reportWaiting">${ORDO.fmt(waiting)}</dd></div><div><dt>Responsible</dt><dd>${ORDO.esc(assigned("Responsible").join(", ")||"Unassigned")}</dd></div><div><dt>Reviewer</dt><dd>${ORDO.esc(assigned("Reviewer").join(", ")||"Unassigned")}</dd></div><div><dt>Approver</dt><dd>${ORDO.esc(assigned("Approver").join(", ")||"Unassigned")}</dd></div><div><dt>Waiting On</dt><dd>${ORDO.esc(stage.waitingOn||(!allExecutionComplete?"Completion of Execution tasks":"—"))}</dd></div><div><dt>Started</dt><dd>${stage.startedAt?new Date(stage.startedAt).toLocaleString():"—"}</dd></div><div><dt>Completed</dt><dd>${stage.completedAt?new Date(stage.completedAt).toLocaleString():"—"}</dd></div><div><dt>Stage Elapsed</dt><dd id="reportElapsed">${ORDO.fmt(elapsed)}</dd></div></dl></section><section><h4>STAGE CONTROLS</h4><div class="stage-controls">${allExecutionComplete?'<div class="workflow-note">Execution is complete. Review the assembled records and generate the final SOW Report.</div>':'<a class="stage-control primary" href="execution.html?project='+ORDO_PROJECT_ID+'">Open Execution</a><div class="workflow-note">Live client updates are visible here while formal Reporting waits for Execution completion.</div>'}</div></section></div>`;
+        }
+        renderManagement(); setInterval(renderManagement,1000);
+      })();
+    </script>
+    <script>
+      (function () {
+        const taskTiming = (task) => {
+          const timer = task.executionWorkspace?.timer;
+          if (!timer) return { working: ORDO.taskSeconds(task), paused: 0, total: ORDO.taskSeconds(task) };
+          const live = (startedAt) => startedAt ? Math.max(0, Math.floor((Date.now() - Number(startedAt)) / 1000)) : 0;
+          const working = Number(timer.workingSeconds || 0) + (timer.state === "working" ? live(timer.workingStartedAt) : 0);
+          const paused = Number(timer.pausedSeconds || 0) + (timer.state === "paused" ? live(timer.pausedStartedAt) : 0);
+          return { working, paused, total: working + paused };
+        };
+        const clientUpdatesFor = (task) => (task.executionWorkspace?.updates || []).filter((update) => update.reportToClient !== false);
+        const reportStatus = (status) => ["Completed", "Done"].includes(status) ? "Done" : ["On Hold", "Pending Client"].includes(status) ? "On Hold" : "In Progress";
+        const statusClass = (status) => reportStatus(status).toLowerCase().replaceAll(" ", "-");
+        const responsibilityText = (record) => (record.responsibilities?.length ? record.responsibilities : ["Responsible"]).join(", ");
+        const assignedText = (record, fallback) => (record.assignees?.length ? record.assignees : [record.assignee || record.owner || fallback || "Unassigned"]).filter(Boolean).join(", ");
+        const approvedOutScopeStreams = () => {
+          const approved = (ORDO_STATE.sowVersions?.history || []).filter((version) => version.status === "approved").flatMap((version) => version.items || []);
+          return approved.length ? approved : (ORDO_STATE.sowOutOfScope || []);
+        };
+        const reportStreams = () => [...(ORDO_STATE.streams || []), ...approvedOutScopeStreams()];
+        const reportTasks = () => reportStreams().flatMap((stream) => (stream.tasks || []).map((task) => ({task,stream})));
+        const streamStatus = (stream) => {
+          const statuses = stream.tasks.map((task) => task.status || "Not Started");
+          if (statuses.length && statuses.every((status) => status === "Completed")) return "Done";
+          if (statuses.includes("In Progress")) return "In Progress";
+          if (statuses.some((status) => ["On Hold", "Pending Client"].includes(status))) return "On Hold";
+          return "In Progress";
+        };
+        const taskReportRecord = ({task, stream}) => {
+          const workspace = task.executionWorkspace || {updates:[],attachments:[]}, timing = taskTiming(task);
+          const clientUpdates = (workspace.updates || []).filter((update) => update.reportToClient !== false), clientUpdateIds = new Set(clientUpdates.map((update) => update.id));
+          const updates = clientUpdates.map((update) => { const snapshot = update.timing || timing; return `<li>${update.text ? ORDO.esc(update.text) : "File update"}${update.files?.length ? `<br><span class="report-task-meta">Files: ${update.files.map((file) => ORDO.esc(file.name)).join(", ")}</span>` : ""}<br><span class="report-task-meta">Reported ${new Date(update.at).toLocaleString()} by ${ORDO.esc(update.user || "User")} · Work ${ORDO.dur(snapshot.working)} · On Hold ${ORDO.dur(snapshot.paused)} · Total ${ORDO.dur(snapshot.total)}</span></li>`; }).join("");
+          const attachments = (workspace.attachments || []).filter((file) => clientUpdateIds.has(file.updateId)).map((file) => `<li>${ORDO.esc(file.name)} <span class="report-task-meta">${ORDO.esc(file.type || "File")} · Added ${new Date(file.addedAt).toLocaleString()}</span></li>`).join("");
+          return `<section class="report-task-record"><h4>${ORDO.esc(task.title)}</h4><div class="report-task-meta">${ORDO.esc(stream.name)} · ${ORDO.esc(task.assignee || "Unassigned")} · Work ${ORDO.dur(timing.working)} · On Hold ${ORDO.dur(timing.paused)} · Total ${ORDO.dur(timing.total)}</div><h5>Execution Updates</h5>${updates ? `<ul>${updates}</ul>` : '<div class="report-empty">No written updates recorded.</div>'}<h5>Task Attachments</h5>${attachments ? `<ul>${attachments}</ul>` : '<div class="report-empty">No attachments recorded.</div>'}</section>`;
+        };
+        ORDO_STATE.clientReportCommunications ||= [];
+        const projectRecord = ORDO_STATE.projects.find((item) => item.id === ORDO_PROJECT_ID) || {};
+        const workOrderRecord = ORDO_STATE.workOrder || {};
+        let activeNtpRecord = {};
+        try { activeNtpRecord = JSON.parse(localStorage.getItem(`ordoNtpFunctionalV2-${ORDO_PROJECT_ID}`) || "{}"); } catch (error) {}
+        const ntpNumbers = [...new Set([...(ORDO_STATE.ntpNumbers || []), activeNtpRecord.fields?.ntpNo].filter(Boolean))];
+        const projectInformation = {
+          reportNtpNumbers: ntpNumbers.join(", ") || "—",
+          reportEpaNo: projectRecord.epaNo || workOrderRecord.epaNo || activeNtpRecord.epaNo || "—",
+          reportWorkOrderNo: workOrderRecord.workOrderNo || `PROJ-WO-${new Date().getFullYear()}-${ORDO_PROJECT_ID}`,
+          reportProjectRef: projectRecord.ref || `PROJ-${ORDO_PROJECT_ID}`,
+          reportServiceMemo: workOrderRecord.serviceMemo || projectRecord.serviceMemo || "—",
+          reportStartRef: workOrderRecord.startRef || projectRecord.startRef || "—",
+          reportDeal: projectRecord.deal || "—",
+          reportClient: projectRecord.client || "—",
+          reportBusiness: projectRecord.business || "—",
+          reportService: workOrderRecord.service || projectRecord.service || projectRecord.title || "—",
+          reportServiceArea: workOrderRecord.serviceArea || projectRecord.serviceArea || "Corporate Services",
+          reportEngagementType: workOrderRecord.engagementType || projectRecord.engagementType || "Project",
+          reportTargetStart: workOrderRecord.targetStart || projectRecord.targetStart || "—",
+          reportTargetEnd: workOrderRecord.targetEnd || projectRecord.target || "—",
+        };
+        Object.entries(projectInformation).forEach(([id,value])=>{const element=document.getElementById(id);if(element)element.textContent=value;});
+        ORDO.allTasks().forEach(({task, stream}) => (task.executionWorkspace?.updates || []).forEach((update) => {
+          if (update.reportToClient === false) return;
+          if (ORDO_STATE.clientReportCommunications.some((entry) => entry.updateId === update.id)) return;
+          ORDO_STATE.clientReportCommunications.push({ id:`CLIENT-UPDATE-${ORDO_PROJECT_ID}-${update.id}`, type:"Execution Update", updateId:update.id, taskId:task.id, taskTitle:task.title, streamTitle:stream.name, recipient:projectRecord.clientEmail || ORDO_STATE.clientContact?.email || "Client email on file", client:projectRecord.client || "Client", text:update.text || "", files:update.files || [], sentAt:update.at, lastSentAt:update.at, status:"Sent to Client", attempts:1, proofId:`REPORT-${ORDO_PROJECT_ID}-${update.id}` });
+        }));
+        ORDO.save();
+        function renderClientReportHistory() {
+          const records = ORDO_STATE.clientReportCommunications;
+          return records;
+        }
+        function r() {
+          const allTasks = reportTasks();
+          const summaryFor=(streams)=>{const children=streams.flatMap((stream)=>(stream.tasks||[]).map((task)=>({task,stream}))),count=(status)=>children.filter(({task})=>reportStatus(task.status)===status).length;return [["Main Tasks",streams.length],["Child Tasks",children.length],["Done",count("Done")],["In Progress",count("In Progress")],["On Hold",count("On Hold")]].map(([label,value])=>`<div class="report-summary-card"><span>${label}</span><strong>${value}</strong></div>`).join("");};
+          document.getElementById("reportSummary").innerHTML=summaryFor(ORDO_STATE.streams||[]);
+          document.getElementById("outScopeReportSummary").innerHTML=summaryFor(approvedOutScopeStreams());
+          const renderRows=(collection,prefix)=>{const rows=[];collection.forEach((stream,streamIndex)=>{
+            const streamUpdates=stream.tasks.flatMap(clientUpdatesFor),status=streamStatus(stream);
+            rows.push(`<tr class="main-task"><td>${prefix}${streamIndex+1}</td><td>${ORDO.esc(stream.name)}</td><td>Main SOW task / workstream</td><td><span class="report-role">${ORDO.esc(responsibilityText(stream))}</span></td><td>${ORDO.esc(assignedText(stream,"Project Manager"))}</td><td><button class="report-update-btn" data-stream-scope="${prefix?"out":"within"}" data-stream-index="${streamIndex}">${streamUpdates.length} update${streamUpdates.length===1?"":"s"}</button></td><td><span class="report-status ${statusClass(status)}">${ORDO.esc(reportStatus(status))}</span></td></tr>`);
+            stream.tasks.forEach((task,taskIndex)=>{const updates=clientUpdatesFor(task),status=task.status||"Not Started";rows.push(`<tr class="report-coverage-row"><td>${prefix}${streamIndex+1}.${taskIndex+1}</td><td>↳ ${ORDO.esc(stream.name)}</td><td>${ORDO.esc(task.title)}</td><td><span class="report-role">${ORDO.esc(responsibilityText(task))}</span></td><td>${ORDO.esc(assignedText(task))}</td><td><button class="report-update-btn" data-task-id="${ORDO.esc(task.id)}">${updates.length} update${updates.length===1?"":"s"}</button></td><td><span class="report-status ${statusClass(status)}">${ORDO.esc(reportStatus(status))}</span></td></tr>`);});
+          });return rows.join("");};
+          document.getElementById("items").innerHTML=renderRows(ORDO_STATE.streams||[],"")||'<tr><td colspan="7" class="report-empty">No approved Within Scope tasks are available.</td></tr>';
+          document.getElementById("outScopeItems").innerHTML=renderRows(approvedOutScopeStreams(),"OOS-")||'<tr><td colspan="7" class="report-empty">No approved Out of Scope tasks are recorded.</td></tr>';
+          renderClientReportHistory();
+        }
+        function openUpdates(title, tasks) {
+          const taskIds=new Set(tasks.map((task)=>String(task.id)));
+          const updateIds=new Set(tasks.flatMap((task)=>clientUpdatesFor(task).map((update)=>String(update.id))));
+          const reports=(ORDO_STATE.clientReportCommunications||[]).filter((entry)=>taskIds.has(String(entry.taskId))||updateIds.has(String(entry.updateId))).sort((a,b)=>new Date(b.sentAt)-new Date(a.sentAt));
+          document.getElementById("updatesModalTitle").textContent=title;
+          document.getElementById("updatesModalMeta").textContent=`${reports.length} client report${reports.length===1?"":"s"} recorded for this SOW item`;
+          document.getElementById("updatesModalBody").innerHTML=reports.length?reports.map((entry)=>`<article class="client-report-entry"><div><h4>${ORDO.esc(entry.type)} — ${ORDO.esc(entry.taskTitle||title)}</h4><div class="delivery-proof"><span class="delivery-status">${ORDO.esc(entry.status)}</span><span>To: ${ORDO.esc(entry.recipient)}</span><span>Originally sent: ${new Date(entry.sentAt).toLocaleString()}</span><span>Last sent: ${new Date(entry.lastSentAt||entry.sentAt).toLocaleString()}</span><span>Attempts: ${Number(entry.attempts||1)}</span><span>Proof ID: ${ORDO.esc(entry.proofId)}</span></div>${entry.text?`<p>${ORDO.esc(entry.text)}</p>`:""}${entry.files?.length?`<p><strong>Attachments:</strong> ${entry.files.map((file)=>ORDO.esc(file.name)).join(", ")}</p>`:""}</div><button class="btn resend-client-report" type="button" data-report-id="${ORDO.esc(entry.id)}">Resend to Client</button></article>`).join(""):'<p class="report-empty">No updates have been sent to the client for this item.</p>';
+          document.getElementById("updatesModal").classList.add("open");
+        }
+        const updateClick=(event)=>{const button=event.target.closest(".report-update-btn");if(!button)return;if(button.dataset.taskId){const found=reportTasks().find(({task})=>String(task.id)===button.dataset.taskId);if(found)openUpdates(found.task.title,[found.task]);return;}const collection=button.dataset.streamScope==="out"?approvedOutScopeStreams():(ORDO_STATE.streams||[]),stream=collection[Number(button.dataset.streamIndex)];if(stream)openUpdates(stream.name,stream.tasks);};
+        document.getElementById("items").onclick=updateClick;
+        document.getElementById("outScopeItems").onclick=updateClick;
+        document.getElementById("closeUpdatesModal").onclick=()=>document.getElementById("updatesModal").classList.remove("open");
+        document.getElementById("updatesModal").onclick=(event)=>{if(event.target.id==="updatesModal")event.currentTarget.classList.remove("open");};
+        document.getElementById("updatesModalBody").onclick = (event) => {
+          const button = event.target.closest(".resend-client-report");
+          if (!button) return;
+          const entry = ORDO_STATE.clientReportCommunications.find((item) => item.id === button.dataset.reportId);
+          if (!entry) return;
+          entry.lastSentAt = new Date().toISOString(); entry.attempts = Number(entry.attempts || 1) + 1; entry.status = "Resent to Client";
+          ORDO.log(`Client report resent: ${entry.taskTitle || entry.type} to ${entry.recipient}`);
+          ORDO.save();
+          button.closest(".client-report-entry").querySelector(".delivery-status").textContent=entry.status;
+          const details=button.closest(".client-report-entry").querySelectorAll(".delivery-proof span");
+          if(details[3])details[3].textContent=`Last sent: ${new Date(entry.lastSentAt).toLocaleString()}`;
+          if(details[4])details[4].textContent=`Attempts: ${entry.attempts}`;
+          alert(`Report resent to ${entry.recipient}.`);
+        };
+        document.getElementById("refresh").onclick = r;
+        document.getElementById("approve").onclick = () => {
+          const d = ORDO_STATE.deliverables.find(
+            (x) => x.name === "Final SOW Report",
+          );
+          if (d) d.status = "Ready";
+          ORDO.log("Final SOW Report generated / approved");
+          r();
+          alert("Report marked ready. Delivery remains policy-gated.");
+        };
+        r();
+      })();
+    </script>
+    <script src="../assets/js/workspace-fixes.js"></script>
+    <script src="../assets/js/sow-report-stage-management.js"></script>
+  </body>
+</html>
