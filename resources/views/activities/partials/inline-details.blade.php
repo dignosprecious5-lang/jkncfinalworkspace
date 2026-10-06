@@ -3082,10 +3082,28 @@
                     <div x-show="coreActivityDetailTab === 'overview'" class="rounded-xl border border-slate-200 bg-white">
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                             <h3 class="text-[11px] font-bold text-slate-800" x-text="coreActivityInformationTitle"></h3>
-                            <span x-show="selectedCoreActivityType === 'meeting' && coreMeetingHasCalendarSync" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[8px] font-semibold text-emerald-700">
-                                <i class="fas fa-check-circle"></i>
-                                Calendar synced
-                            </span>
+                            <div x-show="selectedCoreActivityType === 'meeting'" class="flex flex-wrap items-center gap-2">
+    <span
+        x-show="coreMeetingHasCalendarSync"
+        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[8px] font-semibold text-emerald-700">
+        <i class="fas fa-check-circle"></i>
+        Calendar synced
+    </span>
+
+    <span
+        x-show="coreMeetingCalendarSyncFailed"
+        class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[8px] font-semibold text-red-700">
+        <i class="fas fa-circle-exclamation"></i>
+        Calendar sync failed
+    </span>
+
+    <span
+        x-show="coreMeetingCalendarSyncPending"
+        class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[8px] font-semibold text-amber-700">
+        <i class="fas fa-clock"></i>
+        Calendar sync pending
+    </span>
+</div>
                         </div>
 
                         <div class="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -6492,7 +6492,11 @@
                                 <td class="px-3 py-4 align-middle">
                                     <span
                                         class="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-[9px] font-medium text-gray-600"
-                                        x-text="meeting.mode || meeting.location || 'Physical'"
+                                        x-text="
+    ['online', 'hybrid', 'physical'].includes(String(meeting.mode || '').toLowerCase())
+        ? String(meeting.mode).charAt(0).toUpperCase() + String(meeting.mode).slice(1).toLowerCase()
+        : (/^https?:\/\//i.test(String(meeting.location || '')) ? 'Online' : 'Physical')
+"
                                     ></span>
                                 </td>
 
@@ -11892,10 +11896,23 @@ window.activitiesData = () => ({
                 { label: 'Certificates Issued', value: this.coreActivityValue(record.certificates_issued) }
             ];
         },
-
         get coreMeetingHasCalendarSync() {
             const record = this.selectedCoreActivityDetails || {};
-            return Boolean(record.external_calendar_event_id || record.calendar_sync_status || record.calendar_synced_at);
+
+            return String(record.calendar_sync_status || '').toLowerCase() === 'synced'
+                && Boolean(record.external_calendar_event_id);
+        },
+
+        get coreMeetingCalendarSyncFailed() {
+            const record = this.selectedCoreActivityDetails || {};
+
+            return String(record.calendar_sync_status || '').toLowerCase() === 'failed';
+        },
+
+        get coreMeetingCalendarSyncPending() {
+            const record = this.selectedCoreActivityDetails || {};
+
+            return String(record.calendar_sync_status || '').toLowerCase() === 'pending';
         },
 
         get coreMeetingUrl() {
