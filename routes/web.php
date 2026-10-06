@@ -204,6 +204,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
         Route::get('/activities/{type}/{id}/audit-log', [\App\Http\Controllers\ActivityAuditController::class, 'index']);
         Route::get('/visitors', [VisitorController::class, 'index']);
         Route::post('/visitors', [VisitorController::class, 'store']);
+        Route::post('/visitors/resolve-contact', [VisitorController::class, 'resolveContact']);
         Route::get('/visits', [VisitController::class, 'index']);
         Route::get('/visits/{visit}', [VisitController::class, 'show']);
         Route::post('/visits/check-in', [VisitController::class, 'checkIn']);

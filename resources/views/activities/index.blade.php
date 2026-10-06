@@ -5329,14 +5329,19 @@
                         class="absolute left-0 right-0 top-full z-40 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
                     >
                         <div x-show="visitorSearchLoading" class="px-4 py-3 text-xs text-gray-500">Searching...</div>
-                        <template x-for="visitor in visitorSearchResults" :key="visitor.id">
+                        <template x-for="visitor in visitorSearchResults" :key="`${visitor.source_type}-${visitor.id}`">
                             <button
                                 type="button"
                                 @click="selectVisitor(visitor)"
                                 class="block w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
                             >
-                                <span class="block text-xs font-medium text-gray-900" x-text="visitor.name"></span>
-                                <span class="mt-1 block text-[10px] text-gray-400" x-text="[visitor.visitor_reference, visitor.mobile, visitor.company].filter(Boolean).join(' - ')"></span>
+                                <span
+                                    class="inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                                    :class="visitor.source_type === 'contact' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'"
+                                    x-text="visitor.source_type === 'contact' ? 'Contact' : 'Visitor'"
+                                ></span>
+                                <span class="mt-1 block text-xs font-medium text-gray-900" x-text="visitor.name"></span>
+                                <span class="mt-1 block text-[10px] text-gray-400" x-text="[visitor.visitor_reference, visitor.cif_no, visitor.company_name, visitor.mobile, visitor.email].filter(Boolean).join(' - ')"></span>
                             </button>
                         </template>
                     </div>
@@ -9682,11 +9687,23 @@ window.activitiesData = () => ({
             }
         },
 
-        selectVisitor(visitor) {
-            this.selectedVisitor = visitor;
-            this.visitorSearch = `${visitor.name} (${visitor.visitor_reference})`;
-            this.visitorSearchResults = [];
+        async selectVisitor(result) {
             this.visitorLogError = '';
+
+            try {
+                const visitor = result.source_type === 'contact' && !result.has_visitor
+                    ? await this.visitorApiRequest('/api/visitors/resolve-contact', {
+                        method: 'POST',
+                        body: JSON.stringify({ contact_id: result.contact_id })
+                    })
+                    : result;
+
+                this.selectedVisitor = visitor;
+                this.visitorSearch = `${visitor.name} (${visitor.visitor_reference})`;
+                this.visitorSearchResults = [];
+            } catch (error) {
+                this.visitorLogError = error.message || 'Unable to resolve the selected contact.';
+            }
         },
 
         async createFirstTimeVisitor() {
@@ -9703,7 +9720,7 @@ window.activitiesData = () => ({
                         company_name: this.newVisitor.company_name || null
                     })
                 });
-                this.selectVisitor(payload);
+                await this.selectVisitor(payload);
                 this.newVisitor = { name: '', mobile: '', email: '', company_name: '' };
                 this.firstTimeVisitorOpen = false;
             } catch (error) {

@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Visitor;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -34,11 +35,13 @@ beforeEach(function () {
         $table->id();
         $table->string('first_name')->nullable();
         $table->string('middle_initial')->nullable();
+        $table->string('middle_name')->nullable();
         $table->string('last_name')->nullable();
         $table->string('name_extension')->nullable();
         $table->string('company_name')->nullable();
         $table->string('email')->nullable();
         $table->string('phone')->nullable();
+        $table->string('cif_no')->nullable()->unique();
         $table->timestamps();
     });
 
@@ -86,7 +89,7 @@ beforeEach(function () {
         $table->string('mobile')->nullable();
         $table->string('email')->nullable();
         $table->string('company_name')->nullable();
-        $table->unsignedBigInteger('contact_id')->nullable();
+        $table->foreignId('contact_id')->nullable()->constrained('contacts')->nullOnDelete();
         $table->timestamps();
     });
 
@@ -117,6 +120,8 @@ beforeEach(function () {
         $table->timestamps();
         $table->unique(['visit_id', 'movement_type']);
     });
+
+    (require database_path('migrations/2026_10_06_000001_add_unique_contact_id_to_visitors_table.php'))->up();
 });
 
 test('visitor log endpoints require authentication and retain the Activities permission middleware', function () {
@@ -124,7 +129,7 @@ test('visitor log endpoints require authentication and retain the Activities per
         ->getJson('/api/visitors')
         ->assertUnauthorized();
 
-    foreach (['api/visitors', 'api/visits', 'api/visits/check-in'] as $uri) {
+    foreach (['api/visitors', 'api/visitors/resolve-contact', 'api/visits', 'api/visits/check-in'] as $uri) {
         $route = collect(Route::getRoutes())->first(fn ($route) => $route->uri() === $uri);
 
         expect($route)->not->toBeNull()
@@ -150,37 +155,150 @@ test('visitor log endpoints require authentication and retain the Activities per
         ->assertForbidden();
 });
 
-test('first-time visitors receive generated IDs, may link a Contact, and can be searched by every approved identity field', function () {
+test('unlinked Contacts are dynamically searchable by full name, phone, email, and CIF number', function () {
+    $contact = Contact::query()->create([
+        'first_name' => 'Juan',
+        'middle_initial' => 'D',
+        'last_name' => 'Cruz',
+        'company_name' => 'Acme Corp',
+        'email' => 'juan@acme.test',
+        'phone' => '09171234567',
+        'cif_no' => 'CIF-20261006-0001',
+    ]);
+
+    foreach (['Juan D Cruz', '09171234567', 'juan@acme.test', 'CIF-20261006-0001'] as $term) {
+        $this->getJson('/api/visitors?search='.urlencode($term))
+            ->assertOk()
+            ->assertJsonCount(1, 'visitors')
+            ->assertJsonPath('visitors.0.id', $contact->id)
+            ->assertJsonPath('visitors.0.source_type', 'contact')
+            ->assertJsonPath('visitors.0.contact_id', $contact->id)
+            ->assertJsonPath('visitors.0.visitor_id', null)
+            ->assertJsonPath('visitors.0.has_visitor', false);
+    }
+});
+
+test('existing Visitors remain searchable and are marked as Visitor results', function () {
+    $visitor = Visitor::query()->create([
+        'name' => 'Ana Reyes',
+        'mobile' => '09170000000',
+        'email' => 'visitor@acme.test',
+    ]);
+
+    foreach ([$visitor->visitor_reference, 'Ana Reyes', '09170000000', 'visitor@acme.test'] as $term) {
+        $this->getJson('/api/visitors?search='.urlencode($term))
+            ->assertOk()
+            ->assertJsonCount(1, 'visitors')
+            ->assertJsonPath('visitors.0.id', $visitor->id)
+            ->assertJsonPath('visitors.0.source_type', 'visitor')
+            ->assertJsonPath('visitors.0.visitor_id', $visitor->id)
+            ->assertJsonPath('visitors.0.has_visitor', true);
+    }
+});
+
+test('linked Contacts resolve to one Visitor result without a duplicate Contact result', function () {
+    $contact = Contact::query()->create([
+        'first_name' => 'Linked',
+        'last_name' => 'Contact',
+        'company_name' => 'Linked Corp',
+        'email' => 'linked@acme.test',
+        'phone' => '09171111111',
+        'cif_no' => 'CIF-LINKED-0001',
+    ]);
+    $visitor = Visitor::query()->create([
+        'name' => 'Visitor Snapshot',
+        'contact_id' => $contact->id,
+    ]);
+
+    $this->getJson('/api/visitors?search=CIF-LINKED-0001')
+        ->assertOk()
+        ->assertJsonCount(1, 'visitors')
+        ->assertJsonPath('visitors.0.id', $visitor->id)
+        ->assertJsonPath('visitors.0.source_type', 'visitor')
+        ->assertJsonPath('visitors.0.contact_id', $contact->id)
+        ->assertJsonPath('visitors.0.cif_no', 'CIF-LINKED-0001');
+});
+
+test('resolving a Contact creates one Visitor snapshot and remains idempotent through both endpoints', function () {
     $contact = Contact::query()->create([
         'first_name' => 'Ana',
         'last_name' => 'Reyes',
         'company_name' => 'Acme Corp',
         'email' => 'ana@acme.test',
         'phone' => '09171234567',
+        'cif_no' => 'CIF-RESOLVE-0001',
     ]);
 
-    $created = $this->postJson('/api/visitors', [
-        'name' => 'Ana Reyes',
-        'mobile' => '09171234567',
-        'email' => 'visitor@acme.test',
-        'company_name' => 'Acme Corp',
+    $created = $this->postJson('/api/visitors/resolve-contact', ['contact_id' => $contact->id])
+        ->assertCreated()
+        ->assertJsonPath('contact_id', $contact->id)
+        ->assertJsonPath('name', 'Ana Reyes')
+        ->assertJsonPath('mobile', '09171234567')
+        ->assertJsonPath('email', 'ana@acme.test')
+        ->assertJsonPath('company_name', 'Acme Corp');
+
+    $visitorId = $created->json('id');
+
+    $this->postJson('/api/visitors/resolve-contact', ['contact_id' => $contact->id])
+        ->assertOk()
+        ->assertJsonPath('id', $visitorId);
+
+    $this->postJson('/api/visitors', ['contact_id' => $contact->id])
+        ->assertOk()
+        ->assertJsonPath('id', $visitorId);
+
+    $this->assertDatabaseCount('contacts', 1);
+    $this->assertDatabaseCount('visitors', 1);
+});
+
+test('the database rejects a second linked Visitor for one Contact while allowing unlinked Visitors', function () {
+    $contact = Contact::query()->create([
+        'first_name' => 'Unique',
+        'last_name' => 'Contact',
+        'cif_no' => 'CIF-UNIQUE-0001',
+    ]);
+
+    $this->postJson('/api/visitors/resolve-contact', ['contact_id' => $contact->id])->assertCreated();
+
+    expect(fn () => Visitor::query()->create([
+        'name' => 'Duplicate Linked Visitor',
         'contact_id' => $contact->id,
+    ]))->toThrow(QueryException::class);
+
+    Visitor::query()->create(['name' => 'First Unlinked Visitor']);
+    Visitor::query()->create(['name' => 'Second Unlinked Visitor']);
+    $this->assertDatabaseCount('visitors', 3);
+});
+
+test('first-time visitor creation remains unlinked', function () {
+    $created = $this->postJson('/api/visitors', [
+        'name' => 'First Time Visitor',
+        'mobile' => '09990000000',
     ])->assertCreated()
-        ->assertJsonPath('contact.id', $contact->id)
-        ->assertJsonPath('company', 'Acme Corp');
+        ->assertJsonPath('source_type', 'visitor')
+        ->assertJsonPath('contact_id', null)
+        ->assertJsonPath('has_visitor', true);
 
     expect($created->json('visitor_reference'))->toMatch('/^VIS-\d{4}-\d{6}$/');
-
-    foreach ([$created->json('visitor_reference'), 'Ana Reyes', '09171234567', 'visitor@acme.test'] as $term) {
-        $this->getJson('/api/visitors?search='.urlencode($term))
-            ->assertOk()
-            ->assertJsonCount(1, 'visitors')
-            ->assertJsonPath('visitors.0.id', $created->json('id'));
-    }
 
     $this->postJson('/api/visitors', ['name' => 'Bad Email', 'email' => 'not-an-email'])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('email');
+});
+
+test('deleting a Contact preserves its linked Visitor and nulls the link', function () {
+    $contact = Contact::query()->create([
+        'first_name' => 'Deleted',
+        'last_name' => 'Contact',
+        'cif_no' => 'CIF-DELETED-0001',
+    ]);
+    $visitorId = $this->postJson('/api/visitors/resolve-contact', ['contact_id' => $contact->id])
+        ->assertCreated()
+        ->json('id');
+
+    $contact->delete();
+
+    $this->assertDatabaseHas('visitors', ['id' => $visitorId, 'contact_id' => null]);
 });
 
 test('check-in enforces one active visit and permits completely nullable GPS', function () {
