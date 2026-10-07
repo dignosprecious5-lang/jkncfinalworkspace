@@ -73,6 +73,7 @@ class Product extends Model
         'cost_per_unit',
         'expected_margin',
         'discount_allowed',
+        'max_discount_without_approval',
         'expected_hours',
         'payment_structure',
         'payment_structure_custom',

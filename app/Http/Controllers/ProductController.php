@@ -1896,6 +1896,7 @@ public function updateCommercials(Request $request, $id)
         'cost_per_unit' => 'nullable|numeric|min:0',
         'expected_margin' => 'nullable|numeric|min:0',
         'discount_allowed' => 'nullable|string|max:255',
+        'max_discount_without_approval' => 'nullable|numeric|min:0',
         'expected_hours' => 'nullable|numeric|min:0',
         'payment_structure' => 'nullable|string|max:255',
         'payment_structure_custom' => 'nullable|string|max:1000',
