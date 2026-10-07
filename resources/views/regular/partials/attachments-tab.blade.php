@@ -186,9 +186,25 @@
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700" id="docRows">
                 @foreach($docsList as $doc)
-                    <tr class="doc-table-row hover:bg-slate-50/80 transition" data-name="{{ strtolower($doc['name']) }}" data-source="{{ $doc['source'] }}" data-kind="{{ $doc['kind'] }}">
+                    @php
+                        $docDataJson = json_encode([
+                            'id' => $doc['id'],
+                            'name' => $doc['name'],
+                            'source' => $doc['source'],
+                            'kind' => $doc['kind'],
+                            'type' => $doc['type'],
+                            'version' => $doc['version'],
+                            'record' => $doc['record'],
+                            'at' => $doc['at'] ? \Carbon\Carbon::parse($doc['at'])->format('M d, Y h:i A') : 'Not recorded',
+                            'by' => $doc['by'],
+                            'visibility' => $doc['visibility'],
+                            'status' => $doc['status'],
+                            'link' => $doc['link'],
+                        ]);
+                    @endphp
+                    <tr class="doc-table-row hover:bg-slate-50/90 transition cursor-pointer" data-name="{{ strtolower($doc['name']) }}" data-source="{{ $doc['source'] }}" data-kind="{{ $doc['kind'] }}" onclick='openDocDrawer({{ $docDataJson }})'>
                         <td class="py-3 px-3">
-                            <div class="font-bold text-blue-900">{{ $doc['name'] }}</div>
+                            <div class="font-bold text-blue-900 hover:underline">{{ $doc['name'] }}</div>
                             <div class="text-[10px] text-slate-400">{{ $doc['type'] }} · {{ $doc['status'] }}</div>
                         </td>
                         <td class="py-3 px-3 font-semibold text-slate-700">{{ $doc['source'] }}</td>
@@ -208,7 +224,7 @@
                                 {{ $doc['visibility'] }}
                             </span>
                         </td>
-                        <td class="py-3 pr-4 pl-2 text-right">
+                        <td class="py-3 pr-4 pl-2 text-right" onclick="event.stopPropagation()">
                             <a href="{{ $doc['link'] }}" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-blue-700 hover:bg-slate-50">
                                 Open Source <i class="fas fa-arrow-right text-[8px]"></i>
                             </a>
@@ -219,6 +235,82 @@
         </table>
     </div>
 </div>
+
+<!-- SIDE DRAWER MODAL OVERLAY -->
+<div id="docDrawerOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[9998] hidden" onclick="closeDocDrawer()"></div>
+
+<!-- SIDE DRAWER PANEL -->
+<aside id="docDrawerPanel" class="fixed top-0 right-0 bottom-0 w-[600px] max-w-[94vw] bg-white z-[9999] shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 ease-in-out border-l border-slate-200">
+    <!-- Drawer Header -->
+    <header class="p-5 border-b border-slate-200 flex items-start justify-between bg-white shrink-0">
+        <div>
+            <h3 id="drawerTitle" class="text-base font-extrabold text-[#102d79] leading-snug">Regular Work Order REG-WO-2026-120</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Preview and historical information</p>
+        </div>
+        <button type="button" onclick="closeDocDrawer()" class="rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer">
+            Close
+        </button>
+    </header>
+
+    <!-- Drawer Body -->
+    <div class="p-6 overflow-y-auto space-y-6 flex-1 bg-white">
+        <!-- Visual Document Preview Sheet Card -->
+        <div class="rounded-2xl bg-[#edf3fc] p-8 flex items-center justify-center border border-blue-100/60 shadow-inner">
+            <div class="bg-white border border-slate-200 rounded-xl w-full max-w-[360px] p-8 text-center shadow-md space-y-3">
+                <span id="drawerSheetKindBadge" class="inline-flex rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700 border border-blue-100">Generated</span>
+                <div>
+                    <h2 id="drawerSheetType" class="font-serif text-2xl font-bold text-slate-900 leading-tight">Regular Work Order</h2>
+                    <p id="drawerSheetName" class="font-serif text-sm text-slate-600 mt-1">Regular Work Order REG-WO-2026-120</p>
+                </div>
+                <div class="h-px bg-slate-200 my-4 mx-auto w-3/4"></div>
+                <p id="drawerSheetSub" class="text-[11px] text-slate-500 leading-relaxed font-mono">REG-WO-2026-120 · Version 1.0<br>Approved</p>
+            </div>
+        </div>
+
+        <!-- Metadata Table -->
+        <div class="border border-slate-200 rounded-xl overflow-hidden text-xs">
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50/50">
+                <div class="p-3 font-semibold text-slate-500">Source</div>
+                <div id="drawerMetaSource" class="p-3 font-bold text-slate-800">Work Order</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Document Type</div>
+                <div id="drawerMetaType" class="p-3 font-medium text-slate-800">Regular Work Order</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Record No.</div>
+                <div id="drawerMetaRecord" class="p-3 font-mono font-bold text-slate-800">REG-WO-2026-120</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Version</div>
+                <div id="drawerMetaVersion" class="p-3 font-medium text-slate-800">1.0</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Date &amp; Time</div>
+                <div id="drawerMetaDate" class="p-3 font-medium text-slate-800">Oct 07, 2026 11:30 AM</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Created / Uploaded By</div>
+                <div id="drawerMetaBy" class="p-3 font-medium text-slate-800">Operations</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Visibility</div>
+                <div id="drawerMetaVis" class="p-3 font-medium text-slate-800">Internal</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-200">
+                <div class="p-3 font-semibold text-slate-500">Status</div>
+                <div id="drawerMetaStatus" class="p-3 font-medium text-slate-800">Approved</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drawer Footer -->
+    <footer class="p-4 border-t border-slate-200 bg-white shrink-0 flex items-center justify-between">
+        <a id="drawerSourceLink" href="#" class="inline-flex items-center justify-center rounded-xl bg-[#102d79] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0d255f] transition shadow-sm">
+            Open Source Module
+        </a>
+    </footer>
+</aside>
 
 <script>
 function filterDocRows() {
@@ -233,5 +325,44 @@ function filterDocRows() {
 
         row.style.display = (matchesQ && matchesSource && matchesKind) ? '' : 'none';
     });
+}
+
+function openDocDrawer(data) {
+    if (!data) return;
+    document.getElementById('drawerTitle').textContent = data.name || 'Document Details';
+    document.getElementById('drawerSheetKindBadge').textContent = data.kind || 'Generated';
+    document.getElementById('drawerSheetType').textContent = data.type || 'Document';
+    document.getElementById('drawerSheetName').textContent = data.name || '';
+    document.getElementById('drawerSheetSub').innerHTML = (data.record || '') + ' · Version ' + (data.version || '1.0') + '<br>' + (data.status || '');
+    
+    document.getElementById('drawerMetaSource').textContent = data.source || '—';
+    document.getElementById('drawerMetaType').textContent = data.type || '—';
+    document.getElementById('drawerMetaRecord').textContent = data.record || '—';
+    document.getElementById('drawerMetaVersion').textContent = data.version || '1.0';
+    document.getElementById('drawerMetaDate').textContent = data.at || 'Not recorded';
+    document.getElementById('drawerMetaBy').textContent = data.by || '—';
+    document.getElementById('drawerMetaVis').textContent = data.visibility || '—';
+    document.getElementById('drawerMetaStatus').textContent = data.status || '—';
+    document.getElementById('drawerSourceLink').href = data.link || '#';
+
+    const overlay = document.getElementById('docDrawerOverlay');
+    const panel = document.getElementById('docDrawerPanel');
+    if (overlay && panel) {
+        overlay.classList.remove('hidden');
+        setTimeout(() => {
+            panel.classList.remove('translate-x-full');
+        }, 10);
+    }
+}
+
+function closeDocDrawer() {
+    const overlay = document.getElementById('docDrawerOverlay');
+    const panel = document.getElementById('docDrawerPanel');
+    if (overlay && panel) {
+        panel.classList.add('translate-x-full');
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+        }, 300);
+    }
 }
 </script>

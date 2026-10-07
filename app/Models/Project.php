@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class Project extends Model
 {
@@ -52,31 +53,57 @@ class Project extends Model
     {
         static::creating(function (Project $project): void {
             if (blank($project->project_code)) {
-                $project->project_code = static::generateNextProjectCode();
+                $project->project_code = static::generateNextProjectCode(null, $project->engagement_type);
             }
         });
     }
 
-    public static function generateNextProjectCode(?int $year = null): string
+    public static function generateNextProjectCode(?int $year = null, ?string $engagementType = null): string
     {
         $year ??= (int) now()->format('Y');
-        $prefix = sprintf('PROJ-%d-', $year);
+        $type = Str::lower(trim((string) $engagementType));
+        $tag = match (true) {
+            str_contains($type, 'regular') => 'REG',
+            str_contains($type, 'hybrid') => 'HYB',
+            default => 'PROJ',
+        };
+        $prefix = sprintf('%s-%d-', $tag, $year);
 
-        $nextNumber = DB::transaction(function () use ($prefix): int {
-            $latestCode = static::query()
+        $nextNumber = DB::transaction(function () use ($prefix, $tag): int {
+            $codes = static::query()
                 ->where('project_code', 'like', $prefix.'%')
-                ->orderByDesc('project_code')
                 ->lockForUpdate()
-                ->value('project_code');
+                ->pluck('project_code');
 
-            if (! is_string($latestCode) || ! preg_match('/^PROJ-\d{4}-\d{3}$/', $latestCode)) {
-                return 1;
+            $max = 0;
+            foreach ($codes as $code) {
+                if (preg_match('/^'.preg_quote($tag, '/').'-\d{4}-(\d+)$/', (string) $code, $matches)) {
+                    $num = (int) $matches[1];
+                    if ($num > $max) {
+                        $max = $num;
+                    }
+                }
             }
 
-            return ((int) substr($latestCode, -3)) + 1;
+            return $max + 1;
         });
 
         return $prefix.str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function isHybrid(): bool
+    {
+        return Str::contains(Str::lower(trim((string) $this->engagement_type)), 'hybrid');
+    }
+
+    public function isRegular(): bool
+    {
+        return Str::contains(Str::lower(trim((string) $this->engagement_type)), 'regular') && ! $this->isHybrid();
+    }
+
+    public function isProject(): bool
+    {
+        return ! $this->isRegular() || $this->isHybrid();
     }
 
     public function deal(): BelongsTo

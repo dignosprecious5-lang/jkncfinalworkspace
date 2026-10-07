@@ -178,13 +178,15 @@
     /* Stepper Lifecycle Card */
     .lifecycle {
         background: #fff;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #e4e9f1;
         border-radius: 14px;
-        padding: 16px 20px;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-        display: flex;
-        gap: 20px;
+        padding: 18px 24px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+        display: grid;
+        grid-template-columns: 1fr 210px;
+        gap: 24px;
         align-items: stretch;
+        margin-bottom: 14px;
     }
     .lifecycle-main {
         flex: 1 1 auto;
@@ -194,95 +196,118 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
+        gap: 12px;
+        margin-bottom: 18px;
     }
     .life-title strong {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
         color: #0f172a;
     }
     .life-title span {
         font-size: 9px;
-        color: #8b96a8;
-        background: #f6f8fb;
-        border: 1px solid #e8edf4;
+        font-weight: 500;
+        color: #94a3b8;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
         border-radius: 999px;
-        padding: 4px 9px;
-        font-weight: 600;
+        padding: 3px 10px;
     }
-    .life {
-        display: flex;
-        align-items: flex-start;
+    .life-track {
+        display: flex !important;
+        align-items: stretch;
         position: relative;
-        padding: 0 10px;
+        width: 100%;
+        padding: 0;
+        margin: 0;
     }
-    .life::before {
-        content: "";
-        position: absolute;
-        top: 18px;
-        left: 8%;
-        right: 8%;
-        height: 3px;
-        background: #e2e8f0;
-        border-radius: 999px;
-        z-index: 0;
-    }
-    .life .stage {
-        flex: 1 1 0;
-        min-width: 80px;
+    .life-stage-col {
+        flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
-        text-decoration: none;
+        justify-content: center;
+        padding: 14px 4px;
+        border-radius: 8px;
         position: relative;
-        z-index: 2;
-        gap: 6px;
+        text-decoration: none;
+        transition: all 0.15s ease;
     }
-    .life .stage b {
-        width: 36px;
-        height: 36px;
+    .life-stage-col.current {
+        background: #edf3fc;
+    }
+    .life-circle-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .life-line-left, .life-line-right {
+        flex: 1;
+        height: 2px;
+        background: #cbd5e1;
+    }
+    .life-line-left.done, .life-line-right.done {
+        background: #102d79;
+    }
+    .life-line-spacer {
+        flex: 1;
+        height: 2px;
+        visibility: hidden;
+    }
+    .life-circle {
+        width: 34px;
+        height: 34px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 11px;
-        font-weight: 800;
-        color: #64748b;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 2;
         background: #fff;
         border: 2px solid #cbd5e1;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
         transition: all 0.15s ease;
     }
-    .life .stage small {
-        font-size: 9px;
-        color: #64748b;
-        font-weight: 600;
-        text-align: center;
-    }
-    .life .stage.done b {
+    .life-circle.done {
         background: #102d79;
         border-color: #102d79;
         color: #fff;
+        font-size: 12px;
     }
-    .life .stage.done small {
+    .life-circle.current {
+        background: #fff;
+        border: 2.5px solid #102d79;
+        box-shadow: 0 0 0 3px #edf3fc, 0 0 0 5px #102d79;
+        color: #102d79;
+    }
+    .life-label {
+        margin-top: 10px;
+        font-size: 10px;
+        text-align: center;
+        white-space: nowrap;
+        text-decoration: none;
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #94a3b8;
+        font-weight: 500;
+        transition: color 0.15s ease;
+    }
+    .life-label.done {
         color: #102d79;
         font-weight: 700;
     }
-    .life .stage.current b {
-        background: #fff;
-        border: 3px solid #102d79;
-        color: #102d79;
-        box-shadow: 0 0 0 5px #eef3ff, 0 3px 9px rgba(16, 45, 121, 0.18);
-    }
-    .life .stage.current small {
+    .life-label.current {
         color: #102d79;
         font-weight: 800;
     }
     .life-side {
-        width: 170px;
-        flex: 0 0 170px;
         border-left: 1px solid #e2e8f0;
-        padding-left: 18px;
+        padding-left: 20px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -295,31 +320,33 @@
         text-transform: uppercase;
     }
     .life-side-stage {
-        font-size: 15px;
+        font-size: 20px;
         font-weight: 800;
         color: #0f172a;
         margin: 2px 0 3px;
+        line-height: 1.15;
     }
     .life-side-pct {
-        font-size: 11px;
-        font-weight: 600;
-        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        color: #102d79;
         margin-bottom: 5px;
     }
     .life-side-health {
         font-size: 11px;
         color: #64748b;
+        margin-top: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     .life-side-tag {
-        display: inline-block;
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-        border-radius: 999px;
-        padding: 2px 7px;
-        font-size: 9px;
         font-weight: 700;
-        margin-left: 4px;
+        color: #0f172a;
+    }
+    @media (max-width: 1100px) {
+        .lifecycle { grid-template-columns: 1fr; }
+        .life-side { border-left: 0; border-top: 1px solid #eef2f7; padding-left: 0; padding-top: 14px; }
     }
     /* Command Overview Card */
     .command-card {
@@ -426,8 +453,21 @@
     .now-grid { display: grid; gap: 8px; margin: 0; }
     .now-grid div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; font-size: 11px; }
     .now-grid span { color: #64748b; }
-    .now-grid strong { text-align: right; font-weight: 700; color: #0f172a; }
-    .indicator-key { display: flex; gap: 10px; flex-wrap: wrap; font-size: 10px; font-weight: 700; }
+    .indicator-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .indicator-key span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #f1f3f6;
+        line-height: 1.3;
+    }
+    .indicator-key span.tone-good { color: #16845c !important; }
+    .indicator-key span.tone-warning { color: #c57616 !important; }
+    .indicator-key span.tone-critical { color: #d53e49 !important; }
     .performance-table { width: 100%; border-collapse: collapse; }
     .performance-table th, .performance-table td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 11px; }
     .performance-table th { background: #f8fafc; color: #64748b; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; font-weight: 800; }
@@ -522,7 +562,7 @@
         flex-wrap: wrap;
         gap: 10px;
     }
-    .rsat-work-grid { display: grid; gap: 20px; align-items: start; }
+    .rsat-work-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
     .rsat-quick-actions { border: 1px solid #d8e1ee; background: rgba(255, 255, 255, 0.96); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.04); }
     .rsat-quick-title { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #64748b; }
     .rsat-quick-grid { display: grid; gap: 12px; margin-top: 14px; }
@@ -550,174 +590,323 @@
         font-weight: 600;
     }
     .rsat-sheet {
-        border: 1px solid #d7deea;
+        border: 1px solid #cbd5e1;
         background: #fff;
-        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.06);
     }
     .rsat-form {
-        border: 2px solid #1c4587;
-        padding: 28px 30px 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 0 !important;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        padding: 28px 32px 36px;
     }
-    .rsat-title {
+
+    /* 1. Sharp 90-Degree Corners strictly for internal document report items inside RSAT Form Tab */
+    .rsat-form table,
+    .rsat-form table th,
+    .rsat-form table td,
+    .rsat-form input,
+    .rsat-form select,
+    .rsat-form textarea,
+    .rsat-form .rsat-section-title,
+    .rsat-form .rsat-summary-banner,
+    .rsat-form .rsat-summary-card {
+        border-radius: 0 !important;
+    }
+    .rsat-top-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #102d79;
+    }
+    .rsat-brand {
         font-family: Georgia, "Times New Roman", serif;
         font-weight: 700;
-        font-size: 2rem;
-        line-height: 1.05;
-        letter-spacing: 0.02em;
-        color: #111827;
+        font-size: 1.6rem;
+        line-height: 1.1;
+        color: #102d79;
+    }
+    .rsat-doc-type-right {
         text-align: right;
     }
-    .rsat-form-code {
+    .rsat-doc-type-right h1 {
         font-family: Georgia, "Times New Roman", serif;
-        font-size: 0.8rem;
+        font-weight: 800;
+        font-size: 2.3rem;
+        line-height: 1;
+        letter-spacing: -0.01em;
+        color: #102d79;
+        margin: 0;
+    }
+    .rsat-doc-type-right span {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.68rem;
         color: #64748b;
-        text-align: right;
+        display: block;
+        margin-top: 3px;
     }
     .rsat-meta-grid {
         display: grid;
-        gap: 12px 22px;
+        gap: 8px 28px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 18px;
+        margin-bottom: 20px;
     }
     .rsat-meta-item {
         display: grid;
-        grid-template-columns: 160px minmax(0, 1fr);
+        grid-template-columns: max-content minmax(0, 1fr);
         align-items: end;
-        gap: 10px;
+        gap: 8px;
         font-family: Georgia, "Times New Roman", serif;
-        font-size: 0.88rem;
+        font-size: 0.8rem;
     }
     .rsat-meta-label {
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: #334155;
+        font-weight: 700;
+        color: #1e293b;
+        white-space: nowrap;
+        padding-bottom: 2px;
     }
     .rsat-line-value,
     .rsat-line-input {
-        min-height: 34px;
+        min-height: 24px;
         border: 0;
-        border-bottom: 1px solid #111827;
+        border-bottom: 1px solid #64748b;
         background: transparent;
-        padding: 6px 0 5px;
-        color: #111827;
+        padding: 2px 4px;
+        color: #1e293b;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.8rem;
+        width: 100%;
+        line-height: 1.3;
     }
     .rsat-line-input:focus {
         outline: none;
-        border-bottom-color: #1c4587;
-        box-shadow: inset 0 -1px 0 #1c4587;
-    }
-    .rsat-client-row {
-        display: grid;
-        grid-template-columns: 220px repeat(3, minmax(0, 1fr));
-        gap: 18px;
-        align-items: end;
-    }
-    .rsat-check-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 0.88rem;
-        color: #111827;
-        white-space: nowrap;
-    }
-    .rsat-check {
-        display: inline-flex;
-        height: 16px;
-        width: 16px;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #111827;
-        font-size: 11px;
-        line-height: 1;
+        border-bottom-color: #102d79;
     }
     .rsat-table-wrap {
         margin-top: 18px;
         overflow-x: auto;
+        border: 1px solid #102d79;
     }
     .rsat-table {
         width: 100%;
-        min-width: 900px;
+        min-width: 1000px;
         border-collapse: collapse;
         table-layout: fixed;
         font-family: Georgia, "Times New Roman", serif;
     }
-    .rsat-table th,
-    .rsat-table td {
-        border: 1px solid #111827;
-        padding: 0;
-        vertical-align: middle;
-    }
     .rsat-table th {
-        background: #1c4587;
-        color: #fff;
-        padding: 6px 3px;
-        text-align: center;
-        font-size: 0.7rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-    }
-    .rsat-table .rsat-index {
-        min-height: 32px;
-        padding: 6px 3px;
-        text-align: center;
-        color: #111827;
-        font-size: 0.76rem;
-    }
-    .rsat-row-delete {
-        width: 100%;
-        min-height: 32px;
-        border: 0;
-        background: transparent;
-        color: #dc2626;
-        font-size: 18px;
-        font-weight: 700;
-        cursor: pointer;
-        line-height: 1;
-    }
-    .rsat-row-input {
-        width: 100%;
-        min-height: 32px;
-        border: 0;
-        background: transparent;
-        padding: 5px 6px;
-        color: #111827;
-        font-size: 0.74rem;
-    }
-    .rsat-row-input:focus {
-        outline: none;
-        box-shadow: inset 0 0 0 1px #1c4587;
-    }
-    .rsat-signature {
-        margin-top: 28px;
-        display: grid;
-        gap: 8px;
-        justify-items: center;
-    }
-    .rsat-signature-line {
-        width: min(100%, 420px);
-        border-bottom: 1px solid #111827;
-        min-height: 36px;
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        text-align: center;
-    }
-    .rsat-signature-label {
-        font-family: Georgia, "Times New Roman", serif;
-        font-style: italic;
-        font-size: 0.92rem;
-        color: #111827;
-    }
-    .rsat-section-title {
-        margin-top: 30px;
-        background: #1c4587;
-        padding: 10px 16px;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 1.15rem;
-        font-weight: 700;
+        background: #102d79;
+        color: #ffffff;
+        padding: 9px 8px;
+        text-align: left;
+        font-size: 0.72rem;
+        font-weight: 800;
         letter-spacing: 0.05em;
-        color: #fff;
+        text-transform: uppercase;
+        border-right: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .rsat-table th:last-child {
+        border-right: 0;
+    }
+    .rsat-table td {
+        border: 1px solid #cbd5e1;
+        padding: 8px;
+        vertical-align: top;
+        background: #fff;
+    }
+    .rsat-matrix-row:nth-child(even) td {
+        background: #f8fafc;
+    }
+    .rsat-cell-card {
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        padding: 5px 8px;
+        background: #fff;
+        font-size: 0.78rem;
+        min-height: 36px;
+        width: 100%;
+    }
+    .rsat-cell-input {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.78rem;
+        color: #1e293b;
+        padding: 0;
+    }
+    .rsat-cell-input:focus {
+        outline: none;
+    }
+    .rsat-sublabel {
+        font-size: 0.64rem;
+        color: #64748b;
+        margin-bottom: 3px;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-select-box {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 0.76rem;
+        background: #fff;
+        color: #1e293b;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-subnote {
+        font-size: 0.62rem;
+        color: #94a3b8;
+        margin-top: 3px;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-dash-link {
+        display: inline-block;
+        margin-top: 5px;
+        font-size: 0.64rem;
+        color: #3b82f6;
+        text-decoration: none;
+        cursor: pointer;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-dash-link:hover {
+        text-decoration: underline;
+    }
+    .rsat-action-flex {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+    }
+    .rsat-btn-square {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #64748b;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        line-height: 1;
+        padding: 0;
+    }
+    .rsat-btn-square:hover {
+        border-color: #94a3b8;
+        background: #f8fafc;
+        color: #0f172a;
+    }
+    .rsat-btn-square.delete:hover {
+        border-color: #fca5a5;
+        background: #fef2f2;
+        color: #dc2626;
+    }
+    .rsat-summary-banner {
+        background: #102d79;
+        color: #ffffff;
+        padding: 9px 16px;
         text-align: center;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-top: 26px;
+        text-transform: uppercase;
+    }
+    .rsat-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 12px;
+    }
+    .rsat-summary-card {
+        border: 1px solid #cbd5e1;
+        padding: 12px 16px;
+        background: #fff;
+    }
+    .rsat-summary-card .label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        text-transform: uppercase;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-summary-card .val {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 4px;
+        font-family: Georgia, serif;
+    }
+    .rsat-footer-note-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.65rem;
+        color: #94a3b8;
+        margin-top: 16px;
+        padding-top: 8px;
+        border-top: 1px solid #e2e8f0;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-tool-box {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 16px;
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    .rsat-tool-title {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #1e293b;
+        margin-bottom: 12px;
+    }
+    .rsat-tool-label {
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        margin-bottom: 4px;
+    }
+    .rsat-tool-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-size: 0.75rem;
+        color: #475569;
+        background: #f8fafc;
+    }
+    .rsat-btn-tool {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff;
+        padding: 7px 10px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #334155;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-block;
+    }
+    .rsat-btn-tool:hover {
+        background: #f1f5f9;
+        border-color: #94a3b8;
     }
     .rsat-approval-grid {
         margin-top: 18px;
@@ -824,14 +1013,110 @@
             padding: 20px 18px 24px;
         }
     }
-    @media (min-width: 1025px) {
-        .rsat-work-grid { grid-template-columns: 232px minmax(0, 1fr); }
-        .rsat-quick-grid { grid-template-columns: 1fr; }
+    /* ==========================================================================
+       RSAT FORM TAB - FORMAL BUSINESS REPORT STYLING ONLY
+       (Strictly scoped to [data-tab-panel="rsat"] and .rsat-form so all other tabs remain untouched)
+       ========================================================================== */
+
+    /* 1. Internal Document Tables & Controls - Sharp 90-Degree Corners */
+    [data-tab-panel="rsat"] table,
+    [data-tab-panel="rsat"] table th,
+    [data-tab-panel="rsat"] table td,
+    [data-tab-panel="rsat"] input,
+    [data-tab-panel="rsat"] select,
+    [data-tab-panel="rsat"] textarea {
+        border-radius: 0 !important;
+    }
+
+    /* 2. Dark Navy Banners (#102d79) strictly inside RSAT Form Tab */
+    [data-tab-panel="rsat"] .rsat-summary-banner,
+    [data-tab-panel="rsat"] .rsat-section-title,
+    .rsat-form .rsat-summary-banner,
+    .rsat-form .rsat-section-title {
+        background: #102d79 !important;
+        color: #ffffff !important;
+        padding: 10px 16px !important;
+        font-family: Georgia, "Times New Roman", serif !important;
+        font-size: 1.05rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.08em !important;
+        text-transform: uppercase !important;
+        border-radius: 0 !important;
+        text-align: center !important;
+        box-shadow: none !important;
+    }
+
+    /* 3. RSAT Form Activity Tables - Sharp 1px Grid Lines & Navy Header */
+    [data-tab-panel="rsat"] table,
+    .rsat-form table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        border-radius: 0 !important;
+        font-family: Georgia, "Times New Roman", serif !important;
+    }
+    [data-tab-panel="rsat"] table th,
+    .rsat-form table th {
+        background: #102d79 !important;
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.05em !important;
+        text-transform: uppercase !important;
+        border: 1px solid #102d79 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 0 !important;
+        padding: 9px 8px !important;
+    }
+    [data-tab-panel="rsat"] table td,
+    .rsat-form table td {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 0 !important;
+        padding: 8px !important;
+        font-size: 0.78rem !important;
+    }
+
+    /* 4. RSAT Form Summary Cards - Bordered Square Boxes */
+    [data-tab-panel="rsat"] .rsat-summary-card,
+    .rsat-form .rsat-summary-card {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        padding: 12px 16px !important;
+        box-shadow: none !important;
+    }
+    [data-tab-panel="rsat"] .rsat-summary-card .label,
+    .rsat-form .rsat-summary-card .label {
+        font-size: 0.65rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.06em !important;
+        color: #64748b !important;
+        text-transform: uppercase !important;
+        font-family: system-ui, -apple-system, sans-serif !important;
+    }
+    [data-tab-panel="rsat"] .rsat-summary-card .val,
+    .rsat-form .rsat-summary-card .val {
+        font-size: 1.5rem !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+        margin-top: 4px !important;
+        font-family: Georgia, serif !important;
+    }
+
+    /* 5. Inputs & Select Controls strictly inside RSAT Form Tab */
+    [data-tab-panel="rsat"] input[type="text"],
+    [data-tab-panel="rsat"] input[type="date"],
+    [data-tab-panel="rsat"] select,
+    [data-tab-panel="rsat"] textarea,
+    .rsat-form input[type="text"],
+    .rsat-form input[type="date"],
+    .rsat-form select,
+    .rsat-form textarea {
+        border-radius: 0 !important;
     }
 </style>
 
 <div class="rsat-workspace p-6">
-    <div class="mx-auto max-w-[1600px] space-y-3">
+    <div class="w-full space-y-3">
         <!-- BREADCRUMB -->
         <div class="workspace-breadcrumb">
             &larr; <a href="{{ route('regular.index') }}">Regular</a> &nbsp;/&nbsp;
@@ -842,17 +1127,28 @@
         <section class="workspace-head">
             <div class="workspace-top">
                 <div>
-                    <div class="eyebrow">REGULAR WORKSPACE</div>
-                    <div class="workspace-title">{{ $regular->name ?: ($regular->deal?->deal_title ?: 'Regular Retainer') }}</div>
+                    <div class="eyebrow">{{ in_array($tab, ['attachments', 'history'], true) ? 'REGULAR RECORD' : 'REGULAR WORKSPACE' }}</div>
+                    <div class="workspace-title">{{ $tab === 'attachments' ? 'Documents & Attachments' : ($tab === 'history' ? 'History & Audit Trail' : ($regular->name ?: ($regular->deal?->deal_title ?: 'Regular Retainer'))) }}</div>
                     <div class="refline">
-                        {{ $regular->project_code }} &middot; {{ $regular->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $rsatAttachments['service_memo_ref'] ?? ('SM-' . $regular->project_code) }}
+                        @if ($tab === 'attachments')
+                            Historical register of generated documents and uploaded files
+                        @elseif ($tab === 'history')
+                            Complete chronological record of regular engagement activity
+                        @else
+                            {{ $regular->project_code }} &middot; {{ $regular->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $rsatAttachments['service_memo_ref'] ?? ('SM-' . $regular->project_code) }}
+                        @endif
                     </div>
                 </div>
                 <div class="chips">
-                    <span class="chip">Business <strong>{{ $regular->business_name ?: ($regular->company?->company_name ?: '-') }}</strong></span>
-                    <span class="chip">Client <strong>{{ $contactName }}</strong></span>
-                    <span class="chip">Planned Start <strong>{{ $fmt($regular->planned_start_date) }}</strong></span>
-                    <span class="chip">Target Completion <strong>{{ $fmt($regular->target_completion_date) }}</strong></span>
+                    @if (in_array($tab, ['attachments', 'history'], true))
+                        <span class="chip">Regular <strong>{{ $regular->project_code }}</strong></span>
+                        <span class="chip">Business <strong>{{ $regular->business_name ?: ($regular->company?->company_name ?: '-') }}</strong></span>
+                    @else
+                        <span class="chip">Business <strong>{{ $regular->business_name ?: ($regular->company?->company_name ?: '-') }}</strong></span>
+                        <span class="chip">Client <strong>{{ $contactName }}</strong></span>
+                        <span class="chip">Planned Start <strong>{{ $fmt($regular->planned_start_date) }}</strong></span>
+                        <span class="chip">Target Completion <strong>{{ $fmt($regular->target_completion_date) }}</strong></span>
+                    @endif
                 </div>
             </div>
             <div class="primary-tabs">
@@ -871,30 +1167,55 @@
 
         @php
             $stageNames = ['Work Order', 'Plan', 'Review', 'NTP', 'Execution'];
-            $currentStageIdx = match($tab) {
+
+            $phaseKey = strtolower($regular->current_phase ?: $regular->status);
+            $stageIdxFromStatus = match($phaseKey) {
+                'work order', 'intake', 'start' => 0,
+                'plan', 'rsat', 'sow', 'preparation' => 1,
+                'review', 'internal review' => 2,
+                'ntp', 'for ntp approval' => 3,
+                'execution', 'in progress' => 4,
+                'completed', 'completion' => 4,
+                default => null
+            };
+
+            if ($stageIdxFromStatus !== null) {
+                $currentStageIdx = $stageIdxFromStatus;
+            } else {
+                $currentStageIdx = match($tab) {
+                    'work-order' => 0,
+                    'rsat' => 1,
+                    'review' => 2,
+                    'ntp' => 3,
+                    'execution', 'report', 'delivery' => 4,
+                    default => ($progressPct >= 100 ? 4 : ($progressPct > 0 ? 4 : ($ntpApproved ? 3 : ($ntpRecord ? 3 : ($rsat?->approved_at ? 2 : 1)))))
+                };
+            }
+
+            $selectedTabIdx = match($tab) {
                 'work-order' => 0,
                 'rsat' => 1,
                 'review' => 2,
                 'ntp' => 3,
-                'execution' => 4,
-                'report' => 4,
-                'delivery' => 4,
-                default => ($progressPct >= 100 ? 4 : ($progressPct > 0 ? 4 : ($ntpApproved ? 3 : ($rsat?->approved_at ? 2 : 0))))
+                'execution', 'report', 'delivery' => 4,
+                default => null
             };
         @endphp
 
+        @if ($tab !== 'attachments' && $tab !== 'history')
         <!-- MODERN REGULAR LIFECYCLE STEPPER -->
-        <div class="lifecycle">
+        <div class="lifecycle mb-4">
             <div class="lifecycle-main">
                 <div class="life-title">
                     <strong>Regular Lifecycle</strong>
                     <span>Policy-controlled process</span>
                 </div>
-                <div class="life">
+                <div class="life-track">
                     @foreach($stageNames as $i => $sname)
                         @php
                             $isDone = $i < $currentStageIdx;
                             $isCurrent = $i === $currentStageIdx;
+                            $isSelected = $i === $selectedTabIdx;
                             $tabTarget = match($i) {
                                 0 => 'work-order',
                                 1 => 'rsat',
@@ -903,26 +1224,44 @@
                                 4 => 'execution',
                             };
                         @endphp
-                        <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => $tabTarget]) }}" class="stage {{ $isDone ? 'done' : ($isCurrent ? 'current' : '') }}">
-                            <b>
-                                @if($isDone)
-                                    <i class="fas fa-check"></i>
+                        <div class="life-stage-col {{ $isCurrent ? 'current' : '' }} {{ $isSelected ? 'selected' : '' }}">
+                            <div class="life-circle-row">
+                                @if($i > 0)
+                                    <div class="life-line-left {{ $i <= $currentStageIdx ? 'done' : '' }}"></div>
                                 @else
-                                    {{ $i + 1 }}
+                                    <div class="life-line-spacer"></div>
                                 @endif
-                            </b>
-                            <small>{{ $sname }}</small>
-                        </a>
+
+                                <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => $tabTarget]) }}" class="life-circle {{ $isDone ? 'done' : ($isCurrent ? 'current' : 'upcoming') }} {{ $isSelected ? 'ring-2 ring-blue-400' : '' }}">
+                                    @if($isDone)
+                                        <i class="fas fa-check"></i>
+                                    @endif
+                                </a>
+
+                                @if($i < count($stageNames) - 1)
+                                    <div class="life-line-right {{ $i < $currentStageIdx ? 'done' : '' }}"></div>
+                                @else
+                                    <div class="life-line-spacer"></div>
+                                @endif
+                            </div>
+                            <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => $tabTarget]) }}" class="life-label {{ $isDone ? 'done' : ($isCurrent ? 'current' : 'upcoming') }} {{ $isSelected ? 'font-black underline' : '' }}">
+                                {{ $sname }}
+                            </a>
+                        </div>
                     @endforeach
                 </div>
             </div>
             <div class="life-side">
-                <small class="life-side-kicker">CURRENT STAGE</small>
+                <div class="life-side-kicker">CURRENT STAGE</div>
                 <div class="life-side-stage">{{ $stageNames[$currentStageIdx] ?? 'Execution' }}</div>
                 <div class="life-side-pct">{{ $progressPct }}% Complete</div>
-                <div class="life-side-health">Status <span class="life-side-tag">On Track</span></div>
+                <div class="life-side-health">
+                    <span>Status</span>
+                    <strong class="life-side-tag">On Track</strong>
+                </div>
             </div>
         </div>
+        @endif
 
         @if (session('success'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('success') }}</div>
@@ -979,73 +1318,56 @@
             @include('regular.partials.sow-report-tab')
         @elseif ($tab === 'rsat')
         <div class="rsat-work-grid" data-tab-panel="rsat">
-            <aside class="rsat-quick-actions rounded-2xl px-4 py-4 xl:sticky xl:top-6">
-                <p class="rsat-quick-title">Quick Actions</p>
-                <div class="rsat-quick-grid">
-                    <div class="rsat-quick-group">
-                        <p class="rsat-quick-label">Status</p>
-                        <div class="rsat-quick-stack">
-                            <span class="inline-flex items-center gap-2 rounded-full border {{ $ntpApproved ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600' }} px-3 py-2 text-xs font-semibold">
-                                <i class="{{ $ntpApproved ? 'fas fa-check-circle' : 'fas fa-hourglass-half' }}"></i>
-                                {{ $ntpStatusLabel }}
-                            </span>
+            <aside class="w-60 flex-shrink-0 sticky top-6">
+                <!-- STAGE MANAGEMENT -->
+                <div class="rsat-tool-box">
+                    <p class="rsat-tool-title">STAGE MANAGEMENT</p>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <p class="rsat-tool-label">STAGE STATUS</p>
+                            <input type="text" value="{{ $regularLocked ? 'Locked' : 'In Planning' }}" readonly class="rsat-tool-input font-medium">
                         </div>
-                    </div>
-                    <div class="rsat-quick-group">
-                        <div class="flex items-center justify-between gap-2">
-                            <p class="rsat-quick-label">Document Actions</p>
-                            @if (! $regularLocked)
-                                <button type="button" id="regularRsatAutoSettingsOpen" class="rsat-settings-trigger" title="Auto-report settings">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                            @endif
-                        </div>
-                        <div class="rsat-quick-stack">
-                            @if (! $regularLocked)
-                                <button type="submit" form="regular-rsat-form" class="rsat-doc-primary">Save RSAT</button>
-                                <button type="submit" form="regular-rsat-form" formaction="{{ route('regular.report.generate', $regular) }}" class="rsat-doc-action">Generate RSAT Report</button>
-                                <a href="{{ route('transmittal.create.regular', $regular) }}" class="rsat-doc-action">Generate Transmittal</a>
-                                <a id="regularNtpAction" href="{{ $ntpRecord ? route('regular.ntp.submission', $regular) : route('regular.ntp.download', $regular) }}" class="{{ $ntpApproved ? 'rsat-doc-action rsat-doc-action-approved' : 'rsat-doc-action' }}">{{ $ntpRecord ? 'View NTP' : 'Generate NTP' }}</a>
-                            @endif
-                            <a href="{{ route('regular.rsat.download', $regular) }}" class="rsat-doc-action">Download PDF</a>
-                        </div>
-                    </div>
-                    <div class="rsat-quick-group">
-                        <p class="rsat-quick-label">Manual Approve RSAT</p>
-                        <form method="POST" action="{{ route('regular.rsat.manual-approve', $regular) }}" enctype="multipart/form-data" class="rsat-quick-stack">
-                            @csrf
-                            <input type="file" name="signed_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600" @disabled($regularLocked)>
-                            <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm" @disabled($regularLocked)>
-                            <button type="submit" class="rsat-doc-primary" @disabled($regularLocked)>Manual Approve RSAT</button>
-                        </form>
-                        @if ($rsat?->approved_at)
-                            <p class="text-xs text-slate-500">Approved {{ optional($rsat->approved_at)->format('M d, Y h:i A') }} by {{ $rsat->approved_by_name ?: 'Manual Override' }}.</p>
-                        @endif
-                    </div>
-                    @if (! $regularLocked && ! $ntpApproved)
-                        <div class="rsat-quick-group">
-                            <p class="rsat-quick-label">Manual NTP Approval</p>
-                            <form method="POST" action="{{ route('regular.ntp.manual-approve', $regular) }}" enctype="multipart/form-data" class="rsat-quick-stack">
-                                @csrf
-                                <input type="file" name="signed_document" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full text-xs text-slate-600">
-                                <input type="text" name="approval_note" placeholder="Approval note" class="border border-slate-300 px-3 py-2 text-sm">
-                                <button type="submit" class="rsat-doc-primary">Upload Signed NTP & Approve</button>
-                            </form>
-                        </div>
-                    @endif
-                    @if (! $regularLocked)
-                    <div class="rsat-quick-group">
-                        <p class="rsat-quick-label">Templates</p>
-                        <div class="rsat-quick-stack">
-                            <button type="button" id="regularMakeTemplateButton" class="rsat-doc-action">Make a Template</button>
-                            @if ($rsatTemplates->isNotEmpty())
-                                <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-                                    {{ $rsatTemplates->count() }} saved RSAT template{{ $rsatTemplates->count() === 1 ? '' : 's' }} available in Create Regular.
+
+                        <div>
+                            <p class="rsat-tool-label">ALIGNMENT REVIEW</p>
+                            <div class="rounded border border-slate-200 bg-slate-50 p-2 text-xs space-y-1 text-slate-600">
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400 text-[10px]">Reviewed</span>
+                                    <span class="font-medium text-[11px]">Marlon Santos</span>
                                 </div>
-                            @endif
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400 text-[10px]">Approved</span>
+                                    <span class="font-medium text-[11px]">Kimber Saill Teo</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="rsat-tool-label">PLANNING TIME</p>
+                            <p class="font-mono text-sm font-bold text-slate-800">00:00:00</p>
+                        </div>
+
+                        <div>
+                            <p class="rsat-tool-label">STAGE CONTROLS</p>
+                            <button type="submit" form="regular-rsat-form" class="rsat-btn-tool font-semibold text-slate-700">
+                                Complete Work Order First
+                            </button>
+                            <div class="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-[10px] leading-relaxed text-slate-500">
+                                Stage activities locked during planning. Alignment approvals from lead/team leads required.
+                            </div>
                         </div>
                     </div>
-                    @endif
+                </div>
+
+                <!-- RSAT TOOLS -->
+                <div class="rsat-tool-box">
+                    <p class="rsat-tool-title">RSAT TOOLS</p>
+                    <div class="space-y-2">
+                        <button type="submit" form="regular-rsat-form" class="rsat-btn-tool">Service &amp; Activity Builder</button>
+                        <button type="button" class="rsat-btn-tool text-left" data-add-row="regular-requirements">+ Add Service</button>
+                        <a href="{{ route('regular.rsat.download', $regular) }}" class="rsat-btn-tool block text-center">Print RSAT</a>
+                    </div>
                 </div>
             </aside>
 
@@ -1062,114 +1384,169 @@
             <input type="hidden" name="clearance_record_custodian_signature" value="{{ old('clearance_record_custodian_signature', $rsatClearance['record_custodian_signature'] ?? '') }}">
 
             <div class="rsat-form">
-                <div class="grid gap-6 lg:grid-cols-[220px_1fr]">
+                <!-- TOP REPORT HEADER -->
+                <div class="rsat-top-header mb-4">
                     <div>
-                        <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="h-24 w-auto object-contain">
+                        <div class="rsat-brand">John Kelly<br>&amp; Company</div>
                     </div>
-                    <div class="space-y-2">
-                        <div class="rsat-title">REGULAR SERVICE<br>ACTIVITY TRACKER (RSAT)</div>
-                        <div class="rsat-form-code">REG-F-001</div>
-                    </div>
-                </div>
-
-                <div class="mt-8 rsat-meta-grid">
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Client Name:</div>
-                        <div class="rsat-line-value">{{ $contactName }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Date Created:</div>
-                        <div class="rsat-line-value">{{ $formDate ? \Illuminate\Support\Carbon::parse($formDate)->format('m/d/Y') : '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Business Name:</div>
-                        <div class="rsat-line-value">{{ $regular->business_name ?: '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Engagement Type:</div>
-                        <div class="rsat-line-value">{{ $regular->engagement_type ?: '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Condeal Ref No.:</div>
-                        <div class="rsat-line-value">{{ $regular->deal?->deal_code ?: '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Services:</div>
-                        <div class="rsat-line-value">{{ $regular->services ?: '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Service Area:</div>
-                        <div class="rsat-line-value">{{ $regular->service_area ?: '' }}</div>
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Product:</div>
-                        <div class="rsat-line-value">{{ $regular->products ?: '' }}</div>
+                    <div class="rsat-doc-type-right">
+                        <h1>RSAT REPORT</h1>
+                        <span class="text-xs text-slate-500 font-sans">Live execution reporting record</span>
                     </div>
                 </div>
 
-                <div class="mt-5 rsat-client-row">
-                    <div class="rsat-meta-item" style="grid-template-columns: 90px minmax(0, 1fr);">
-                        <div class="rsat-meta-label">BIF No.</div>
-                        <div class="rsat-line-value">{{ $regular->company?->latestBif?->bif_no ?? '' }}</div>
+                <!-- REGULAR INFORMATION SECTION -->
+                <div class="mt-4 mb-6">
+                    <h3 class="text-base font-bold font-serif text-[#102d79] mb-0.5">Regular Information</h3>
+                    <p class="text-xs text-slate-500 mb-3 font-sans">Auto-filled from the Deal, START, and issued Service Memo.</p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs border-collapse border border-slate-300">
+                            <tbody>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300 w-1/4">NTP No. (All Notices to Proceed)</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300 w-1/4">{{ $ntpRecord?->ntp_number ?? '—' }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300 w-1/4">Engagement Proposal Agreement (EPA) No.</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 w-1/4">{{ $rsatAttachments['epa_ref'] ?? ($regular->deal?->deal_code ? 'EPA-'.substr($regular->deal->deal_code, -8) : '—') }}</td>
+                                </tr>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Work Order No.</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">REG-WO-{{ substr($regular->project_code, -8) }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Regular Ref No.</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">REG-{{ substr($regular->project_code, -8) }}</td>
+                                </tr>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Source Service Memo</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">{{ $rsatAttachments['service_memo_ref'] ?? ('SM-'.substr($regular->project_code, -8)) }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Source START</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">START-{{ substr($regular->project_code, -8) }}</td>
+                                </tr>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Source Deal</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">{{ $regular->deal?->deal_code ?: '—' }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Client</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">{{ $contactName ?: '—' }}</td>
+                                </tr>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Business / Company</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">{{ $regular->business_name ?: ($regular->company?->company_name ?: '—') }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Service / Regular</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">{{ $regular->name ?: '—' }}</td>
+                                </tr>
+                                <tr class="border-b border-slate-300">
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Service Area</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">{{ $regular->service_area ?: '—' }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Engagement Type</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">{{ $regular->engagement_type ?: 'Standard' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Target Start Date</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2 border-r border-slate-300">{{ $regular->planned_start_date ? \Illuminate\Support\Carbon::parse($regular->planned_start_date)->format('M d, Y') : '—' }}</td>
+                                    <td class="bg-slate-50 font-normal text-slate-600 px-3 py-2 border-r border-slate-300">Target Regular End Date</td>
+                                    <td class="font-bold text-slate-900 px-3 py-2">{{ $regular->target_completion_date ? \Illuminate\Support\Carbon::parse($regular->target_completion_date)->format('M d, Y') : '—' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="mt-5 rsat-meta-grid">
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Date Started:</div>
-                        <input type="date" name="date_started" value="{{ $dateStarted }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-meta-item">
-                        <div class="rsat-meta-label">Date Completed:</div>
-                        <input type="date" name="date_completed" value="{{ $dateCompleted }}" class="rsat-line-input">
-                    </div>
+                <!-- SECTION BANNER -->
+                <div class="rsat-section-title text-center text-white bg-[#102d79] py-2 px-4 font-bold text-xs tracking-wider uppercase font-serif mb-4">
+                    WITHIN SCOPE — EXECUTION STATUS &amp; CLIENT UPDATES
                 </div>
 
                 <div class="rsat-table-wrap">
                     <table class="rsat-table">
                         <thead>
                             <tr>
-                                <th style="width: 5%;">Item #</th>
-                                <th style="width: 18%;">Service</th>
-                                <th style="width: 26%;">Activity / Output</th>
-                                <th style="width: 12%;">Frequency</th>
-                                <th style="width: 14%;">Reminder Lead Time</th>
-                                <th style="width: 10%;">Deadline</th>
-                                <th style="width: 9%;">Status</th>
-                                <th style="width: 6%;">Action</th>
+                                <th style="width: 4%;">ITEM</th>
+                                <th style="width: 15%;">SERVICE</th>
+                                <th style="width: 22%;">ACTIVITY / PURPOSE</th>
+                                <th style="width: 16%;">FREQUENCY <i class="fas fa-info-circle text-[10px] opacity-75"></i></th>
+                                <th style="width: 16%;">STANDARD LEAD TIME <i class="fas fa-info-circle text-[10px] opacity-75"></i></th>
+                                <th style="width: 13%;">DELIVERY <i class="fas fa-info-circle text-[10px] opacity-75"></i></th>
+                                <th style="width: 14%; text-align: center;">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody id="regular-requirements">
+                            @php
+                                $currentServiceKey = null;
+                                $serviceIndexMap = [];
+                                $currentServiceIdx = 0;
+                                $activityIdx = 0;
+                            @endphp
                             @foreach ($rsatRequirements as $index => $item)
+                                @php
+                                    $rawService = trim($item['purpose'] ?? '');
+                                    $sKey = $rawService ?: '__default__';
+                                    if (!isset($serviceIndexMap[$sKey])) {
+                                        $currentServiceIdx++;
+                                        $serviceIndexMap[$sKey] = $currentServiceIdx;
+                                        $activityIdx = 1;
+                                    } else {
+                                        if ($currentServiceKey !== $sKey) {
+                                            $activityIdx = 1;
+                                        } else {
+                                            $activityIdx++;
+                                        }
+                                    }
+                                    $currentServiceKey = $sKey;
+                                    $formattedItemNumber = $item['number'] ?? ($serviceIndexMap[$sKey] . '.' . $activityIdx);
+                                @endphp
                                 <tr class="rsat-matrix-row">
-                                    <td><div class="rsat-index">{{ $index + 1 }}</div></td>
-                                    <td>
-                                        <input name="engagement_purpose[]" value="{{ old('engagement_purpose.'.$index, $item['purpose'] ?? '') }}" class="rsat-row-input">
+                                    <td class="rsat-index-col">
+                                        <div class="rsat-index">{{ $formattedItemNumber }}</div>
                                     </td>
                                     <td>
-                                        <input name="engagement_requirement[]" value="{{ old('engagement_requirement.'.$index, $item['requirement'] ?? '') }}" class="rsat-row-input">
+                                        <div class="rsat-cell-card">
+                                            <input name="engagement_purpose[]" value="{{ old('engagement_purpose.'.$index, $item['purpose'] ?? '') }}" class="rsat-cell-input" placeholder="Service name">
+                                        </div>
                                     </td>
                                     <td>
-                                        <input name="engagement_notes[]" value="{{ old('engagement_notes.'.$index, $item['notes'] ?? '') }}" class="rsat-row-input">
+                                        <div class="rsat-cell-card">
+                                            <input name="engagement_requirement[]" value="{{ old('engagement_requirement.'.$index, $item['requirement'] ?? '') }}" class="rsat-cell-input" placeholder="Activity / Purpose details">
+                                        </div>
                                     </td>
                                     <td>
-                                        <input name="engagement_timeline[]" value="{{ old('engagement_timeline.'.$index, $item['timeline'] ?? '') }}" class="rsat-row-input">
-                                    </td>
-                                    <td>
-                                        <input type="date" name="engagement_submitted_to[]" value="{{ $dateInput(old('engagement_submitted_to.'.$index, $item['submitted_to'] ?? '')) }}" class="rsat-row-input">
-                                    </td>
-                                    <td>
-                                        <select name="engagement_status[]" class="rsat-row-input" style="appearance: none;">
-                                            @foreach (['open' => 'Open', 'in_progress' => 'In Progress', 'delayed' => 'Delayed', 'completed' => 'Completed', 'on_hold' => 'On Hold'] as $statusValue => $statusLabel)
-                                                <option value="{{ $statusValue }}" @selected(old('engagement_status.'.$index, $item['status'] ?? 'open') === $statusValue)>{{ $statusLabel }}</option>
-                                            @endforeach
+                                        <div class="rsat-sublabel">Schedule 1</div>
+                                        <select name="engagement_notes[]" class="rsat-select-box">
+                                            <option value="Monthly" @selected(old('engagement_notes.'.$index, $item['notes'] ?? '') === 'Monthly')>Monthly</option>
+                                            <option value="Quarterly" @selected(old('engagement_notes.'.$index, $item['notes'] ?? '') === 'Quarterly')>Quarterly</option>
+                                            <option value="Annual" @selected(old('engagement_notes.'.$index, $item['notes'] ?? '') === 'Annual')>Annual</option>
+                                            <option value="Semi-Annual" @selected(old('engagement_notes.'.$index, $item['notes'] ?? '') === 'Semi-Annual')>Semi-Annual</option>
+                                            <option value="One-Time" @selected(old('engagement_notes.'.$index, $item['notes'] ?? '') === 'One-Time')>One-Time</option>
                                         </select>
+                                        <div class="rsat-subnote">{{ old('engagement_notes.'.$index, $item['notes'] ?? 'Monthly') }}</div>
+                                        <div class="border-t border-dashed border-slate-200 my-1"></div>
+                                        <span class="rsat-dash-link">+ Configure schedule</span>
                                     </td>
-                                    <td style="text-align: center;">
+                                    <td>
+                                        <div class="rsat-sublabel">Notice lead time · Schedule 1</div>
+                                        <select name="engagement_timeline[]" class="rsat-select-box">
+                                            <option value="7 calendar days before" @selected(old('engagement_timeline.'.$index, $item['timeline'] ?? '') === '7 calendar days before')>7 calendar days before</option>
+                                            <option value="14 calendar days before" @selected(old('engagement_timeline.'.$index, $item['timeline'] ?? '') === '14 calendar days before')>14 calendar days before</option>
+                                            <option value="30 calendar days before" @selected(old('engagement_timeline.'.$index, $item['timeline'] ?? '') === '30 calendar days before')>30 calendar days before</option>
+                                            <option value="Immediate" @selected(old('engagement_timeline.'.$index, $item['timeline'] ?? '') === 'Immediate')>Immediate</option>
+                                        </select>
+                                        <div class="rsat-subnote">7 calendar days buffer</div>
+                                    </td>
+                                    <td>
+                                        <div class="rsat-sublabel">Schedule 1</div>
+                                        <input type="date" name="engagement_submitted_to[]" value="{{ $dateInput(old('engagement_submitted_to.'.$index, $item['submitted_to'] ?? '')) }}" class="rsat-select-box">
+                                        <div class="rsat-subnote">Configure execution date schedule</div>
+                                    </td>
+                                    <td>
                                         @if (! $regularLocked)
-                                        <button type="button" class="rsat-row-delete" data-delete-row>&times;</button>
+                                        <div class="rsat-action-flex">
+                                            <button type="button" class="rsat-btn-square" data-add-row-below title="Add Row Below">+</button>
+                                            <button type="button" class="rsat-btn-square" data-duplicate-row title="Duplicate Row"><i class="far fa-clone text-[11px]"></i></button>
+                                            <button type="button" class="rsat-btn-square" data-move-up title="Move Up"><i class="fas fa-arrow-up text-[10px]"></i></button>
+                                            <button type="button" class="rsat-btn-square" data-move-down title="Move Down"><i class="fas fa-arrow-down text-[10px]"></i></button>
+                                            <button type="button" class="rsat-btn-square delete" data-delete-row title="Delete">&times;</button>
+                                        </div>
                                         @endif
                                     </td>
+                                    <input type="hidden" name="engagement_status[]" value="{{ old('engagement_status.'.$index, $item['status'] ?? 'open') }}">
                                     <input type="hidden" name="engagement_provided_by[]" value="{{ old('engagement_provided_by.'.$index, $item['provided_by'] ?? '') }}">
                                     <input type="hidden" name="engagement_assigned_to[]" value="{{ old('engagement_assigned_to.'.$index, $item['assigned_to'] ?? '') }}">
                                 </tr>
@@ -1180,144 +1557,43 @@
 
                 @if (! $regularLocked)
                 <div class="mt-4 flex justify-end">
-                    <button type="button" class="inline-flex items-center border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700" data-add-row="regular-requirements">Add RSAT Row</button>
+                    <button type="button" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" data-add-row="regular-requirements">+ Add RSAT Row</button>
                 </div>
                 @endif
 
-                <div class="rsat-section-title">ATTACHMENTS</div>
-                <div class="mt-5 space-y-4">
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-slate-700">Upload Supporting Files</label>
-                        <div id="rsat-attachments-inputs" class="space-y-3">
-                            <div class="flex items-center gap-3" data-attachment-input-row>
-                                <input
-                                    type="file"
-                                    name="attachments[]"
-                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                                    class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                                >
-                                <button type="button" class="hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-100" data-remove-attachment-input>
-                                    Remove
-                                </button>
-                            </div>
-                        </div>
-                        <p class="mt-2 text-xs text-slate-500">Attach images, PDFs, Office files, or text files up to 10MB each.</p>
-                        @if (! $regularLocked)
-                        <div class="mt-3">
-                            <button type="button" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" id="add-rsat-attachment-input">
-                                Add More
-                            </button>
-                        </div>
-                        @endif
+                <div class="rsat-summary-banner">RSAT REPORT SUMMARY</div>
+                <div class="rsat-summary-grid">
+                    <div class="rsat-summary-card">
+                        <div class="label">SERVICES</div>
+                        <div class="val">{{ count(array_filter(array_column($rsatRequirements->toArray(), 'purpose'))) ?: count($rsatRequirements) }}</div>
                     </div>
-
-                    @if ($rsatAttachments->isNotEmpty())
-                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                            <p class="text-sm font-semibold text-slate-700">Attached Files</p>
-                            <div class="mt-3 space-y-2">
-                                @foreach ($rsatAttachments as $attachment)
-                                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <div class="min-w-0">
-                                            <p class="truncate font-medium text-slate-800">{{ $attachment['name'] ?? 'Attachment' }}</p>
-                                            <p class="text-xs text-slate-500">
-                                                {{ strtoupper(pathinfo((string) ($attachment['name'] ?? ''), PATHINFO_EXTENSION) ?: 'FILE') }}
-                                                @if (filled($attachment['size'] ?? null))
-                                                    • {{ number_format(((int) $attachment['size']) / 1024, 1) }} KB
-                                                @endif
-                                            </p>
-                                        </div>
-                                        @if (filled($attachment['path'] ?? null))
-                                            <a href="{{ route('uploads.show', ['path' => $attachment['path'], 'download' => 1]) }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                                                Download
-                                            </a>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-                </div>
-
-                <div class="rsat-signature">
-                    <div class="rsat-signature-line">{{ $regular->client_name ?: $contactName }}</div>
-                    <div class="rsat-signature-label">Client Fullname &amp; Signature</div>
-                </div>
-
-                <div class="rsat-section-title">INTERNAL APPROVAL</div>
-
-                <div class="rsat-approval-grid">
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Prepared By:</div>
-                        <input name="clearance_assigned_team_lead" value="{{ $approvalPreparedBy }}" class="rsat-line-input">
+                    <div class="rsat-summary-card">
+                        <div class="label">ACTIVITIES</div>
+                        <div class="val">{{ count($rsatRequirements) }}</div>
                     </div>
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Reviewed By:</div>
-                        <input name="clearance_lead_consultant_confirmed" value="{{ $approvalReviewedBy }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Name:</div>
-                        <div class="rsat-line-value"></div>
-                    </div>
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Name:</div>
-                        <div class="rsat-line-value"></div>
-                    </div>
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Date:</div>
-                        <div class="rsat-line-value"></div>
-                    </div>
-                    <div class="rsat-approval-pair">
-                        <div class="rsat-approval-label">Date:</div>
-                        <div class="rsat-line-value"></div>
+                    <div class="rsat-summary-card">
+                        <div class="label">RECURRING SCHEDULES</div>
+                        <div class="val">{{ count($rsatRequirements) }}</div>
                     </div>
                 </div>
 
-                <div class="rsat-footer-grid">
-                    <div class="rsat-footer-pair">
-                        <div>Referred By/Closed By:</div>
-                        <input name="rejection_reason" value="{{ $approvalReferredBy }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-footer-pair">
-                        <div>Sales &amp; Marketing:</div>
-                        <input name="clearance_sales_marketing" value="{{ $approvalSalesMarketing }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-footer-pair">
-                        <div>Lead Consultant:</div>
-                        <input name="approval_responsible_person[]" value="{{ $approvalLeadConsultant }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-footer-pair">
-                        <div>Lead Associate Assigned:</div>
-                        <input name="clearance_lead_associate_assigned" value="{{ $approvalLeadAssociate }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-footer-pair">
-                        <div>Finance:</div>
-                        <input name="approval_responsible_person[]" value="{{ $approvalFinance }}" class="rsat-line-input">
-                    </div>
-                    <div class="rsat-footer-pair">
-                        <div>President:</div>
-                        <input name="approval_name_and_signature[]" value="{{ $approvalPresident }}" class="rsat-line-input">
-                    </div>
+                <div class="rsat-footer-note-bar">
+                    <div>{{ count($rsatRequirements) }} activities · {{ count($rsatRequirements) }} schedule(s)</div>
+                    <div>Read only · approval controls apply</div>
                 </div>
 
-                <div class="mt-4 rsat-footer-grid">
-                    <div class="rsat-footer-note">
-                        <div class="rsat-footer-pair" style="grid-template-columns: 230px minmax(0, 1fr);">
-                            <div>Record Custodian ( Name and Signature)</div>
-                            <input name="clearance_record_custodian_name" value="{{ $recordCustodian }}" class="rsat-line-input">
-                        </div>
-                    </div>
-                    <div class="space-y-3">
-                        <div class="rsat-footer-pair">
-                            <div>Date Recorded:</div>
-                            <input type="date" name="clearance_date_recorded" value="{{ $recordedDate }}" class="rsat-line-input">
-                        </div>
-                        <div class="rsat-footer-pair">
-                            <div>Date Signed:</div>
-                            <input type="date" name="clearance_date_signed" value="{{ $signedDate }}" class="rsat-line-input">
-                        </div>
-                    </div>
-                </div>
-
+                <!-- Hidden inputs for backend form processing -->
+                <input type="hidden" name="clearance_assigned_team_lead" value="{{ $approvalPreparedBy }}">
+                <input type="hidden" name="clearance_lead_consultant_confirmed" value="{{ $approvalReviewedBy }}">
+                <input type="hidden" name="rejection_reason" value="{{ $approvalReferredBy }}">
+                <input type="hidden" name="clearance_sales_marketing" value="{{ $approvalSalesMarketing }}">
+                <input type="hidden" name="approval_responsible_person[]" value="{{ $approvalLeadConsultant }}">
+                <input type="hidden" name="clearance_lead_associate_assigned" value="{{ $approvalLeadAssociate }}">
+                <input type="hidden" name="approval_responsible_person[]" value="{{ $approvalFinance }}">
+                <input type="hidden" name="approval_name_and_signature[]" value="{{ $approvalPresident }}">
+                <input type="hidden" name="clearance_record_custodian_name" value="{{ $recordCustodian }}">
+                <input type="hidden" name="clearance_date_recorded" value="{{ $recordedDate }}">
+                <input type="hidden" name="clearance_date_signed" value="{{ $signedDate }}">
                 <input type="hidden" name="approval_requirement[]" value="{{ old('approval_requirement.0', 'Lead Consultant') }}">
                 <input type="hidden" name="approval_requirement[]" value="{{ old('approval_requirement.1', 'Finance') }}">
                 <input type="hidden" name="approval_name_and_signature[]" value="{{ old('approval_name_and_signature.1', '') }}">
@@ -1413,22 +1689,57 @@
 
 <template id="regular-requirement-row-template">
     <tr class="rsat-matrix-row">
-        <td><div class="rsat-index"></div></td>
-        <td><input name="engagement_purpose[]" class="rsat-row-input"></td>
-        <td><input name="engagement_requirement[]" class="rsat-row-input"></td>
-        <td><input name="engagement_notes[]" class="rsat-row-input"></td>
-        <td><input name="engagement_timeline[]" class="rsat-row-input"></td>
-        <td><input type="date" name="engagement_submitted_to[]" class="rsat-row-input"></td>
-        <td>
-            <select name="engagement_status[]" class="rsat-row-input" style="appearance: none;">
-                <option value="open" selected>Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="delayed">Delayed</option>
-                <option value="completed">Completed</option>
-                <option value="on_hold">On Hold</option>
-            </select>
+        <td class="rsat-index-col">
+            <div class="rsat-index"></div>
         </td>
-        <td style="text-align: center;"><button type="button" class="rsat-row-delete" data-delete-row>&times;</button></td>
+        <td>
+            <div class="rsat-cell-card">
+                <input name="engagement_purpose[]" class="rsat-cell-input" placeholder="Service name">
+            </div>
+        </td>
+        <td>
+            <div class="rsat-cell-card">
+                <input name="engagement_requirement[]" class="rsat-cell-input" placeholder="Activity / Purpose details">
+            </div>
+        </td>
+        <td>
+            <div class="rsat-sublabel">Schedule 1</div>
+            <select name="engagement_notes[]" class="rsat-select-box">
+                <option value="Monthly" selected>Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Annual">Annual</option>
+                <option value="Semi-Annual">Semi-Annual</option>
+                <option value="One-Time">One-Time</option>
+            </select>
+            <div class="rsat-subnote">Monthly</div>
+            <div class="border-t border-dashed border-slate-200 my-1"></div>
+            <span class="rsat-dash-link">+ Configure schedule</span>
+        </td>
+        <td>
+            <div class="rsat-sublabel">Notice lead time · Schedule 1</div>
+            <select name="engagement_timeline[]" class="rsat-select-box">
+                <option value="7 calendar days before" selected>7 calendar days before</option>
+                <option value="14 calendar days before">14 calendar days before</option>
+                <option value="30 calendar days before">30 calendar days before</option>
+                <option value="Immediate">Immediate</option>
+            </select>
+            <div class="rsat-subnote">7 calendar days buffer</div>
+        </td>
+        <td>
+            <div class="rsat-sublabel">Schedule 1</div>
+            <input type="date" name="engagement_submitted_to[]" class="rsat-select-box">
+            <div class="rsat-subnote">Configure execution date schedule</div>
+        </td>
+        <td>
+            <div class="rsat-action-flex">
+                <button type="button" class="rsat-btn-square" data-add-row-below title="Add Row Below">+</button>
+                <button type="button" class="rsat-btn-square" data-duplicate-row title="Duplicate Row"><i class="far fa-clone text-[11px]"></i></button>
+                <button type="button" class="rsat-btn-square" data-move-up title="Move Up"><i class="fas fa-arrow-up text-[10px]"></i></button>
+                <button type="button" class="rsat-btn-square" data-move-down title="Move Down"><i class="fas fa-arrow-down text-[10px]"></i></button>
+                <button type="button" class="rsat-btn-square delete" data-delete-row title="Delete">&times;</button>
+            </div>
+        </td>
+        <input type="hidden" name="engagement_status[]" value="open">
         <input type="hidden" name="engagement_provided_by[]" value="">
         <input type="hidden" name="engagement_assigned_to[]" value="">
     </tr>
@@ -1599,13 +1910,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) {
             return;
         }
-        Array.from(container.querySelectorAll('.rsat-matrix-row')).forEach((row, index) => {
+        let currentServiceKey = null;
+        const servicesMap = new Map();
+        let serviceIndex = 0;
+        let activityIndex = 0;
+
+        Array.from(container.querySelectorAll('.rsat-matrix-row')).forEach((row) => {
+            const serviceInput = row.querySelector('input[name="engagement_purpose[]"]');
+            const rawService = serviceInput ? serviceInput.value.trim() : '';
+            const serviceKey = rawService || '__default__';
+
+            if (!servicesMap.has(serviceKey)) {
+                serviceIndex++;
+                servicesMap.set(serviceKey, serviceIndex);
+                activityIndex = 1;
+            } else {
+                if (currentServiceKey !== serviceKey) {
+                    activityIndex = 1;
+                } else {
+                    activityIndex++;
+                }
+            }
+            currentServiceKey = serviceKey;
+
+            const sIdx = servicesMap.get(serviceKey);
+            const formattedItemNumber = `${sIdx}.${activityIndex}`;
+
             const indexCell = row.querySelector('.rsat-index');
             if (indexCell) {
-                indexCell.textContent = index + 1;
+                indexCell.textContent = formattedItemNumber;
             }
         });
     };
+
+    requirementsContainer?.addEventListener('input', (event) => {
+        if (event.target.matches('input[name="engagement_purpose[]"]')) {
+            syncRowNumbers(requirementsContainer);
+        }
+    });
 
     document.querySelectorAll('[data-add-row]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -1619,18 +1961,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     requirementsContainer?.addEventListener('click', (event) => {
-        const trigger = event.target.closest('[data-delete-row]');
-        if (!trigger) {
+        const deleteBtn = event.target.closest('[data-delete-row]');
+        if (deleteBtn) {
+            const row = deleteBtn.closest('tr');
+            if (row) {
+                row.remove();
+                syncRowNumbers(requirementsContainer);
+            }
             return;
         }
 
-        const row = trigger.closest('tr');
-        if (!row) {
+        const moveUpBtn = event.target.closest('[data-move-up]');
+        if (moveUpBtn) {
+            const row = moveUpBtn.closest('tr');
+            if (row && row.previousElementSibling) {
+                row.parentNode.insertBefore(row, row.previousElementSibling);
+                syncRowNumbers(requirementsContainer);
+            }
             return;
         }
 
-        row.remove();
-        syncRowNumbers(requirementsContainer);
+        const moveDownBtn = event.target.closest('[data-move-down]');
+        if (moveDownBtn) {
+            const row = moveDownBtn.closest('tr');
+            if (row && row.nextElementSibling) {
+                row.parentNode.insertBefore(row.nextElementSibling, row);
+                syncRowNumbers(requirementsContainer);
+            }
+            return;
+        }
+
+        const addBelowBtn = event.target.closest('[data-add-row-below]');
+        if (addBelowBtn) {
+            const row = addBelowBtn.closest('tr');
+            if (row) {
+                row.insertAdjacentHTML('afterend', rowTemplate.innerHTML);
+                syncRowNumbers(requirementsContainer);
+            }
+            return;
+        }
+
+        const duplicateBtn = event.target.closest('[data-duplicate-row]');
+        if (duplicateBtn) {
+            const row = duplicateBtn.closest('tr');
+            if (row) {
+                const clone = row.cloneNode(true);
+                row.parentNode.insertBefore(clone, row.nextElementSibling);
+                syncRowNumbers(requirementsContainer);
+            }
+            return;
+        }
     });
 
     addAttachmentInputButton?.addEventListener('click', () => {

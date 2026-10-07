@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   const isReview=location.pathname.endsWith("/review.html"),isNtp=location.pathname.endsWith("/ntp.html");
-  if(!isReview&&!isNtp)return;
+  if((!isReview&&!isNtp) || document.querySelector('.sidecard .wo-management'))return;
   const side=document.querySelector(".sidecard"),index=isReview?2:3,record=ORDO_STATE.stageManagement.stages[index],workOrder=ORDO_STATE.workOrder,project=ORDO_STATE.projects.find((item)=>item.id===ORDO_PROJECT_ID);
   const stageName=isReview?"Review":"NTP",sourceStage=isReview?"Plan":"NTP",esc=ORDO.esc;
   const fmt=(seconds)=>{const value=Math.max(0,Math.floor(seconds||0));return `${String(Math.floor(value/3600)).padStart(2,"0")}:${String(Math.floor((value%3600)/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;};

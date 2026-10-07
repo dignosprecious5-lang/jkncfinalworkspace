@@ -601,9 +601,11 @@
   }
   if (isWorkspace && ["/review.html", "/ntp.html"].some((page) => location.pathname.endsWith(page))) {
     const side = document.querySelector(".sidecard");
-    side?.querySelector(":scope > .stage-management-panel")?.remove();
-    side?.classList.remove("stage-management-only");
-    side?.querySelectorAll(":scope > .side-section").forEach((section) => (section.hidden = false));
+    if (side && !side.querySelector(".wo-management")) {
+      side?.querySelector(":scope > .stage-management-panel")?.remove();
+      side?.classList.remove("stage-management-only");
+      side?.querySelectorAll(":scope > .side-section").forEach((section) => (section.hidden = false));
+    }
     const sections = side ? [...side.querySelectorAll(":scope > .side-section")] : [];
     const statusSection = sections.find((section) => section.querySelector("h4")?.textContent.trim() === "STAGE STATUS");
     const handlingSection = sections.find((section) => section.querySelector("h4")?.textContent.trim() === "STAGE HANDLING");

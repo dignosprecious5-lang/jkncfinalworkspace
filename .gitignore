@@ -12,3 +12,7 @@
 .phpunit.result.cache
 laravel-app/storage/framework/testing/
 **/testing/disks/
+/node_modules/
+/public/hot
+/public/build/
+/scratch/

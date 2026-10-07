@@ -1,3 +1,117 @@
+<style>
+    .performance-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+    }
+    .performance-table th, .performance-table td {
+        padding: 12px 16px !important;
+        border-bottom: 1px solid #e8ebf0 !important;
+        text-align: left !important;
+        font-size: 11px !important;
+        vertical-align: middle !important;
+    }
+    .performance-table th {
+        background: #f8f9fb !important;
+        color: #6f7b8c !important;
+        text-transform: uppercase !important;
+        letter-spacing: .04em !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+    }
+    .performance-table td:nth-child(n+3) {
+        font-variant-numeric: tabular-nums !important;
+    }
+    .perf {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 4px 10px !important;
+        border-radius: 999px !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+    }
+    .perf.good { background: #e8f7f0 !important; color: #16845c !important; }
+    .perf.warning { background: #fff2df !important; color: #b86a11 !important; }
+    .perf.bad { background: #fdebed !important; color: #cc3440 !important; }
+    .perf.neutral { background: #eef1f5 !important; color: #778292 !important; }
+    .table-scroll { width: 100% !important; overflow-x: auto !important; }
+
+    .summary-links {
+        display: grid !important;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+    .summary-links a {
+        display: block !important;
+        padding: 13px !important;
+        border: 1px solid #e4e8ef !important;
+        border-radius: 9px !important;
+        background: #fafbfc !important;
+        text-decoration: none !important;
+        transition: all .15s ease !important;
+    }
+    .summary-links a:hover {
+        border-color: #cbd5e1 !important;
+        background: #f1f5f9 !important;
+        transform: translateY(-1px) !important;
+    }
+    .summary-links span {
+        display: block !important;
+        color: #788496 !important;
+        font-size: 9px !important;
+        font-weight: 800 !important;
+        letter-spacing: .05em !important;
+        text-transform: uppercase !important;
+    }
+    .summary-links strong {
+        display: block !important;
+        font-size: 18px !important;
+        margin-top: 4px !important;
+        color: #20365f !important;
+        font-weight: 800 !important;
+    }
+    .activity-list {
+        display: grid !important;
+        gap: 0 !important;
+    }
+    .activity-row {
+        display: grid !important;
+        grid-template-columns: 110px 14px 1fr !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 10px 0 !important;
+        border-bottom: 1px solid #eceff3 !important;
+    }
+    .activity-row:last-child {
+        border-bottom: none !important;
+    }
+    .activity-row time {
+        color: #687589 !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+    }
+    .activity-row i {
+        width: 8px !important;
+        height: 8px !important;
+        background: #3157aa !important;
+        border-radius: 50% !important;
+        display: inline-block !important;
+    }
+    .activity-row span {
+        font-size: 11px !important;
+        color: #263852 !important;
+        font-weight: 500 !important;
+    }
+    @media (max-width: 1180px) {
+        .summary-links { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+    }
+    @media (max-width: 760px) {
+        .summary-links { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    }
+</style>
+
 @php
     $tasks = collect($rsat?->engagement_requirements ?? []);
     $taskCount = $tasks->count();
@@ -181,12 +295,12 @@
                     <p>Live operational position and pending requirement</p>
                 </div>
                 <div>
-                    <strong id="timerClock">{{ sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv($totalSec % 3600, 60), $totalSec % 60) }}</strong>
-                    <span id="timerState" class="ml-2 text-xs opacity-75">Regular Direct</span>
-                    <div class="timer-actions mt-2 flex gap-1 justify-end">
-                        <button class="tbtn start text-xs bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded" id="timerStart">▶ Start</button>
-                        <button class="tbtn pause text-xs bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded" id="timerPause">Ⅱ Pause</button>
-                        <button class="tbtn stop text-xs bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded" id="timerStop">■ Stop</button>
+                    <strong id="timerClock" style="font-size: 15px; font-weight: 800; color: #fff;">{{ sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv($totalSec % 3600, 60), $totalSec % 60) }}</strong>
+                    <span id="timerState" style="font-size: 13px; font-weight: 700; color: #fff; margin-left: 4px;">Running</span>
+                    <div class="timer-actions">
+                        <button class="tbtn start" id="timerStart" type="button"><i class="fas fa-play text-[9px] mr-1"></i> Start</button>
+                        <button class="tbtn pause" id="timerPause" type="button"><i class="fas fa-pause text-[9px] mr-1"></i> Pause</button>
+                        <button class="tbtn stop" id="timerStop" type="button"><i class="fas fa-square text-[9px] mr-1"></i> Stop</button>
                     </div>
                 </div>
             </div>
@@ -238,55 +352,55 @@
                 <p>Aggregated from the existing Stage Management records</p>
             </div>
             <div class="indicator-key">
-                <span class="tone-good">● Good</span>
-                <span class="tone-warning">● Warning</span>
-                <span class="tone-critical">● Critical</span>
+                <span class="tone-good"><i class="fas fa-circle text-[6px]"></i> Good</span>
+                <span class="tone-warning"><i class="fas fa-circle text-[6px]"></i> Warning</span>
+                <span class="tone-critical"><i class="fas fa-circle text-[6px]"></i> Critical</span>
             </div>
         </div>
         <div class="command-body command-kpis">
             <div class="command-kpi">
                 <span>TOTAL HANDLING</span>
-                <strong>{{ intdiv($totalSec, 3600) }}h {{ intdiv($totalSec % 3600, 60) }}m</strong>
+                <strong id="kpiTotalHandling">{{ sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv(($totalSec % 3600), 60), $totalSec % 60) }}</strong>
                 <small>In Progress + On Hold</small>
             </div>
             <div class="command-kpi">
                 <span>TOTAL IN PROGRESS</span>
-                <strong>{{ intdiv($totalSec, 3600) }}h {{ intdiv($totalSec % 3600, 60) }}m</strong>
+                <strong id="kpiTotalInProgress">{{ sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv(($totalSec % 3600), 60), $totalSec % 60) }}</strong>
                 <small>Active work</small>
             </div>
             <div class="command-kpi">
                 <span>TOTAL ON HOLD</span>
-                <strong>0m</strong>
+                <strong id="kpiTotalOnHold">—</strong>
                 <small>Paused work</small>
             </div>
             <div class="command-kpi">
                 <span>TOTAL WAITING</span>
-                <strong>—</strong>
+                <strong id="kpiTotalWaiting">—</strong>
                 <small>Pending actions</small>
             </div>
             <div class="command-kpi">
                 <span>TOTAL ELAPSED</span>
-                <strong>{{ intdiv($totalSec, 3600) }}h {{ intdiv($totalSec % 3600, 60) }}m</strong>
+                <strong id="kpiTotalElapsed">{{ sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv(($totalSec % 3600), 60), $totalSec % 60) }}</strong>
                 <small>Clock time</small>
             </div>
             <div class="command-kpi">
                 <span>AVERAGE STAGE</span>
-                <strong>{{ round($totalSec / max(1, $currentStageIdx + 1) / 60) }}m</strong>
+                <strong id="kpiAverageStage">{{ sprintf('%02d:%02d:%02d', intdiv(intdiv($totalSec, max(1, $currentStageIdx + 1)), 3600), intdiv(intdiv($totalSec, max(1, $currentStageIdx + 1)) % 3600, 60), intdiv($totalSec, max(1, $currentStageIdx + 1)) % 60) }}</strong>
                 <small>Handling average</small>
             </div>
             <div class="command-kpi">
                 <span>HISTORICAL AVERAGE</span>
-                <strong>4h 30m</strong>
+                <strong id="kpiHistoricalAvg">1d 0h</strong>
                 <small>Configured benchmark</small>
             </div>
             <div class="command-kpi">
                 <span>DIFFERENCE</span>
-                <strong class="tone-good">−2h 30m</strong>
+                <strong id="kpiDifference" class="tone-good">−1d 0h</strong>
                 <small>Versus historical</small>
             </div>
             <div class="command-kpi">
                 <span>PERFORMANCE</span>
-                <strong class="tone-good">Good</strong>
+                <strong id="kpiPerformance" class="tone-good">Good</strong>
                 <small>Than average</small>
             </div>
         </div>
@@ -314,17 +428,17 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($stages as $st)
-                        <tr>
+                    @foreach($stages as $idx => $st)
+                        <tr id="stageRow_{{ $idx }}" class="{{ $idx === $currentStageIdx ? 'active-stage-row' : '' }}">
                             <td>
                                 <a href="{{ route('regular.show', ['regular' => $regular->id, 'tab' => $st['tab']]) }}" class="font-bold text-blue-700 hover:underline">
                                     {{ $st['name'] }}
                                 </a>
                             </td>
-                            <td>{{ $st['status'] }}</td>
-                            <td>{{ $st['handling'] }}</td>
-                            <td>{{ $st['waiting'] }}</td>
-                            <td>{{ $st['elapsed'] }}</td>
+                            <td id="stageStatus_{{ $idx }}">{{ $st['status'] }}</td>
+                            <td id="stageHandling_{{ $idx }}">{{ $idx === $currentStageIdx ? sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv(($totalSec % 3600), 60), $totalSec % 60) : $st['handling'] }}</td>
+                            <td id="stageWaiting_{{ $idx }}">{{ $st['waiting'] }}</td>
+                            <td id="stageElapsed_{{ $idx }}">{{ $idx === $currentStageIdx ? sprintf('%02d:%02d:%02d', intdiv($totalSec, 3600), intdiv(($totalSec % 3600), 60), $totalSec % 60) : $st['elapsed'] }}</td>
                             <td>{{ $st['avg'] }}</td>
                             <td>
                                 <span class="perf {{ $st['perfClass'] }}">{{ $st['perf'] }}</span>
@@ -575,3 +689,178 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const regularId = {{ $regular->id }};
+        const storageKey = 'ordo_regular_timer_' + regularId;
+        
+        let timerData = {
+            state: 'running',
+            startedAt: Date.now(),
+            accumulatedSeconds: {{ (int)($totalSec ?? 7200) }}
+        };
+
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed.accumulatedSeconds === 'number') {
+                    timerData = parsed;
+                    if (timerData.state === 'running' && !timerData.startedAt) {
+                        timerData.startedAt = Date.now();
+                    }
+                }
+            } else {
+                localStorage.setItem(storageKey, JSON.stringify(timerData));
+            }
+        } catch (e) {}
+
+        function formatHms(sec) {
+            sec = Math.max(0, Math.floor(sec));
+            const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+            const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        function getLiveSeconds() {
+            let sec = Number(timerData.accumulatedSeconds) || 0;
+            if (timerData.state === 'running') {
+                if (!timerData.startedAt) {
+                    timerData.startedAt = Date.now();
+                }
+                sec += Math.max(0, (Date.now() - timerData.startedAt) / 1000);
+            }
+            return sec;
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(timerData));
+            } catch (e) {}
+        }
+
+        function updateUI() {
+            const sec = getLiveSeconds();
+            const formatted = formatHms(sec);
+            
+            const clockEl = document.getElementById('timerClock');
+            if (clockEl) clockEl.textContent = formatted;
+            
+            const stateEl = document.getElementById('timerState');
+            if (stateEl) {
+                if (timerData.state === 'running') {
+                    stateEl.textContent = 'Running';
+                } else if (timerData.state === 'paused') {
+                    stateEl.textContent = 'Paused';
+                } else {
+                    stateEl.textContent = 'Stopped';
+                }
+            }
+
+            // Update Time & Performance KPI cards
+            const kpiHandling = document.getElementById('kpiTotalHandling');
+            if (kpiHandling) kpiHandling.textContent = formatted;
+
+            const kpiInProg = document.getElementById('kpiTotalInProgress');
+            if (kpiInProg) kpiInProg.textContent = formatted;
+
+            const kpiElapsed = document.getElementById('kpiTotalElapsed');
+            if (kpiElapsed) kpiElapsed.textContent = formatted;
+
+            const currentStageIdx = {{ (int)($currentStageIdx ?? 0) }};
+            const kpiAvg = document.getElementById('kpiAverageStage');
+            if (kpiAvg) {
+                const avgSec = Math.floor(sec / Math.max(1, currentStageIdx + 1));
+                kpiAvg.textContent = formatHms(avgSec);
+            }
+
+            // Update active stage row in Stage Performance table
+            const stageHandling = document.getElementById('stageHandling_' + currentStageIdx);
+            if (stageHandling) stageHandling.textContent = formatted;
+
+            const stageElapsed = document.getElementById('stageElapsed_' + currentStageIdx);
+            if (stageElapsed) stageElapsed.textContent = formatted;
+
+            const startBtn = document.getElementById('timerStart');
+            const pauseBtn = document.getElementById('timerPause');
+            const stopBtn = document.getElementById('timerStop');
+
+            if (startBtn && pauseBtn && stopBtn) {
+                if (timerData.state === 'running') {
+                    startBtn.style.opacity = '1';
+                    startBtn.style.fontWeight = '800';
+                    startBtn.style.boxShadow = '0 0 0 2px rgba(22, 131, 77, 0.4)';
+                    pauseBtn.style.opacity = '0.9';
+                    pauseBtn.style.boxShadow = 'none';
+                    stopBtn.style.opacity = '0.9';
+                    stopBtn.style.boxShadow = 'none';
+                } else if (timerData.state === 'paused') {
+                    startBtn.style.opacity = '0.9';
+                    startBtn.style.boxShadow = 'none';
+                    pauseBtn.style.opacity = '1';
+                    pauseBtn.style.fontWeight = '800';
+                    pauseBtn.style.boxShadow = '0 0 0 2px rgba(173, 109, 14, 0.4)';
+                    stopBtn.style.opacity = '0.9';
+                    stopBtn.style.boxShadow = 'none';
+                } else {
+                    startBtn.style.opacity = '0.9';
+                    startBtn.style.boxShadow = 'none';
+                    pauseBtn.style.opacity = '0.9';
+                    pauseBtn.style.boxShadow = 'none';
+                    stopBtn.style.opacity = '1';
+                    stopBtn.style.fontWeight = '800';
+                    stopBtn.style.boxShadow = '0 0 0 2px rgba(194, 61, 61, 0.4)';
+                }
+            }
+        }
+
+        const startBtn = document.getElementById('timerStart');
+        const pauseBtn = document.getElementById('timerPause');
+        const stopBtn = document.getElementById('timerStop');
+
+        if (startBtn) {
+            startBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (timerData.state !== 'running' || !timerData.startedAt) {
+                    timerData.state = 'running';
+                    timerData.startedAt = Date.now();
+                    saveState();
+                    updateUI();
+                }
+            });
+        }
+
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (timerData.state === 'running') {
+                    if (timerData.startedAt) {
+                        timerData.accumulatedSeconds += (Date.now() - timerData.startedAt) / 1000;
+                    }
+                    timerData.state = 'paused';
+                    timerData.startedAt = null;
+                    saveState();
+                    updateUI();
+                }
+            });
+        }
+
+        if (stopBtn) {
+            stopBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (timerData.state === 'running' && timerData.startedAt) {
+                    timerData.accumulatedSeconds += (Date.now() - timerData.startedAt) / 1000;
+                }
+                timerData.state = 'stopped';
+                timerData.startedAt = null;
+                saveState();
+                updateUI();
+            });
+        }
+
+        updateUI();
+        window.setInterval(updateUI, 1000);
+    })();
+</script>

@@ -371,7 +371,7 @@ button {
   box-shadow: var(--shadow);
   overflow: hidden;
   position: sticky;
-  top: 90px;
+  top: 14px;
 }
 .side-title {
   padding: 16px 14px 8px;

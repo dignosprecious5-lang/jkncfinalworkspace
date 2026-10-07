@@ -1,26 +1,27 @@
 @php
-    $regularRef = $regular->project_code;
-    $workOrderNo = 'REG-WO-' . date('Y') . '-' . str_pad($regular->id, 3, '0', STR_PAD_LEFT);
-    $epaNo = 'EPA-' . date('Y') . '-' . str_pad($regular->id, 3, '0', STR_PAD_LEFT);
-    $serviceMemo = 'SM-' . date('Y') . '-' . str_pad($regular->id, 3, '0', STR_PAD_LEFT);
-    $startRef = 'START-' . date('Y') . '-' . str_pad($regular->id, 3, '0', STR_PAD_LEFT);
-    $dealRef = $regular->deal?->deal_code ?: ('CONDEAL-' . date('Y') . '-' . str_pad($regular->id, 3, '0', STR_PAD_LEFT));
-
-    $clientName = $contactName ?: ($regular->company?->primaryContact?->full_name ?: 'May Flor D. Dabatos');
-    $businessName = $regular->business_name ?: ($regular->company?->company_name ?: 'X10 REAL ESTATE CORPORATION');
-    $serviceTitle = $regular->title ?: 'Transfer of Share From Dany and Ronald to X10';
-    $serviceArea = $regular->service_area ?: 'Corporate Services';
-    $engagementType = 'Project';
-
-    $targetStart = $regular->planned_start_date ? \Carbon\Carbon::parse($regular->planned_start_date)->format('M d, Y') : 'Aug 17, 2026';
-    $targetEnd = $regular->target_completion_date ? \Carbon\Carbon::parse($regular->target_completion_date)->format('M d, Y') : 'Sep 18, 2026';
-
-    $ntpNoDisplay = $ntpRecord?->reference_no ?? '—';
-    $isNtpApproved = (bool)($ntpRecord?->client_approved_at || $regular->status === 'Completed');
+    // SOW Report Data Preparation
+    $projectRef = $project->project_code ?: ('PROJ-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT));
+    $workOrderNo = 'PROJ-WO-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT);
+    $epaNo = 'EPA-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT);
+    $serviceMemo = 'SM-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT);
+    $startRef = 'START-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT);
+    $dealRef = $project->deal?->deal_code ?: ('CONDEAL-' . date('Y') . '-' . str_pad($project->id, 3, '0', STR_PAD_LEFT));
+    
+    $clientName = $contactName ?: ($project->client_name ?: ($project->contact?->full_name ?: 'May Flor D. Dabatos'));
+    $businessName = $project->business_name ?: ($project->company?->company_name ?: 'X10 REAL ESTATE CORPORATION');
+    $serviceTitle = $project->project_title ?: 'Transfer of Share From Dany and Ronald to X10';
+    $serviceArea = $project->service_area ?: 'Corporate Services';
+    $engagementType = $project->engagement_type ?: 'Project';
+    
+    $targetStart = $project->planned_start_date ? \Carbon\Carbon::parse($project->planned_start_date)->format('M d, Y') : 'Aug 17, 2026';
+    $targetEnd = $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('M d, Y') : 'Sep 18, 2026';
+    
+    $ntpNoDisplay = $ntpRecord?->reference_no ?: '—';
+    $isNtpApproved = (bool)($ntpRecord?->client_approved_at || $project->status === 'Completed');
 
     // Parse tasks for Within Scope
-    $rawWithin = collect($rsatRequirements ?? [])->filter(fn($x) => filled(data_get($x, 'purpose') ?: data_get($x, 'requirement') ?: data_get($x, 'sub_task_description')));
-
+    $rawWithin = collect($sowWithin ?? [])->filter(fn($x) => filled(data_get($x, 'main_task_description') ?: data_get($x, 'sub_task_description')));
+    
     if ($rawWithin->isEmpty()) {
         $rawWithin = collect([
             [
@@ -89,24 +90,25 @@
             ],
         ]);
     } else {
-        $rawWithin = $rawWithin->map(function($item) use ($regular) {
+        $rawWithin = $rawWithin->map(function($item, $idx) use ($project) {
             $arr = is_array($item) ? $item : (array)$item;
             $st = !empty($arr['status']) ? $arr['status'] : 'In Progress';
             if (in_array(strtolower($st), ['completed', 'done'])) $st = 'Done';
             elseif (in_array(strtolower($st), ['on hold', 'pending', 'pending client'])) $st = 'On Hold';
             else $st = 'In Progress';
-
+            
             return [
-                'main_task' => !empty($arr['main_task_description']) ? $arr['main_task_description'] : (!empty($arr['purpose']) ? $arr['purpose'] : 'Share Transfer Documentation'),
-                'sub_task' => !empty($arr['sub_task_description']) ? $arr['sub_task_description'] : (!empty($arr['requirement']) ? $arr['requirement'] : ($arr['notes'] ?? 'Retainer Deliverable')),
-                'responsibility' => 'Responsible',
-                'assigned' => !empty($arr['assigned_to']) ? $arr['assigned_to'] : (!empty($arr['responsible']) ? $arr['responsible'] : 'Rubeca Potayre'),
+                'main_task' => !empty($arr['main_task_description']) ? $arr['main_task_description'] : 'General Scope Task',
+                'sub_task' => !empty($arr['sub_task_description']) ? $arr['sub_task_description'] : ($arr['task'] ?? 'Scope Activity'),
+                'responsibility' => !empty($arr['responsibility']) ? $arr['responsibility'] : 'Responsible',
+                'assigned' => !empty($arr['responsible']) ? $arr['responsible'] : (!empty($arr['assignee']) ? $arr['assignee'] : ($project->assigned_consultant ?: 'Rubeca Potayre')),
                 'status' => $st,
-                'updates' => 0,
+                'updates' => (int)($arr['updates'] ?? 0),
             ];
         });
     }
 
+    // Group within scope by workstream
     $withinWorkstreams = $rawWithin->groupBy('main_task');
     $withinMainCount = $withinWorkstreams->count();
     $withinChildCount = $rawWithin->count();
@@ -114,15 +116,24 @@
     $withinProgressCount = $rawWithin->where('status', 'In Progress')->count();
     $withinHoldCount = $rawWithin->where('status', 'On Hold')->count();
 
+    // Parse Out of Scope tasks
+    $rawOut = collect($sowOut ?? [])->filter(fn($x) => filled(data_get($x, 'main_task_description') ?: data_get($x, 'sub_task_description')));
+    $outWorkstreams = $rawOut->groupBy(fn($x) => data_get($x, 'main_task_description') ?: 'Out of Scope Stream');
+    $outMainCount = $outWorkstreams->isEmpty() ? 0 : $outWorkstreams->count();
+    $outChildCount = $rawOut->count();
+    $outDoneCount = $rawOut->filter(fn($x) => in_array(strtolower(data_get($x, 'status', '')), ['done', 'completed']))->count();
+    $outProgressCount = $rawOut->filter(fn($x) => strtolower(data_get($x, 'status', '')) === 'in progress')->count();
+    $outHoldCount = $rawOut->filter(fn($x) => in_array(strtolower(data_get($x, 'status', '')), ['on hold', 'pending']))->count();
+
     // Narratives
-    $defaultNarrative = (array) data_get($regular->metadata ?? [], 'sow_report_narrative', []);
-    $narrativeIssues = $defaultNarrative['issues'] ?? 'Retainer cycle filings are synchronized with government deadlines.';
-    $narrativeRecommendations = $defaultNarrative['recommendations'] ?? 'Maintain ongoing alignment with the client contact regarding regulatory renewals.';
-    $narrativeWay = $defaultNarrative['summary_way_forward'] ?? 'Complete remaining scheduled items for the current reporting cycle.';
+    $defaultNarrative = (array) data_get($project->metadata ?? [], 'sow_report_narrative', []);
+    $narrativeIssues = $defaultNarrative['issues'] ?? 'Client execution copies were received in batches.';
+    $narrativeRecommendations = $defaultNarrative['recommendations'] ?? 'Maintain updated corporate records with the closing package.';
+    $narrativeWay = $defaultNarrative['summary_way_forward'] ?? 'Complete remaining processing and corporate record updates, then transmit the final package and issue the COC.';
 @endphp
 
 <style>
-/* RSAT Report Scoped Design System - Exact 100% Desktop UI/UX Specification */
+/* SOW Report Scoped Design System - 100% Desktop View */
 .sow-report-container {
     display: grid;
     grid-template-columns: 280px minmax(0, 1fr);
@@ -397,7 +408,7 @@
     margin: 0 28px;
 }
 
-/* Regular Information Section */
+/* Project Information Section */
 .sow-info-heading {
     padding: 18px 28px 10px;
     display: flex;
@@ -521,6 +532,10 @@
     line-height: 1.4;
 }
 
+.sow-table td:last-child {
+    border-right: none;
+}
+
 .sow-table tr.main-task td {
     background: #ffffff;
     font-weight: 600;
@@ -578,12 +593,12 @@
     color: #92400e;
 }
 
-/* RSAT Report Summary */
+/* SOW Report Summary */
 .sow-summary-title {
     margin: 22px 0 6px;
     font-size: 11.5px;
     font-weight: 900;
-    color: #102d79;
+    color: #1e3a8a;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -630,7 +645,7 @@
 .sow-summary-card strong {
     display: block;
     margin-top: 4px;
-    color: #102d79;
+    color: #1e3a8a;
     font-size: 20px;
     font-weight: 800;
     line-height: 1.1;
@@ -676,8 +691,8 @@
 
 .sow-narrative-field textarea:focus {
     outline: none;
-    border-color: #102d79;
-    box-shadow: 0 0 0 3px rgba(16, 45, 121, 0.08);
+    border-color: #1e3a8a;
+    box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.08);
 }
 
 /* Client Updates Modal */
@@ -722,7 +737,7 @@
     margin: 0;
     font-size: 14px;
     font-weight: 800;
-    color: #102d79;
+    color: #1e3a8a;
 }
 
 .sow-modal-header p {
@@ -750,7 +765,7 @@
 
 .sow-modal-content {
     padding: 20px;
-    overflow-y.auto;
+    overflow-y: auto;
     display: grid;
     gap: 12px;
 }
@@ -761,6 +776,37 @@
     color: #94a3b8;
     font-style: italic;
     font-size: 12px;
+}
+
+.sow-client-update-entry {
+    border: 1px solid #dce4f2;
+    border-radius: 10px;
+    padding: 14px;
+    background: #f8fafc;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
+}
+
+.sow-client-update-entry h5 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+.sow-delivery-proof {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.sow-delivery-proof .status-pill {
+    color: #166534;
+    font-weight: 800;
 }
 
 @media print {
@@ -801,15 +847,15 @@
         <div class="sow-side-section">
             <h4>STAGE HANDLING</h4>
             <div class="sow-handling-card">
-                <span>Total Stage<br>Handling<br>Time</span>
-                <strong id="sowRegularHandlingTimer">00:00:00</strong>
+                <span>Total Stage<br>Handling Time</span>
+                <strong id="sowLiveHandlingTimer">00:00:00</strong>
             </div>
             <dl class="sow-key-value-list">
-                <div><dt>In Progress</dt><dd class="mono" id="sowRegularProgressTimer">00:00:00</dd></div>
+                <div><dt>In Progress</dt><dd class="mono" id="sowLiveProgressTimer">00:00:00</dd></div>
                 <div><dt>On Hold</dt><dd class="mono">00:00:00</dd></div>
                 <div><dt>Waiting</dt><dd class="mono">00:00:00</dd></div>
-                <div><dt>Responsible</dt><dd style="color: #1e3a8a;">Unassigned</dd></div>
-                <div><dt>Waiting On</dt><dd>NTP approval</dd></div>
+                <div><dt>Responsible</dt><dd>Unassigned</dd></div>
+                <div><dt>Waiting On</dt><dd>Completion of Execution tasks</dd></div>
                 <div><dt>Started</dt><dd>—</dd></div>
                 <div><dt>Completed</dt><dd>—</dd></div>
             </dl>
@@ -819,8 +865,8 @@
         <div class="sow-side-section">
             <h4>REPORT RECORD</h4>
             <dl class="sow-key-value-list">
-                <div><dt>Reports Issued</dt><dd>{{ $generatedReports->count() }}</dd></div>
-                <div><dt>Latest Electronic Report</dt><dd>{{ $generatedReports->first()?->created_at?->format('M d, Y') ?: 'Not sent' }}</dd></div>
+                <div><dt>Reports Issued</dt><dd>{{ $project->sowReports()->count() }}</dd></div>
+                <div><dt>Latest Electronic Report</dt><dd>{{ $project->sowReports()->latest()->first()?->created_at?->format('M d, Y') ?: 'Not sent' }}</dd></div>
                 <div><dt>Uploaded Copy</dt><dd>None</dd></div>
             </dl>
         </div>
@@ -829,42 +875,42 @@
         <div class="sow-side-section">
             <h4>STAGE CONTROLS</h4>
             <div class="sow-controls-stack">
-                <a href="{{ route('regular.show', ['regular' => $regular, 'tab' => 'execution']) }}" class="sow-btn-primary">
+                <a href="{{ route('project.show', ['project' => $project, 'tab' => 'execution']) }}" class="sow-btn-primary">
                     Open Execution
                 </a>
-                <button type="button" class="sow-btn-secondary" onclick="window.print()">
+                <button type="button" class="sow-btn-secondary" onclick="printOfficialSowReport()">
                     Print
                 </button>
-                <button type="button" class="sow-btn-secondary" onclick="downloadRegularSowReport()">
+                <button type="button" class="sow-btn-secondary" onclick="downloadOfficialSowReport()">
                     Download
                 </button>
                 <div class="sow-sidebar-note">
-                    Approve the RSAT and NTP before issuing a periodic report.
+                    Complete every Execution task before completing the SOW Report.
                 </div>
             </div>
         </div>
     </aside>
 
-    <!-- RIGHT CONTENT: RSAT REPORT DOCUMENT -->
+    <!-- RIGHT CONTENT: SOW REPORT DOCUMENT -->
     <main class="sow-document-card">
-        <div class="sow-doc-topbar"></div>
         <!-- Document Header -->
         <header class="sow-doc-header">
             <div class="sow-doc-brand">
                 John Kelly<br>&amp; Company
+                <small>Operational Consulting &amp; Advisory</small>
             </div>
             <div class="sow-doc-title-block">
-                <h1>RSAT REPORT</h1>
+                <h1>SOW REPORT</h1>
                 <small>Live execution reporting record</small>
             </div>
         </header>
 
         <div class="sow-doc-divider"></div>
 
-        <!-- Regular Information -->
+        <!-- Project Information -->
         <section>
             <div class="sow-info-heading">
-                <strong>Regular Information</strong>
+                <strong>Project Information</strong>
                 <span>Auto-filled from the Deal, START, and issued Service Memo.</span>
             </div>
 
@@ -876,8 +922,8 @@
 
                 <div class="sow-info-cell-lbl">Work Order No.</div>
                 <div class="sow-info-cell-val">{{ $workOrderNo }}</div>
-                <div class="sow-info-cell-lbl">Regular Ref No.</div>
-                <div class="sow-info-cell-val">{{ $regularRef }}</div>
+                <div class="sow-info-cell-lbl">Project Ref No.</div>
+                <div class="sow-info-cell-val">{{ $projectRef }}</div>
 
                 <div class="sow-info-cell-lbl">Source Service Memo</div>
                 <div class="sow-info-cell-val">{{ $serviceMemo }}</div>
@@ -891,7 +937,7 @@
 
                 <div class="sow-info-cell-lbl">Business / Company</div>
                 <div class="sow-info-cell-val">{{ $businessName }}</div>
-                <div class="sow-info-cell-lbl">Service / Regular</div>
+                <div class="sow-info-cell-lbl">Service / Project</div>
                 <div class="sow-info-cell-val">{{ $serviceTitle }}</div>
 
                 <div class="sow-info-cell-lbl">Service Area</div>
@@ -901,7 +947,7 @@
 
                 <div class="sow-info-cell-lbl">Target Start Date</div>
                 <div class="sow-info-cell-val">{{ $targetStart }}</div>
-                <div class="sow-info-cell-lbl">Target Regular End Date</div>
+                <div class="sow-info-cell-lbl">Target Project End Date</div>
                 <div class="sow-info-cell-val">{{ $targetEnd }}</div>
             </div>
         </section>
@@ -915,17 +961,18 @@
                     <thead>
                         <tr>
                             <th style="width: 5%">ITEM</th>
-                            <th style="width: 21%">MAIN TASK DESCRIPTION</th>
+                            <th style="width: 19%">MAIN TASK DESCRIPTION</th>
                             <th style="width: 25%">SUB TASK DESCRIPTION</th>
-                            <th style="width: 12%">RESPONSIBILITY</th>
-                            <th style="width: 14%">ASSIGNED PERSON</th>
-                            <th style="width: 13%">UPDATES SENT TO CLIENT</th>
-                            <th style="width: 10%">STATUS</th>
+                            <th style="width: 13%">RESPONSIBILITY</th>
+                            <th style="width: 15%">ASSIGNED PERSON</th>
+                            <th style="width: 12%">UPDATES SENT TO CLIENT</th>
+                            <th style="width: 11%">STATUS</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php $workstreamIndex = 1; @endphp
                         @foreach ($withinWorkstreams as $workstreamTitle => $tasks)
+                            {{-- Workstream Parent Row --}}
                             @php
                                 $streamStatuses = $tasks->pluck('status');
                                 $streamStatus = 'In Progress';
@@ -934,16 +981,17 @@
                                 } elseif ($streamStatuses->contains('On Hold')) {
                                     $streamStatus = 'On Hold';
                                 }
+                                $streamUpdatesCount = $tasks->sum('updates');
                             @endphp
                             <tr class="main-task">
                                 <td style="text-align: center; font-weight: 700;">{{ $workstreamIndex }}</td>
                                 <td><strong>{{ $workstreamTitle }}</strong></td>
                                 <td style="color: #64748b; font-style: italic;">Main RSAT task / workstream</td>
                                 <td><span style="color: #102d79; font-weight: 700;">Responsible</span></td>
-                                <td>Regular Manager</td>
+                                <td>Project Manager</td>
                                 <td>
-                                    <button type="button" class="sow-update-pill" onclick="openRegularClientUpdates('{{ addslashes($workstreamTitle) }}', 0)">
-                                        0 updates
+                                    <button type="button" class="sow-update-pill" onclick="openSowClientUpdates('{{ addslashes($workstreamTitle) }}', {{ $streamUpdatesCount }})">
+                                        {{ $streamUpdatesCount }} updates
                                     </button>
                                 </td>
                                 <td>
@@ -953,9 +1001,11 @@
                                 </td>
                             </tr>
 
+                            {{-- Workstream Child Task Rows --}}
                             @foreach ($tasks as $taskIndex => $task)
                                 @php
                                     $childItemNumber = $workstreamIndex . '.' . ($taskIndex + 1);
+                                    $taskUpdates = (int)($task['updates'] ?? 0);
                                 @endphp
                                 <tr class="child-task">
                                     <td style="text-align: center; font-weight: 700;">{{ $childItemNumber }}</td>
@@ -964,8 +1014,8 @@
                                     <td><span style="color: #102d79; font-weight: 700;">{{ $task['responsibility'] ?? 'Responsible' }}</span></td>
                                     <td>{{ $task['assigned'] ?? 'Rubeca Potayre' }}</td>
                                     <td>
-                                        <button type="button" class="sow-update-pill" onclick="openRegularClientUpdates('{{ addslashes($task['sub_task']) }}', 0)">
-                                            0 updates
+                                        <button type="button" class="sow-update-pill" onclick="openSowClientUpdates('{{ addslashes($task['sub_task']) }}', {{ $taskUpdates }})">
+                                            {{ $taskUpdates }} updates
                                         </button>
                                     </td>
                                     <td>
@@ -989,26 +1039,61 @@
                     <thead>
                         <tr>
                             <th style="width: 5%">ITEM</th>
-                            <th style="width: 21%">MAIN TASK DESCRIPTION</th>
+                            <th style="width: 19%">MAIN TASK DESCRIPTION</th>
                             <th style="width: 25%">SUB TASK DESCRIPTION</th>
-                            <th style="width: 12%">RESPONSIBILITY</th>
-                            <th style="width: 14%">ASSIGNED PERSON</th>
-                            <th style="width: 13%">UPDATES SENT TO CLIENT</th>
-                            <th style="width: 10%">STATUS</th>
+                            <th style="width: 13%">RESPONSIBILITY</th>
+                            <th style="width: 15%">ASSIGNED PERSON</th>
+                            <th style="width: 12%">UPDATES SENT TO CLIENT</th>
+                            <th style="width: 11%">STATUS</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td colspan="7" class="sow-report-empty-state">
-                                No approved Out of Scope tasks are recorded.
-                            </td>
-                        </tr>
+                        @if ($outWorkstreams->isEmpty())
+                            <tr>
+                                <td colspan="7" class="sow-report-empty-state">
+                                    No approved Out of Scope tasks are recorded.
+                                </td>
+                            </tr>
+                        @else
+                            @php $outIndex = 1; @endphp
+                            @foreach ($outWorkstreams as $outTitle => $outTasks)
+                                <tr class="main-task">
+                                    <td>OOS-{{ $outIndex }}</td>
+                                    <td>{{ $outTitle }}</td>
+                                    <td>Out of Scope workstream</td>
+                                    <td><span style="color: #1e3a8a; font-weight: 700;">Responsible</span></td>
+                                    <td>Project Manager</td>
+                                    <td>
+                                        <button type="button" class="sow-update-pill" onclick="openSowClientUpdates('{{ addslashes($outTitle) }}', 0)">
+                                            0 updates
+                                        </button>
+                                    </td>
+                                    <td><span class="sow-status-badge in-progress">In Progress</span></td>
+                                </tr>
+                                @foreach ($outTasks as $outChildIdx => $outChild)
+                                    <tr class="child-task">
+                                        <td>OOS-{{ $outIndex }}.{{ $outChildIdx + 1 }}</td>
+                                        <td><span style="color: #64748b;">↳</span> {{ $outTitle }}</td>
+                                        <td>{{ data_get($outChild, 'sub_task_description') ?: data_get($outChild, 'task', 'Out of scope task') }}</td>
+                                        <td>Responsible</td>
+                                        <td>{{ data_get($outChild, 'responsible', 'Unassigned') }}</td>
+                                        <td>
+                                            <button type="button" class="sow-update-pill" onclick="openSowClientUpdates('{{ addslashes(data_get($outChild, 'sub_task_description') ?: 'Task') }}', 0)">
+                                                0 updates
+                                            </button>
+                                        </td>
+                                        <td><span class="sow-status-badge in-progress">In Progress</span></td>
+                                    </tr>
+                                @endforeach
+                                @php $outIndex++; @endphp
+                            @endforeach
+                        @endif
                     </tbody>
                 </table>
             </div>
 
-            <!-- RSAT REPORT SUMMARY -->
-            <div class="sow-summary-title">RSAT Report Summary</div>
+            <!-- SOW REPORT SUMMARY -->
+            <div class="sow-summary-title">SOW Report Summary</div>
 
             <div class="sow-summary-sublabel">Within Scope</div>
             <div class="sow-summary-grid">
@@ -1038,23 +1123,23 @@
             <div class="sow-summary-grid">
                 <div class="sow-summary-card">
                     <span>MAIN TASKS</span>
-                    <strong>0</strong>
+                    <strong>{{ $outMainCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <span>CHILD TASKS</span>
-                    <strong>0</strong>
+                    <strong>{{ $outChildCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <span>DONE</span>
-                    <strong>0</strong>
+                    <strong>{{ $outDoneCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <span>IN PROGRESS</span>
-                    <strong>0</strong>
+                    <strong>{{ $outProgressCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <span>ON HOLD</span>
-                    <strong>0</strong>
+                    <strong>{{ $outHoldCount }}</strong>
                 </div>
             </div>
 
@@ -1062,16 +1147,16 @@
             <div class="sow-summary-title">Final Report Narrative</div>
             <div class="sow-narrative-grid">
                 <div class="sow-narrative-field">
-                    <label for="sowRegularNarrativeIssues">Issues &amp; Observations</label>
-                    <textarea id="sowRegularNarrativeIssues">{{ $narrativeIssues }}</textarea>
+                    <label for="sowNarrativeIssues">Issues &amp; Observations</label>
+                    <textarea id="sowNarrativeIssues">{{ $narrativeIssues }}</textarea>
                 </div>
                 <div class="sow-narrative-field">
-                    <label for="sowRegularNarrativeRecs">Recommendations</label>
-                    <textarea id="sowRegularNarrativeRecs">{{ $narrativeRecommendations }}</textarea>
+                    <label for="sowNarrativeRecs">Recommendations</label>
+                    <textarea id="sowNarrativeRecs">{{ $narrativeRecommendations }}</textarea>
                 </div>
                 <div class="sow-narrative-field">
-                    <label for="sowRegularNarrativeWay">Summary / Way Forward</label>
-                    <textarea id="sowRegularNarrativeWay">{{ $narrativeWay }}</textarea>
+                    <label for="sowNarrativeWay">Summary / Way Forward</label>
+                    <textarea id="sowNarrativeWay">{{ $narrativeWay }}</textarea>
                 </div>
             </div>
         </section>
@@ -1079,27 +1164,27 @@
 </div>
 
 <!-- CLIENT UPDATES MODAL -->
-<div id="sowRegularClientUpdatesModal" class="sow-modal-overlay" onclick="closeRegularClientUpdatesOnBackdrop(event)">
+<div id="sowClientUpdatesModal" class="sow-modal-overlay" onclick="closeSowClientUpdatesOnBackdrop(event)">
     <div class="sow-modal-dialog">
         <div class="sow-modal-header">
             <div>
-                <h3 id="sowRegularUpdatesModalTitle">Client Updates</h3>
-                <p id="sowRegularUpdatesModalMeta">0 client reports recorded for this RSAT item</p>
+                <h3 id="sowUpdatesModalTitle">Client Updates</h3>
+                <p id="sowUpdatesModalMeta">0 client reports recorded for this SOW item</p>
             </div>
-            <button type="button" class="sow-modal-close-btn" onclick="closeRegularClientUpdates()">Close</button>
+            <button type="button" class="sow-modal-close-btn" onclick="closeSowClientUpdates()">Close</button>
         </div>
-        <div id="sowRegularUpdatesModalBody" class="sow-modal-content">
+        <div id="sowUpdatesModalBody" class="sow-modal-content">
             <p class="sow-report-empty-state">No updates have been sent to the client for this item.</p>
         </div>
     </div>
 </div>
 
 <script>
-// Live ticking handling timer for Regular
+// Live ticking handling timer
 (function() {
     let secondsElapsed = 0;
-    const timerElem = document.getElementById('sowRegularHandlingTimer');
-    const progressElem = document.getElementById('sowRegularProgressTimer');
+    const timerElem = document.getElementById('sowLiveHandlingTimer');
+    const progressElem = document.getElementById('sowLiveProgressTimer');
 
     function fmt(sec) {
         const h = String(Math.floor(sec / 3600)).padStart(2, '0');
@@ -1116,47 +1201,86 @@
     }, 1000);
 })();
 
-// Client Updates Modal handlers for Regular
-function openRegularClientUpdates(title, count) {
-    const modal = document.getElementById('sowRegularClientUpdatesModal');
-    const titleElem = document.getElementById('sowRegularUpdatesModalTitle');
-    const metaElem = document.getElementById('sowRegularUpdatesModalMeta');
-    const bodyElem = document.getElementById('sowRegularUpdatesModalBody');
+// Client Updates Modal handler
+function openSowClientUpdates(title, count) {
+    const modal = document.getElementById('sowClientUpdatesModal');
+    const titleElem = document.getElementById('sowUpdatesModalTitle');
+    const metaElem = document.getElementById('sowUpdatesModalMeta');
+    const bodyElem = document.getElementById('sowUpdatesModalBody');
 
     if (!modal) return;
 
     if (titleElem) titleElem.textContent = title;
-    if (metaElem) metaElem.textContent = `${count} client reports recorded for this RSAT item`;
-    if (bodyElem) bodyElem.innerHTML = '<p class="sow-report-empty-state">No updates have been sent to the client for this item.</p>';
+    if (metaElem) metaElem.textContent = `${count} client ${count === 1 ? 'report' : 'reports'} recorded for this SOW item`;
+
+    if (bodyElem) {
+        if (count > 0) {
+            bodyElem.innerHTML = `
+                <article class="sow-client-update-entry">
+                    <div>
+                        <h5>Execution Update &mdash; ${escapeHtml(title)}</h5>
+                        <div class="sow-delivery-proof">
+                            <span class="status-pill">Sent to Client</span>
+                            <span>To: {{ $clientName }}</span>
+                            <span>Proof ID: REPORT-{{ $project->id }}-01</span>
+                        </div>
+                        <p style="margin: 8px 0 0; font-size: 11.5px; color: #334155;">Task progress update dispatched to client.</p>
+                    </div>
+                    <button type="button" class="sow-modal-close-btn" style="color: #1e3a8a; font-weight: 800;" onclick="alert('Update resent to client email.')">
+                        Resend
+                    </button>
+                </article>
+            `;
+        } else {
+            bodyElem.innerHTML = '<p class="sow-report-empty-state">No updates have been sent to the client for this item.</p>';
+        }
+    }
 
     modal.classList.add('open');
 }
 
-function closeRegularClientUpdates() {
-    const modal = document.getElementById('sowRegularClientUpdatesModal');
+function closeSowClientUpdates() {
+    const modal = document.getElementById('sowClientUpdatesModal');
     if (modal) modal.classList.remove('open');
 }
 
-function closeRegularClientUpdatesOnBackdrop(event) {
-    if (event.target.id === 'sowRegularClientUpdatesModal') {
-        closeRegularClientUpdates();
+function closeSowClientUpdatesOnBackdrop(event) {
+    if (event.target.id === 'sowClientUpdatesModal') {
+        closeSowClientUpdates();
     }
 }
 
-function downloadRegularSowReport() {
+function escapeHtml(str) {
+    return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    }[tag] || tag));
+}
+
+// Print Official SOW Report function
+function printOfficialSowReport() {
+    window.print();
+}
+
+// Download Official SOW Report function
+function downloadOfficialSowReport() {
     const docCard = document.querySelector('.sow-document-card');
     if (!docCard) return;
 
     const clone = docCard.cloneNode(true);
-    const issuesVal = document.getElementById('sowRegularNarrativeIssues')?.value || '';
-    const recsVal = document.getElementById('sowRegularNarrativeRecs')?.value || '';
-    const wayVal = document.getElementById('sowRegularNarrativeWay')?.value || '';
 
-    const cloneIssues = clone.querySelector('#sowRegularNarrativeIssues');
+    const issuesVal = document.getElementById('sowNarrativeIssues')?.value || '';
+    const recsVal = document.getElementById('sowNarrativeRecs')?.value || '';
+    const wayVal = document.getElementById('sowNarrativeWay')?.value || '';
+
+    const cloneIssues = clone.querySelector('#sowNarrativeIssues');
     if (cloneIssues) cloneIssues.textContent = issuesVal;
-    const cloneRecs = clone.querySelector('#sowRegularNarrativeRecs');
+    const cloneRecs = clone.querySelector('#sowNarrativeRecs');
     if (cloneRecs) cloneRecs.textContent = recsVal;
-    const cloneWay = clone.querySelector('#sowRegularNarrativeWay');
+    const cloneWay = clone.querySelector('#sowNarrativeWay');
     if (cloneWay) cloneWay.textContent = wayVal;
 
     let pageStyles = '';
@@ -1164,7 +1288,7 @@ function downloadRegularSowReport() {
         pageStyles += el.outerHTML + '\n';
     });
 
-    const docTitle = escapeHtml('{{ $regularRef }} RSAT Report');
+    const docTitle = escapeHtml('{{ $projectRef }} SOW Report');
     const fullHtml = [
         '<!DOCTYPE html>',
         '<html lang="en">',
@@ -1183,20 +1307,10 @@ function downloadRegularSowReport() {
     const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = '{{ $regularRef }}-rsat-report.html';
+    link.download = '{{ $projectRef }}-sow-report.html';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     setTimeout(function() { URL.revokeObjectURL(link.href); }, 1000);
-}
-
-function escapeHtml(str) {
-    return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;'
-    }[tag] || tag));
 }
 </script>

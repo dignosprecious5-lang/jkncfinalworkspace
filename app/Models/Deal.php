@@ -233,11 +233,9 @@ class Deal extends Model
                 $deal->deal_code = static::generateNextDealCode();
             }
 
-            // Synchronize stage and pipeline_stage
-            if (! $deal->pipeline_stage && $deal->stage) {
-                $deal->pipeline_stage = $deal->stage;
-            } elseif (! $deal->stage && $deal->pipeline_stage) {
-                $deal->stage = $deal->pipeline_stage;
+            // Synchronize stage
+            if (! $deal->stage) {
+                $deal->stage = 'Inquiry / Consultation';
             }
 
             // Start the stage timer when the Deal is created
@@ -251,7 +249,7 @@ class Deal extends Model
                 return;
             }
 
-            $currentStage = $deal->pipeline_stage ?: ($deal->stage ?: 'Inquiry');
+            $currentStage = $deal->stage ?: 'Inquiry';
 
             DealStageHistory::firstOrCreate(
                 [
@@ -269,13 +267,25 @@ class Deal extends Model
         });
 
         static::updating(function (Deal $deal): void {
-            // Keep stage and pipeline_stage in sync
-            if ($deal->isDirty('pipeline_stage') && ! $deal->isDirty('stage')) {
-                $deal->stage = $deal->pipeline_stage;
-            } elseif ($deal->isDirty('stage') && ! $deal->isDirty('pipeline_stage')) {
-                $deal->pipeline_stage = $deal->stage;
-            }
+            // Keep stage in sync
         });
+    }
+
+    public function getPipelineStageAttribute(): string
+    {
+        $val = $this->attributes['pipeline_stage'] ?? ($this->attributes['stage'] ?? 'Inquiry');
+        return match (trim((string) $val)) {
+            'Inquiry / Consultation', 'Inquiry', 'Intake' => 'Inquiry',
+            'Qualification' => 'Qualification',
+            'Consultation' => 'Consultation',
+            'Solutioning / Proposal', 'Proposal' => 'Proposal',
+            'Negotiation / Finalizing', 'Negotiation' => 'Negotiation',
+            'Payment' => 'Payment',
+            'Activated', 'Activation' => 'Activation',
+            'Closed Won', 'approved' => 'Closed Won',
+            'Closed Lost', 'rejected' => 'Closed Lost',
+            default => (string) $val ?: 'Inquiry',
+        };
     }
 
     public static function generateNextDealCode(
@@ -283,40 +293,30 @@ class Deal extends Model
         ?int $ignoreDealId = null
     ): string {
         $year ??= (int) now()->format('Y');
-
         $prefix = sprintf('CONDEAL-%d-', $year);
 
-        $nextNumber = DB::transaction(function () use (
-            $prefix,
-            $ignoreDealId
-        ): int {
-            $latestCode = static::query()
-                ->when(
-                    $ignoreDealId,
-                    fn (Builder $query) =>
-                        $query->whereKeyNot($ignoreDealId)
-                )
+        $nextNumber = DB::transaction(function () use ($prefix, $ignoreDealId): int {
+            $codes = static::query()
+                ->when($ignoreDealId, fn (Builder $query) => $query->whereKeyNot($ignoreDealId))
                 ->where('deal_code', 'like', $prefix . '%')
                 ->whereNotNull('deal_code')
-                ->orderByDesc('deal_code')
                 ->lockForUpdate()
-                ->value('deal_code');
+                ->pluck('deal_code');
 
-            if (! static::hasValidDealCode($latestCode)) {
-                return 1;
+            $max = 0;
+            foreach ($codes as $code) {
+                if (preg_match('/^CONDEAL-\d{4}-(\d+)$/', (string) $code, $matches)) {
+                    $num = (int) $matches[1];
+                    if ($num > $max) {
+                        $max = $num;
+                    }
+                }
             }
 
-            $lastNumber = (int) substr((string) $latestCode, -3);
-
-            return $lastNumber + 1;
+            return $max + 1;
         });
 
-        return $prefix . str_pad(
-            (string) $nextNumber,
-            3,
-            '0',
-            STR_PAD_LEFT
-        );
+        return $prefix . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     public static function hasValidDealCode(?string $dealCode): bool
@@ -575,6 +575,16 @@ class Deal extends Model
         return count(
             array_intersect($userTokens, $dealRelationTokens)
         ) > 0;
+    }
+
+    public function getQualificationResultAttribute($value): string
+    {
+        return $value ?: 'qualified';
+    }
+
+    public function setQualificationResultAttribute($value): void
+    {
+        $this->attributes['qualification_result'] = $value ?: 'qualified';
     }
 
     public function proposals(): HasMany

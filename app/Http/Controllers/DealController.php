@@ -262,7 +262,7 @@ class DealController extends Controller
 
         $accounts = Account::query()
             ->with([
-                'company',
+                'company.primaryContact',
                 'individualContact',
                 'deals' => function ($q) {
                     $q->latest()->limit(5);
@@ -524,9 +524,11 @@ class DealController extends Controller
         $rawServices = $request->input('services', []);
         $services = is_array($rawServices) ? $rawServices : ($request->filled('service') ? [$request->input('service')] : (array) $rawServices);
         
-        // Service Name & Deal Title
+        // Service Name & Deal Title / Deal Name
         $serviceName = !empty($services) ? implode(', ', $services) : ($request->input('service') ?: 'Consulting Service');
-        $deal->deal_title = $serviceName . ' — ' . $account->account_name;
+        $dealTitle = $serviceName . ' — ' . $account->account_name;
+        $deal->deal_name = $dealTitle;
+        $deal->deal_title = $dealTitle;
 
         // Owner & Creator
         $deal->owner_name = $request->input('owner_name') ?: (auth()->user()?->name ?: null);
@@ -536,11 +538,13 @@ class DealController extends Controller
         $deal->salutation = $contact?->salutation;
         $deal->sex = $contact?->sex;
         $deal->first_name = $request->input('first_name', $contact?->first_name ?: $account->account_name);
+        $deal->middle_name = $contact?->middle_name;
         $deal->middle_initial = $contact?->middle_name;
         $deal->last_name = $request->input('last_name', $contact?->last_name ?: '');
         $deal->name_extension = $contact?->name_extension;
         $deal->date_of_birth = $contact?->date_of_birth;
         $deal->email = $request->input('email', $contact?->email);
+        $deal->mobile = $request->input('mobile_number', $contact?->mobile_number);
         $deal->mobile_number = $request->input('mobile_number', $contact?->mobile_number);
         $deal->address = $request->input('address', $contact?->address);
         $deal->position = $request->input('position', $contact?->position);
@@ -554,15 +558,17 @@ class DealController extends Controller
         $deal->primary_contact_name = trim(collect([
             $deal->salutation,
             $deal->first_name,
-            $deal->middle_initial,
+            $deal->middle_name,
             $deal->last_name,
             $deal->name_extension,
         ])->filter()->implode(' '));
 
         // Service Details
+        $deal->service_area = is_array($serviceAreas) ? implode(', ', $serviceAreas) : $serviceAreas;
         $deal->service_areas = $serviceAreas;
+        $deal->services = is_array($services) ? implode(', ', $services) : $services;
         $deal->services_products = $services;
-        $deal->engagement_type = null; // Decided later in Deal lifecycle
+        $deal->engagement_type = $request->input('engagement_type') ?: null;
         $deal->scope_of_work = $request->input('scope_of_work');
 
         // Commercials (optional)
@@ -570,8 +576,10 @@ class DealController extends Controller
         $discount = (float) ($request->input('discount') ?? 0);
         $totalVal = max(0, $baseFee - $discount);
 
+        $deal->estimated_professional_fee = $baseFee > 0 ? $baseFee : null;
         $deal->est_professional_fee = $baseFee > 0 ? $baseFee : null;
         $deal->total_service_fee = $baseFee > 0 ? $baseFee : null;
+        $deal->deal_discount = $discount > 0 ? $discount : null;
         $deal->discount = $discount > 0 ? $discount : null;
         $deal->amount = $totalVal > 0 ? $totalVal : null;
         $deal->total_estimated_engagement_value = $totalVal > 0 ? $totalVal : null;
@@ -585,9 +593,11 @@ class DealController extends Controller
 
         $deal->save();
 
-        // Generate Standard Deal Code: CONDEAL-YYYY-###
-        $deal->deal_code = 'CONDEAL-' . now()->format('Y') . '-' . str_pad($deal->id, 3, '0', STR_PAD_LEFT);
-        $deal->save();
+        // Generate Standard Deal Code: CONDEAL-YYYY-### (Collision Safe)
+        if (!Deal::hasValidDealCode($deal->deal_code)) {
+            $deal->deal_code = Deal::generateNextDealCode(null, $deal->id);
+            $deal->save();
+        }
 
         // Create Primary Deal Contact Record
         if ($deal->first_name || $deal->last_name || $deal->email) {
@@ -1505,16 +1515,9 @@ class DealController extends Controller
         |
         */
 
-        $deal->deal_code =
-            'CONDEAL-' .
-            now()->format('Y') .
-            '-' .
-            str_pad(
-                $deal->id,
-                3,
-                '0',
-                STR_PAD_LEFT
-            );
+        if (!Deal::hasValidDealCode($deal->deal_code)) {
+            $deal->deal_code = Deal::generateNextDealCode(null, $deal->id);
+        }
 
         if (empty($deal->deal_title) || $deal->deal_title === 'CONDEAL-YYYY-###' || str_contains($deal->deal_title, 'YYYY-###')) {
             $deal->deal_title = $deal->deal_code;
@@ -1579,7 +1582,11 @@ class DealController extends Controller
             'stageHistories',
             'project',
             'projects',
-        ])->findOrFail($dealId);
+        ])->find($dealId);
+
+        if (! $deal) {
+            return redirect()->route('deals.index')->with('info', 'The requested deal record is no longer available.');
+        }
 
         $users = User::with([
             'employeeProfile'
@@ -3086,7 +3093,10 @@ class DealController extends Controller
 
     public function regular($id)
     {
-        $deal = Deal::findOrFail($id);
+        $deal = Deal::find($id);
+        if (! $deal) {
+            return redirect()->route('deals.index')->with('info', 'The requested deal record is no longer available.');
+        }
 
         $regular = \App\Models\Project::query()
             ->where('deal_id', $deal->id)
@@ -3113,7 +3123,10 @@ class DealController extends Controller
 
     public function project($id)
     {
-        $deal = Deal::findOrFail($id);
+        $deal = Deal::find($id);
+        if (! $deal) {
+            return redirect()->route('deals.index')->with('info', 'The requested deal record is no longer available.');
+        }
 
         $project = \App\Models\Project::query()
             ->where('deal_id', $deal->id)

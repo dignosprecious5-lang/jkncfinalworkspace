@@ -113,7 +113,7 @@ class ProjectController extends Controller
 
         if (Schema::hasTable('projects')) {
             $query = Project::query()
-                ->with(['deal:id,deal_code', 'company:id,company_name'])
+                ->with(['deal', 'company', 'contact', 'sows', 'ntps', 'starts'])
                 ->latest();
 
             if ($search !== '') {
@@ -126,8 +126,57 @@ class ProjectController extends Controller
             }
 
             $projects = $query->get()
-                ->map(fn (Project $project): Project => $this->normalizeProjectCompletionState($project))
-                ->filter(fn (Project $project): bool => ! Str::contains(Str::lower(trim((string) $project->engagement_type)), 'regular') && ! $project->isShell())
+                ->map(function (Project $project): Project {
+                    $project = $this->normalizeProjectCompletionState($project);
+                    
+                    $sow = $project->sows->sortByDesc('id')->first();
+                    $within = collect($sow?->within_scope_items ?? []);
+                    $out = collect($sow?->out_of_scope_items ?? []);
+                    $allTasks = $within->concat($out);
+                    $totalTasks = $allTasks->count();
+                    $completedTasks = $allTasks->where('status', 'Completed')->count();
+                    $calcProgress = $totalTasks > 0 ? (int) round(($completedTasks / $totalTasks) * 100) : null;
+                    if ($calcProgress === null) {
+                        $calcProgress = data_get($project->metadata, 'progress');
+                    }
+                    if ($calcProgress === null) {
+                        $phaseKey = strtolower($project->current_phase ?: $project->status);
+                        $calcProgress = match ($phaseKey) {
+                            'work order', 'intake' => 10,
+                            'sow', 'start' => 20,
+                            'review' => 30,
+                            'ntp' => 40,
+                            'execution', 'in progress' => 50,
+                            'reporting', 'sow reporting' => 80,
+                            'presentation' => 90,
+                            'delivery' => 95,
+                            'completion', 'completed' => 100,
+                            default => in_array($phaseKey, ['completed', 'completion']) ? 100 : 0,
+                        };
+                    }
+                    $project->real_progress = $calcProgress;
+
+                    $calcHealth = data_get($project->metadata, 'health');
+                    if (!$calcHealth) {
+                        if (in_array(strtolower($project->status), ['completed', 'completion'])) {
+                            $calcHealth = 'Completed';
+                        } elseif ($project->target_completion_date && \Carbon\Carbon::parse($project->target_completion_date)->isPast()) {
+                            $calcHealth = 'At Risk';
+                        } else {
+                            $calcHealth = 'On Track';
+                        }
+                    }
+                    $project->real_health = $calcHealth;
+
+                    $phase = $project->current_phase ?: $project->status;
+                    if (in_array(strtolower($phase), ['start', 'intake'])) {
+                        $phase = 'Work Order';
+                    }
+                    $project->real_stage = $phase ?: 'Work Order';
+
+                    return $project;
+                })
+                ->filter(fn (Project $project): bool => (! Str::contains(Str::lower(trim((string) $project->engagement_type)), 'regular') || Str::contains(Str::lower(trim((string) $project->engagement_type)), 'hybrid')) && ! $project->isShell())
                 ->values();
         }
 
@@ -147,19 +196,32 @@ class ProjectController extends Controller
                 ->get();
         }
 
-        $stats = [
+        $statusCounts = [
+            'ongoing' => $projects->filter(fn (Project $p): bool => ! in_array(strtolower($p->status), ['completed', 'completion', 'cancelled', 'deleted'], true) && ! in_array(strtolower($p->current_phase ?? ''), ['completed', 'completion'], true))->count(),
+            'completed' => $projects->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['completed', 'completion'], true) || in_array(strtolower($p->current_phase ?? ''), ['completed', 'completion'], true))->count(),
+            'cancelled' => $projects->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['cancelled', 'cancel'], true))->count(),
+            'deleted' => $projects->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['deleted', 'delete'], true))->count(),
+        ];
+
+        $stageCounts = [
             'all' => $projects->count(),
-            'start' => $projects->whereIn('current_phase', ['Start', 'SOW'])->count(),
-            'in_progress' => $projects->filter(fn (Project $project): bool => in_array($project->status, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true)
-                || in_array($project->current_phase, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true))->count(),
-            'active' => $projects->whereIn('status', ['Start', 'SOW', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
-            'completed' => $projects->where('status', 'Completed')->count(),
+            'work_order' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Work Order', 'Start', 'Intake'], true) || in_array($p->status, ['Work Order', 'Start', 'Intake'], true))->count(),
+            'sow' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['SOW', 'SOW Preparation'], true) || in_array($p->status, ['SOW', 'SOW Preparation'], true))->count(),
+            'review' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Review', 'Internal Review'], true) || in_array($p->status, ['Review', 'Internal Review'], true))->count(),
+            'ntp' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['NTP', 'For NTP Approval'], true) || in_array($p->status, ['NTP', 'For NTP Approval'], true))->count(),
+            'execution' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Execution', 'In Progress'], true) || in_array($p->status, ['Execution', 'In Progress'], true))->count(),
+            'reporting' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Reporting', 'SOW Reporting'], true) || in_array($p->status, ['Reporting', 'SOW Reporting'], true))->count(),
+            'presentation' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Presentation', 'Client Review'], true) || in_array($p->status, ['Presentation', 'Client Review'], true))->count(),
+            'delivery' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Delivery', 'Turn-over'], true) || in_array($p->status, ['Delivery', 'Turn-over'], true))->count(),
+            'completion' => $projects->filter(fn (Project $p): bool => in_array($p->current_phase, ['Completion', 'Completed'], true) || in_array($p->status, ['Completion', 'Completed'], true))->count(),
         ];
 
         return view('project.index', [
             'projects' => $projects,
             'search' => $search,
-            'stats' => $stats,
+            'stats' => $stageCounts,
+            'stageCounts' => $stageCounts,
+            'statusCounts' => $statusCounts,
             'contactRecords' => $contactRecords,
             'companyRecords' => $companyRecords,
             'dealRecords' => $dealRecords,
@@ -189,14 +251,31 @@ class ProjectController extends Controller
 
         return redirect()
             ->route('project.index')
-            ->with('success', $deletedCount === 1 ? '1 project deleted successfully.' : "{$deletedCount} projects deleted successfully.");
+            ->with('success', "{$deletedCount} project(s) deleted successfully.");
+    }
+
+    public function cancel(Request $request, Project $project): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $project->update([
+            'status' => 'Cancelled',
+            'cancellation_reason' => $validated['reason'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('project.index')
+            ->with('success', "Project \"{$project->name}\" was marked as Cancelled.");
     }
 
     public function storeManual(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'source_mode' => ['nullable', Rule::in(['manual', 'deal'])],
-            'deal_id' => ['nullable', 'integer', 'exists:deals,id', 'unique:projects,deal_id'],
+            'source_mode' => ['nullable', Rule::in(['manual', 'deal', 'duplicate'])],
+            'duplicate_project_id' => ['nullable', 'integer', 'exists:projects,id'],
+            'deal_id' => ['nullable', 'integer', 'exists:deals,id'],
             'contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -226,6 +305,7 @@ class ProjectController extends Controller
             'finance' => ['nullable', 'string', 'max:255'],
             'client_confirmation_name' => ['nullable', 'string', 'max:255'],
             'scope_summary' => ['nullable', 'string', 'max:2000'],
+            'engagement_type' => ['nullable', 'string', 'max:100'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
             'template_id' => Schema::hasTable('form_templates')
                 ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(function ($query) {
@@ -277,13 +357,19 @@ class ProjectController extends Controller
             $linkedCompany = Company::query()->where('company_name', $linkedContact->company_name)->first();
         }
 
+        $duplicatedProject = ! empty($validated['duplicate_project_id']) ? Project::query()->find($validated['duplicate_project_id']) : null;
+        if ($duplicatedProject) {
+            $linkedContact ??= $duplicatedProject->contact;
+            $linkedCompany ??= $duplicatedProject->company;
+        }
+
         $resolvedClientName = trim(collect([
             $validated['client_name'] ?? null,
         ])->filter()->implode(''));
 
         if ($resolvedClientName === '') {
             $resolvedClientName = trim(collect([
-                $linkedDeal?->first_name ?: $linkedContact?->first_name,
+                $linkedDeal?->first_name ?: $linkedContact?->first_name ?: $duplicatedProject?->client_name,
                 $linkedDeal?->last_name ?: $linkedContact?->last_name,
             ])->filter()->implode(' '));
         }
@@ -292,22 +378,27 @@ class ProjectController extends Controller
             ?? $linkedDeal?->company_name
             ?? $linkedContact?->company_name
             ?? $linkedCompany?->company_name
+            ?? $duplicatedProject?->business_name
             ?? ''));
 
         $resolvedServiceArea = $validated['service_area']
             ?? $linkedDeal?->service_area
+            ?? $duplicatedProject?->service_area
             ?? null;
 
         $resolvedServices = $validated['services']
             ?? $linkedDeal?->services
+            ?? $duplicatedProject?->services
             ?? null;
 
         $resolvedProducts = $validated['products']
             ?? $linkedDeal?->products
+            ?? $duplicatedProject?->products
             ?? null;
 
         $resolvedScopeSummary = $validated['scope_summary']
             ?? $linkedDeal?->scope_of_work
+            ?? $duplicatedProject?->scope_summary
             ?? null;
 
         $selectedTemplate = ! empty($validated['template_id'])
@@ -321,7 +412,7 @@ class ProjectController extends Controller
             'contact_id' => $linkedContact?->id,
             'company_id' => $linkedCompany?->id,
             'name' => $validated['name'],
-            'engagement_type' => 'Project',
+            'engagement_type' => $validated['engagement_type'] ?? ($linkedDeal?->engagement_type ?: 'Project'),
             'status' => 'SOW',
             'current_phase' => 'SOW',
             'current_step' => 'SOW Preparation',
@@ -403,10 +494,10 @@ class ProjectController extends Controller
             'client_confirmation_name' => $project->client_confirmation_name,
             'internal_approval' => $internalApproval,
             'approval_status' => in_array(($templatePayload['approval_status'] ?? 'draft'), ['draft', 'pending_review', 'approved'], true)
-                ? (string) $templatePayload['approval_status']
+                ? (string) ($templatePayload['approval_status'] ?? 'draft')
                 : 'draft',
             'ntp_status' => in_array(($templatePayload['ntp_status'] ?? 'pending'), ['pending', 'approved', 'rejected'], true)
-                ? (string) $templatePayload['ntp_status']
+                ? (string) ($templatePayload['ntp_status'] ?? 'pending')
                 : 'pending',
         ]);
 
@@ -3171,6 +3262,7 @@ class ProjectController extends Controller
 
                 return [
                     'id' => $employee->id,
+                    'name' => $label,
                     'label' => $label,
                     'position' => $employee->position,
                     'employee_code' => $employee->employee_code,

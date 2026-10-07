@@ -178,11 +178,11 @@
     .project-doc-view-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
     .project-doc-view-action { display: inline-flex; align-items: center; justify-content: center; min-width: 132px; border: 1px solid #cbd5e1; background: #fff; padding: 10px 14px; font-size: .84rem; font-weight: 700; color: #0f172a; text-decoration: none; }
     .project-doc-view-action.primary { border-color: #1c4587; background: #1c4587; color: #fff; }
-    .project-doc-view-body { max-height: calc(100vh - 210px); overflow-y: auto; padding: 24px; background: linear-gradient(180deg, #eef4ff 0%, #f8fbff 100%); }
+    .project-doc-view-body { max-height: calc(100vh - 180px); overflow-y: auto; padding: 28px; background: #cbd5e1; }
     .project-doc-view-sheet { display: flex; justify-content: center; }
-    .project-doc-view-paper { width: min(100%, 860px); border: 1px solid #d8e1ee; background: #fff; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); padding: 30px 34px 34px; }
-    .project-ntp-title { font-family: Georgia, "Times New Roman", serif; font-size: 18pt; font-weight: 700; line-height: 1.05; }
-    .project-ntp-code { margin-bottom: 24px; font-family: Georgia, "Times New Roman", serif; font-size: 8pt; font-weight: 700; }
+    .project-doc-view-paper { width: 100%; max-width: 920px; border: 2px solid #1c3979; background: #fff; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14); padding: 36px 42px 42px; }
+    .project-ntp-title { font-family: Georgia, "Times New Roman", serif; font-size: 20pt; font-weight: 700; line-height: 1.05; text-align: center; }
+    .project-ntp-code { margin-bottom: 24px; font-family: Georgia, "Times New Roman", serif; font-size: 8.5pt; font-weight: 700; text-align: center; }
     .project-ntp-issued { margin: 18px 0 12px; font-family: Georgia, "Times New Roman", serif; font-size: 12pt; font-weight: 700; }
     .project-ntp-light { font-weight: 400; }
     .project-ntp-meta, .project-ntp-signatures { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -331,12 +331,12 @@
         background: #fff;
         border: 1px solid #e4e9f1;
         border-radius: 14px;
-        padding: 16px 20px 18px;
-        box-shadow: 0 8px 24px rgba(27, 45, 78, 0.05);
+        padding: 18px 24px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
         display: grid;
-        grid-template-columns: 1fr 220px;
-        gap: 20px;
-        align-items: center;
+        grid-template-columns: 1fr 210px;
+        gap: 24px;
+        align-items: stretch;
         margin-bottom: 14px;
     }
     .life-title {
@@ -344,148 +344,152 @@
         justify-content: space-between;
         align-items: center;
         gap: 12px;
-        margin-bottom: 16px;
+        margin-bottom: 18px;
     }
     .life-title strong {
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 700;
-        color: #26354f;
+        color: #0f172a;
     }
     .life-title span {
-        font-size: 8px;
-        color: #8b96a8;
-        background: #f6f8fb;
-        border: 1px solid #e8edf4;
+        font-size: 9px;
+        font-weight: 500;
+        color: #94a3b8;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
         border-radius: 999px;
-        padding: 4px 8px;
+        padding: 3px 10px;
     }
-    .life {
+    .life-track {
         display: flex !important;
-        align-items: flex-start;
+        align-items: stretch;
         position: relative;
-        border: 0 !important;
-        border-radius: 0 !important;
-        overflow: visible !important;
-        padding: 0 6px;
-        gap: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
     }
-    .life::before {
-        content: "";
-        position: absolute;
-        top: 17px;
-        left: 6%;
-        right: 6%;
-        height: 3px;
-        background: #e8edf4;
-        border-radius: 999px;
-        z-index: 0;
-    }
-    .life::after {
-        content: "";
-        position: absolute;
-        top: 17px;
-        left: 6%;
-        width: 68%;
-        height: 3px;
-        background: linear-gradient(90deg, #102d79, #3b82f6);
-        border-radius: 999px;
-        z-index: 1;
-    }
-    .life .stage {
-        flex: 1 1 0;
-        min-width: 80px;
-        min-height: 64px;
-        padding: 0 4px;
-        border: 0;
-        background: transparent;
-        color: #8290a3;
-        position: relative;
-        z-index: 2;
+    .life-stage-col {
+        flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: flex-start;
-        gap: 7px;
+        justify-content: center;
+        padding: 12px 2px;
+        border-radius: 8px;
+        position: relative;
         text-decoration: none;
+        transition: all 0.15s ease;
     }
-    .life .stage b {
-        width: 36px;
-        height: 36px;
+    .life-stage-col.current {
+        background: #edf3fc;
+    }
+    .life-circle-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .life-line-left, .life-line-right {
+        flex: 1;
+        height: 2px;
+        background: #cbd5e1;
+    }
+    .life-line-left.done, .life-line-right.done {
+        background: #16336e;
+    }
+    .life-line-spacer {
+        flex: 1;
+        height: 2px;
+        visibility: hidden;
+    }
+    .life-circle {
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0;
-        font-size: 11px;
-        font-weight: 800;
-        color: #7d899a;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 2;
         background: #fff;
-        border: 2px solid #dfe5ee;
-        box-shadow: 0 2px 7px rgba(16, 24, 40, 0.04);
+        border: 1.5px solid #cbd5e1;
+        transition: all 0.15s ease;
     }
-    .life .stage small {
-        font-size: 8px;
-        line-height: 1.2;
-        color: #7f8a9b;
-        text-align: center;
-        font-weight: 600;
-    }
-    .life .stage.done b {
+    .life-circle.done {
+        background: #16336e;
+        border-color: #16336e;
         color: #fff;
-        border-color: #102d79;
-        background: #102d79;
+        font-size: 11px;
     }
-    .life .stage.done small {
-        color: #334155;
-        font-weight: 700;
-    }
-    .life .stage.current b {
-        color: #102d79;
-        border: 3px solid #102d79;
+    .life-circle.current {
         background: #fff;
-        box-shadow: 0 0 0 5px #eef3ff, 0 3px 9px rgba(16, 45, 121, 0.16);
+        border: 2.5px solid #16336e;
+        box-shadow: 0 0 0 3px #edf3fc, 0 0 0 4.5px #16336e;
+        color: #16336e;
     }
-    .life .stage.current small {
-        color: #102d79;
+    .life-label {
+        margin-top: 10px;
+        font-size: 10px;
+        text-align: center;
+        white-space: nowrap;
+        text-decoration: none;
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #94a3b8;
+        font-weight: 500;
+        transition: color 0.15s ease;
+    }
+    .life-label.done {
+        color: #334155;
+        font-weight: 500;
+    }
+    .life-label.current {
+        color: #16336e;
         font-weight: 800;
     }
     .life-side {
         border-left: 1px solid #eef2f7;
-        padding-left: 20px;
+        padding-left: 24px;
         display: flex;
         flex-direction: column;
         justify-content: center;
     }
     .life-side-kicker {
-        font-size: 8px;
+        font-size: 9px;
         font-weight: 800;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: #8b96a8;
+        color: #64748b;
     }
     .life-side-stage {
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 800;
-        color: #0f172a;
-        margin-top: 2px;
+        color: #0b1a3d;
+        line-height: 1.15;
+        margin-top: 4px;
     }
     .life-side-pct {
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 700;
-        color: #1e3a8a;
-        margin-top: 2px;
+        color: #16336e;
+        margin-top: 3px;
     }
     .life-side-health {
-        font-size: 9px;
+        font-size: 11px;
         color: #64748b;
-        margin-top: 6px;
+        margin-top: 18px;
         display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 6px;
     }
     .life-side-tag {
         font-weight: 700;
-        color: #166534;
+        color: #0f172a;
     }
     .command-card {
         background: #fff;
@@ -565,6 +569,100 @@
     .overview-panel a:hover {
         text-decoration: underline;
     }
+    .attention-card { border-left: 5px solid #df404b; }
+    .attention-list { display: grid; gap: 9px; }
+    .attention-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #edd1d4; background: #fff7f7; border-radius: 9px; }
+    .attention-item.warning { border-color: #f0d2a8; background: #fff9f0; }
+    .attention-item.good { border-color: #bde2d1; background: #f1faf6; }
+    .severity { padding: 4px 8px; border-radius: 999px; background: #df404b; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
+    .warning .severity { background: #d68118; }
+    .good .severity { background: #17845d; }
+    .attention-item strong { display: block; font-size: 12px; color: #0f172a; }
+    .attention-item small { color: #64748b; font-size: 10px; }
+    .attention-item a { font-weight: 800; color: #102d79; font-size: 11px; text-decoration: none; }
+    .command-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+    .command-kpi { padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,0.02); }
+    .command-kpi span { display: block; color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .command-kpi strong { display: block; margin-top: 5px; font-size: 18px; font-weight: 800; color: #0f172a; }
+    .command-kpi small { font-size: 10px; color: #94a3b8; margin-top: 2px; display: block; }
+    .tone-good { color: #166534 !important; }
+    .tone-warning { color: #b45309 !important; }
+    .tone-critical { color: #dc2626 !important; }
+    .command-two { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; }
+    .current-stage { background: linear-gradient(135deg, #102d79, #1e40af); color: #fff; border: 1px solid #102d79; }
+    .current-stage .command-head { border-color: rgba(255,255,255,.15); }
+    .current-stage .command-head h2, .current-stage .command-head p { color: #fff; }
+    .current-stage .command-body { display: grid; grid-template-columns: 1fr 1.3fr; gap: 14px; }
+    .stage-hero span { font-size: 9px; opacity: .8; font-weight: 700; letter-spacing: 0.05em; }
+    .stage-hero strong { display: block; font-size: 24px; margin: 2px 0 6px; font-weight: 800; color: #fff; }
+    .stage-status { display: inline-block; padding: 3px 10px; background: rgba(255,255,255,.18); border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .time-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .time-list div { padding: 8px 10px; background: rgba(255,255,255,.1); border-radius: 6px; }
+    .time-list span { display: block; font-size: 8px; opacity: .8; font-weight: 700; letter-spacing: 0.04em; }
+    .time-list strong { font-size: 13px; font-weight: 700; margin-top: 2px; display: block; }
+    .pending-box { grid-column: 1/-1; padding: 10px 14px; background: #fff; color: #1e293b; border-radius: 8px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .pending-box b { color: #0f172a; }
+    .stage-link { color: #102d79; font-weight: 800; text-decoration: none; white-space: nowrap; }
+    .timer-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: flex-end;
+        margin-top: 8px;
+    }
+    .tbtn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #ffffff !important;
+        border: 0 !important;
+        border-radius: 6px !important;
+        padding: 4px 10px !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        cursor: pointer;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .tbtn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+    .tbtn.start {
+        color: #15803d !important;
+    }
+    .indicator-key {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .indicator-key span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #f1f3f6;
+        line-height: 1.3;
+    }
+    .indicator-key span.tone-good, .tone-good { color: #16845c !important; }
+    .indicator-key span.tone-warning, .tone-warning { color: #c57616 !important; }
+    .indicator-key span.tone-critical, .tone-critical { color: #d53e49 !important; }
+    .now-grid { display: grid; gap: 8px; margin: 0; }
+    .now-grid div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; font-size: 11px; }
+    .now-grid span { color: #64748b; }
+    .now-grid strong { text-align: right; font-weight: 700; color: #0f172a; }
+    @media (max-width: 1200px) {
+        .command-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .command-two { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+        .command-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .current-stage .command-body { grid-template-columns: 1fr; }
+    }
     @media (max-width: 1100px) {
         .lifecycle { grid-template-columns: 1fr; }
         .life-side { border-left: 0; border-top: 1px solid #eef2f7; padding-left: 0; padding-top: 14px; }
@@ -574,7 +672,7 @@
 </style>
 
 <div class="project-workspace p-6">
-    <div class="mx-auto max-w-[1600px] space-y-3">
+    <div class="w-full space-y-3">
         <!-- BREADCRUMB -->
         <div class="workspace-breadcrumb">
             &larr; <a href="{{ route('project.index') }}">Project</a> &nbsp;/&nbsp;
@@ -585,17 +683,28 @@
         <section class="workspace-head">
             <div class="workspace-top">
                 <div>
-                    <div class="eyebrow">PROJECT WORKSPACE</div>
-                    <div class="workspace-title">{{ $project->name ?: ($project->deal?->deal_title ?: 'Project Workspace') }}</div>
+                    <div class="eyebrow">{{ in_array($tab, ['attachments', 'history'], true) ? 'PROJECT RECORD' : 'PROJECT WORKSPACE' }}</div>
+                    <div class="workspace-title">{{ $tab === 'attachments' ? 'Documents & Attachments' : ($tab === 'history' ? 'History & Audit Trail' : ($project->name ?: ($project->deal?->deal_title ?: 'Project Workspace'))) }}</div>
                     <div class="refline">
-                        {{ $project->project_code }} &middot; {{ $project->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $project->starts()->latest()->first()?->attachments['service_memo_ref'] ?? ('SM-' . $project->project_code) }}
+                        @if ($tab === 'attachments')
+                            Historical register of generated documents and uploaded files
+                        @elseif ($tab === 'history')
+                            Complete chronological record of project activity
+                        @else
+                            {{ $project->project_code }} &middot; {{ $project->deal?->deal_code ?? 'No linked deal' }} &middot; {{ $project->starts()->latest()->first()?->attachments['service_memo_ref'] ?? ('SM-' . $project->project_code) }}
+                        @endif
                     </div>
                 </div>
                 <div class="chips">
-                    <span class="chip">Business <strong>{{ $project->business_name ?: ($project->company?->company_name ?: '-') }}</strong></span>
-                    <span class="chip">Client <strong>{{ $contactName }}</strong></span>
-                    <span class="chip">Planned Start <strong>{{ $fmt($project->planned_start_date) }}</strong></span>
-                    <span class="chip">Target Completion <strong>{{ $fmt($project->target_completion_date) }}</strong></span>
+                    @if (in_array($tab, ['attachments', 'history'], true))
+                        <span class="chip">Project <strong>{{ $project->project_code }}</strong></span>
+                        <span class="chip">Business <strong>{{ $project->business_name ?: ($project->company?->company_name ?: '-') }}</strong></span>
+                    @else
+                        <span class="chip">Business <strong>{{ $project->business_name ?: ($project->company?->company_name ?: '-') }}</strong></span>
+                        <span class="chip">Client <strong>{{ $contactName }}</strong></span>
+                        <span class="chip">Planned Start <strong>{{ $fmt($project->planned_start_date) }}</strong></span>
+                        <span class="chip">Target Completion <strong>{{ $fmt($project->target_completion_date) }}</strong></span>
+                    @endif
                 </div>
             </div>
             <div class="primary-tabs">
@@ -613,19 +722,46 @@
         </section>
 
         @php
-            $stageNames = ['Work Order', 'SOW', 'Review', 'NTP', 'Execution'];
-            $currentStageIdx = match($tab) {
+            $stageNames = [
+                'Work Order',
+                'SOW',
+                'Review',
+                'NTP',
+                'Execution',
+                'Reporting',
+                'Presentation',
+                'Delivery',
+                'Completion'
+            ];
+
+            $phaseKey = strtolower($project->current_phase ?: $project->status);
+            $stageIdxFromProject = match($phaseKey) {
+                'work order', 'intake', 'start' => 0,
+                'sow', 'sow preparation' => 1,
+                'review', 'internal review' => 2,
+                'ntp', 'for ntp approval' => 3,
+                'execution', 'in progress' => 4,
+                'reporting', 'sow reporting' => 5,
+                'presentation', 'client review' => 6,
+                'delivery', 'turn-over' => 7,
+                'completion', 'completed' => 8,
+                default => in_array($phaseKey, ['completed', 'completion']) ? 8 : 4
+            };
+
+            $currentStageIdx = $stageIdxFromProject;
+            $selectedTabIdx = match($tab) {
                 'work-order' => 0,
                 'sow' => 1,
                 'review' => 2,
                 'ntp' => 3,
                 'execution' => 4,
-                'report' => 4,
-                'coc' => 4,
-                default => ($progressPct >= 100 ? 4 : ($progressPct > 0 ? 4 : ($ntpApproved ? 3 : ($sow?->approval_status === 'approved' ? 2 : 0))))
+                'report' => 5,
+                'coc' => ($cocApproved ? 8 : 7),
+                default => null
             };
         @endphp
 
+        @if ($tab !== 'attachments' && $tab !== 'history')
         <!-- MODERN PROJECT LIFECYCLE STEPPER -->
         <div class="lifecycle">
             <div class="lifecycle-main">
@@ -633,39 +769,62 @@
                     <strong>Project Lifecycle</strong>
                     <span>Policy-controlled process</span>
                 </div>
-                <div class="life">
+                <div class="life-track">
                     @foreach($stageNames as $i => $sname)
                         @php
                             $isDone = $i < $currentStageIdx;
                             $isCurrent = $i === $currentStageIdx;
+                            $isSelected = $i === $selectedTabIdx;
                             $tabTarget = match($i) {
                                 0 => 'work-order',
                                 1 => 'sow',
                                 2 => 'review',
                                 3 => 'ntp',
                                 4 => 'execution',
+                                5 => 'report',
+                                6 => 'report',
+                                7 => 'coc',
+                                8 => 'coc',
                             };
                         @endphp
-                        <a href="{{ route('project.show', ['project' => $project->id, 'tab' => $tabTarget]) }}" class="stage {{ $isDone ? 'done' : ($isCurrent ? 'current' : '') }}">
-                            <b>
-                                @if($isDone)
-                                    <i class="fas fa-check"></i>
+                        <div class="life-stage-col {{ $isCurrent ? 'current' : '' }} {{ $isSelected ? 'selected' : '' }}">
+                            <div class="life-circle-row">
+                                @if($i > 0)
+                                    <div class="life-line-left {{ $i <= $currentStageIdx ? 'done' : '' }}"></div>
                                 @else
-                                    {{ $i + 1 }}
+                                    <div class="life-line-spacer"></div>
                                 @endif
-                            </b>
-                            <small>{{ $sname }}</small>
-                        </a>
+
+                                <a href="{{ route('project.show', ['project' => $project->id, 'tab' => $tabTarget]) }}" class="life-circle {{ $isDone ? 'done' : ($isCurrent ? 'current' : 'upcoming') }} {{ $isSelected ? 'ring-2 ring-blue-400' : '' }}">
+                                    @if($isDone)
+                                        <i class="fas fa-check"></i>
+                                    @endif
+                                </a>
+
+                                @if($i < count($stageNames) - 1)
+                                    <div class="life-line-right {{ $i < $currentStageIdx ? 'done' : '' }}"></div>
+                                @else
+                                    <div class="life-line-spacer"></div>
+                                @endif
+                            </div>
+                            <a href="{{ route('project.show', ['project' => $project->id, 'tab' => $tabTarget]) }}" class="life-label {{ $isDone ? 'done' : ($isCurrent ? 'current' : 'upcoming') }} {{ $isSelected ? 'font-black underline' : '' }}">
+                                {{ $sname }}
+                            </a>
+                        </div>
                     @endforeach
                 </div>
             </div>
             <div class="life-side">
-                <small class="life-side-kicker">CURRENT STAGE</small>
+                <div class="life-side-kicker">CURRENT STAGE</div>
                 <div class="life-side-stage">{{ $stageNames[$currentStageIdx] ?? 'Execution' }}</div>
                 <div class="life-side-pct">{{ $progressPct }}% Complete</div>
-                <div class="life-side-health">Status <span class="life-side-tag">On Track</span></div>
+                <div class="life-side-health">
+                    <span>Status</span>
+                    <strong class="life-side-tag">On Track</strong>
+                </div>
             </div>
         </div>
+        @endif
 
         @if (session('success'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('success') }}</div>
@@ -675,27 +834,6 @@
                 This project is completed. Documents are view-only; editing, generating, and approval uploads are locked.
             </div>
         @endif
-        <div class="project-linked-card rounded-2xl px-5 py-4 text-sm text-gray-600">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div class="flex flex-wrap gap-x-8 gap-y-2">
-                    <p>
-                        Deal:
-                        @if ($project->deal_id)
-                            <a href="{{ route('deals.show', $project->deal_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $project->deal?->deal_code ?? 'View linked deal' }}</a>
-                        @else
-                            <span class="font-medium text-gray-500">No linked deal</span>
-                        @endif
-                    </p>
-                    @if ($project->company_id)
-                        <p>Company: <a href="{{ route('company.show', $project->company_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $project->company?->company_name ?? 'View company' }}</a></p>
-                    @endif
-                    @if ($project->contact_id)
-                        <p>Contact: <a href="{{ route('contacts.show', $project->contact_id) }}" class="font-medium text-blue-700 hover:text-blue-800">{{ $contactName }}</a></p>
-                    @endif
-                </div>
-                <div class="project-linked-actions"></div>
-            </div>
-        </div>
         @if ($tab === 'dashboard')
             @include('project.partials.dashboard-tab')
         @elseif ($tab === 'work-order')
@@ -706,6 +844,8 @@
             @include('project.partials.ntp-tab')
         @elseif ($tab === 'execution')
             @include('project.partials.execution-tab')
+        @elseif ($tab === 'report')
+            @include('project.partials.sow-report-tab')
         @elseif ($tab === 'coc')
             @include('project.partials.coc-tab')
         @elseif ($tab === 'attachments')

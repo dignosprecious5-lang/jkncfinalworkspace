@@ -522,6 +522,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/project/bulk-delete', [ProjectController::class, 'bulkDelete'])->name('project.bulk-delete');
     Route::post('/project/manual', [ProjectController::class, 'storeManual'])->name('project.manual.store');
     Route::get('/project/{project}', [ProjectController::class, 'show'])->name('project.show');
+    Route::post('/project/{project}/cancel', [ProjectController::class, 'cancel'])->name('project.cancel');
     Route::get('/project/{project}/start/download', [ProjectController::class, 'downloadStartPdf'])->name('project.start.download');
     Route::get('/project/{project}/service-memo/download', [ProjectController::class, 'downloadServiceMemoPdf'])->name('project.service-memo.download');
     Route::post('/project/{project}/start', [ProjectController::class, 'updateStart'])->name('project.start.update');
@@ -556,6 +557,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/regular/bulk-delete', [RegularController::class, 'bulkDelete'])->name('regular.bulk-delete');
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
+    Route::post('/regular/{regular}/cancel', [RegularController::class, 'cancel'])->name('regular.cancel');
     Route::post('/regular/{regular}/cycle/advance', [RegularController::class, 'advanceCycle'])->name('regular.cycle.advance');
     Route::post('/regular/{regular}/task/toggle', [RegularController::class, 'toggleTask'])->name('regular.task.toggle');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');

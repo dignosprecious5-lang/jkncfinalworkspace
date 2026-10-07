@@ -582,7 +582,7 @@ class AdminDashboardController extends Controller
             ->with(['project.deal', 'project.company', 'project.contact'])
             ->whereHas('project', function ($query): void {
                 $query->whereNotNull('deal_id')
-                    ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') = 'true'");
+                    ->where('metadata->is_shell', true);
             })
             ->latest('updated_at')
             ->get()
@@ -653,7 +653,11 @@ class AdminDashboardController extends Controller
         return ProjectStart::query()
             ->with(['project.deal', 'project.company', 'project.contact'])
             ->whereHas('project', function ($query): void {
-                $query->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') != 'true'");
+                $query->where(function ($q) {
+                    $q->whereNull('metadata->is_shell')
+                        ->orWhere('metadata->is_shell', false)
+                        ->orWhere('metadata->is_shell', '!=', true);
+                });
             })
             ->latest('updated_at')
             ->get()

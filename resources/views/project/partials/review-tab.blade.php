@@ -362,7 +362,7 @@
                     <div>◉ Company</div>
                 </div>
                 <div class="doctitle">
-                    <h1>SOW</h1>
+                    <h1 style="font-size: 20px; font-weight: 900; letter-spacing: 0.5px; font-family: serif; color: #1e293b;">SCOPE OF WORK</h1>
                     <small>PROJ-F-002</small>
                 </div>
             </div>
@@ -413,6 +413,46 @@
                 <div class="imeta" id="viewHint" style="font-size: 8px; color: #667085;">Reviewing approved scope.</div>
             </div>
 
+            @php
+                $withinList = collect($sowWithin ?? [])->filter(fn($x) => filled(data_get($x, 'main_task_description') ?: data_get($x, 'sub_task_description')));
+                if ($withinList->isEmpty()) {
+                    $withinList = collect([
+                        ['main_task_description' => 'Share Transfer Documentation', 'sub_task_description' => 'Review existing corporate and share ownership records', 'responsible' => 'Rubeca Potayre', 'duration' => '2h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'Share Transfer Documentation', 'sub_task_description' => 'Verify shares to be transferred by Dany and Ronald', 'responsible' => 'Rubeca Potayre', 'duration' => '1h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'Share Transfer Documentation', 'sub_task_description' => 'Prepare applicable share transfer documents', 'responsible' => 'Rubeca Potayre', 'duration' => '2h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'Share Transfer Documentation', 'sub_task_description' => 'Coordinate documentary requirements with transferors', 'responsible' => 'Rubeca Potayre', 'duration' => '2h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'Share Transfer Documentation', 'sub_task_description' => 'Facilitate execution and signing of transfer documents', 'responsible' => 'Rubeca Potayre', 'duration' => '0h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'BIR Share Transfer Processing', 'sub_task_description' => 'Prepare and organize applicable BIR requirements', 'responsible' => 'Rubeca Potayre', 'duration' => '2h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'BIR Share Transfer Processing', 'sub_task_description' => 'Prepare ONETT / documentary stamp requirements', 'responsible' => 'John Kelly Abalde', 'duration' => '2h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                        ['main_task_description' => 'BIR Share Transfer Processing', 'sub_task_description' => 'Submit and monitor BIR share transfer processing', 'responsible' => 'Rubeca Potayre', 'duration' => '4h', 'start_date' => 'mm / dd / yyyy', 'end_date' => 'mm / dd / yyyy'],
+                    ]);
+                }
+
+                $groupedWithinItems = $withinList->groupBy(fn($x) => trim(data_get($x, 'main_task_description') ?: 'Main Scope Task'));
+
+                $outList = collect($sowOut ?? [])->filter(fn($x) => filled(data_get($x, 'main_task_description') ?: data_get($x, 'sub_task_description')));
+                if ($outList->isEmpty()) {
+                    $outList = collect([
+                        ['main_task_description' => 'Litigation & Court Representation', 'sub_task_description' => 'Court appearances and litigation representation', 'responsible' => 'External Counsel', 'duration' => '—', 'start_date' => '—', 'end_date' => '—']
+                    ]);
+                }
+
+                $totalChildTasksCount = $withinList->count();
+                $totalMainTasksCount = $groupedWithinItems->count();
+                $totalScopeItemsCount = $totalMainTasksCount + $totalChildTasksCount;
+
+                $totalHoursSum = 0;
+                foreach($withinList as $wIt) {
+                    $dur = strtolower((string)data_get($wIt, 'duration'));
+                    if (preg_match('/(\d+(\.\d+)?)\s*h/', $dur, $m)) {
+                        $totalHoursSum += (float)$m[1];
+                    } elseif (preg_match('/(\d+(\.\d+)?)\s*d/', $dur, $m)) {
+                        $totalHoursSum += (float)$m[1] * 8;
+                    }
+                }
+                if ($totalHoursSum === 0) $totalHoursSum = 15;
+            @endphp
+
             <!-- WITHIN SCOPE -->
             <div class="sow-builder-panel active" id="withinProjScopeSection">
                 <div class="scope-title">WITHIN SCOPE</div>
@@ -421,72 +461,59 @@
                         <thead>
                             <tr>
                                 <th style="width: 5%">Item</th>
-                                <th style="width: 20%">Main Task Description</th>
+                                <th style="width: 22%">Main Task Description</th>
                                 <th style="width: 25%">Sub Task Description</th>
                                 <th style="width: 13%">Responsibility</th>
-                                <th style="width: 14%">Assigned Person</th>
-                                <th style="width: 7%">Duration</th>
-                                <th style="width: 8%">Start Date</th>
-                                <th style="width: 8%">End Date</th>
+                                <th style="width: 15%">Assigned Person</th>
+                                <th style="width: 6%">Duration</th>
+                                <th style="width: 7%">Start Date</th>
+                                <th style="width: 7%">End Date</th>
                             </tr>
                         </thead>
                         <tbody id="withinRows">
-                            <tr class="parent-row">
-                                <td class="item-code">1</td>
-                                <td>Corporate &amp; Project Documentation</td>
-                                <td style="color: #64748b; font-style: italic;">Main scope item / workstream</td>
-                                <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
-                                <td>Project Manager</td>
-                                <td>7h</td>
-                                <td>—</td>
-                                <td>—</td>
-                            </tr>
-                            <tr class="child-row-sow">
-                                <td class="item-code">1.1</td>
-                                <td>Corporate &amp; Project Documentation</td>
-                                <td>Review existing corporate structure and agreements</td>
-                                <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
-                                <td>{{ $leadAssociate }}</td>
-                                <td>2h</td>
-                                <td>mm / dd / yyyy</td>
-                                <td>mm / dd / yyyy</td>
-                            </tr>
-                            <tr class="child-row-sow">
-                                <td class="item-code">1.2</td>
-                                <td>Corporate &amp; Project Documentation</td>
-                                <td>Draft master project and technical specifications</td>
-                                <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
-                                <td>{{ $leadAssociate }}</td>
-                                <td>3h</td>
-                                <td>mm / dd / yyyy</td>
-                                <td>mm / dd / yyyy</td>
-                            </tr>
-                            <tr class="parent-row">
-                                <td class="item-code">2</td>
-                                <td>Regulatory &amp; Statutory Compliance</td>
-                                <td style="color: #64748b; font-style: italic;">Main scope item / workstream</td>
-                                <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
-                                <td>Project Manager</td>
-                                <td>5h</td>
-                                <td>—</td>
-                                <td>—</td>
-                            </tr>
-                            <tr class="child-row-sow">
-                                <td class="item-code">2.1</td>
-                                <td>Regulatory &amp; Statutory Compliance</td>
-                                <td>Coordinate permits and statutory filing requirements</td>
-                                <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
-                                <td>{{ $leadAssociate }}</td>
-                                <td>3h</td>
-                                <td>mm / dd / yyyy</td>
-                                <td>mm / dd / yyyy</td>
-                            </tr>
+                            @php $mIndex = 1; @endphp
+                            @foreach($groupedWithinItems as $mainTitle => $children)
+                                @php
+                                    $mainDurSum = 0;
+                                    foreach($children as $c) {
+                                        $dur = strtolower((string)data_get($c, 'duration'));
+                                        if (preg_match('/(\d+(\.\d+)?)\s*h/', $dur, $m)) {
+                                            $mainDurSum += (float)$m[1];
+                                        }
+                                    }
+                                @endphp
+                                <tr class="parent-row">
+                                    <td class="item-code">{{ $mIndex }}</td>
+                                    <td>{{ $mainTitle }}</td>
+                                    <td style="color: #64748b; font-style: italic;">Main scope item / workstream</td>
+                                    <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
+                                    <td>Project Manager</td>
+                                    <td>{{ $mainDurSum > 0 ? $mainDurSum . 'h' : '7h' }}</td>
+                                    <td>—</td>
+                                    <td>—</td>
+                                </tr>
+                                @php $cIndex = 1; @endphp
+                                @foreach($children as $child)
+                                    <tr class="child-row-sow">
+                                        <td class="item-code">{{ $mIndex }}.{{ $cIndex }}</td>
+                                        <td>{{ $mainTitle }}</td>
+                                        <td>{{ data_get($child, 'sub_task_description') ?: 'Scope task item' }}</td>
+                                        <td><span class="badge" style="background:#eef3ff; color:#294b98; border:1px solid #c9d8fb; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Responsible</span></td>
+                                        <td>{{ data_get($child, 'responsible') ?: ($leadAssociate ?: 'Rubeca Potayre') }}</td>
+                                        <td>{{ data_get($child, 'duration') ?: '1h' }}</td>
+                                        <td>{{ data_get($child, 'start_date') ?: 'mm / dd / yyyy' }}</td>
+                                        <td>{{ data_get($child, 'end_date') ?: 'mm / dd / yyyy' }}</td>
+                                    </tr>
+                                    @php $cIndex++; @endphp
+                                @endforeach
+                                @php $mIndex++; @endphp
+                            @endforeach
                         </tbody>
                         <tfoot>
                             <tr>
                                 <td colspan="6"></td>
                                 <td style="text-align: right; font-weight: 700">Total:</td>
-                                <td id="withinTotal">4 item(s)</td>
+                                <td id="withinTotal">{{ $totalScopeItemsCount }} item(s)</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -501,32 +528,36 @@
                         <thead>
                             <tr>
                                 <th style="width: 5%">Item</th>
-                                <th style="width: 20%">Main Task Description</th>
+                                <th style="width: 22%">Main Task Description</th>
                                 <th style="width: 25%">Sub Task Description</th>
                                 <th style="width: 13%">Responsibility</th>
-                                <th style="width: 14%">Assigned Person</th>
-                                <th style="width: 7%">Duration</th>
-                                <th style="width: 8%">Start Date</th>
-                                <th style="width: 8%">End Date</th>
+                                <th style="width: 15%">Assigned Person</th>
+                                <th style="width: 6%">Duration</th>
+                                <th style="width: 7%">Start Date</th>
+                                <th style="width: 7%">End Date</th>
                             </tr>
                         </thead>
                         <tbody id="outScopeRows">
-                            <tr class="parent-row">
-                                <td class="item-code">1</td>
-                                <td>Litigation &amp; Court Representation</td>
-                                <td style="color: #64748b; font-style: italic;">Excluded from standard project scope</td>
-                                <td><span class="badge" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Excluded</span></td>
-                                <td>External Counsel</td>
-                                <td>—</td>
-                                <td>—</td>
-                                <td>—</td>
-                            </tr>
+                            @php $oIndex = 1; @endphp
+                            @foreach($outList as $outItem)
+                                <tr class="parent-row">
+                                    <td class="item-code">{{ $oIndex }}</td>
+                                    <td>{{ data_get($outItem, 'main_task_description') ?: 'Excluded Activity' }}</td>
+                                    <td>{{ data_get($outItem, 'sub_task_description') ?: 'Excluded from standard project scope' }}</td>
+                                    <td><span class="badge" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:700;">Excluded</span></td>
+                                    <td>{{ data_get($outItem, 'responsible') ?: 'External Counsel' }}</td>
+                                    <td>—</td>
+                                    <td>—</td>
+                                    <td>—</td>
+                                </tr>
+                                @php $oIndex++; @endphp
+                            @endforeach
                         </tbody>
                         <tfoot>
                             <tr>
                                 <td colspan="6"></td>
                                 <td style="text-align: right; font-weight: 700">Total:</td>
-                                <td id="outScopeTotal">1 item(s)</td>
+                                <td id="outScopeTotal">{{ $outList->count() }} item(s)</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -538,19 +569,19 @@
             <div class="sow-summary-grid" id="sowSummary">
                 <div class="sow-summary-card">
                     <label>TOTAL ITEMS</label>
-                    <strong>10</strong>
+                    <strong>{{ $totalScopeItemsCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <label>MAIN TASKS</label>
-                    <strong>2</strong>
+                    <strong>{{ $totalMainTasksCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <label>CHILD TASKS</label>
-                    <strong>8</strong>
+                    <strong>{{ $totalChildTasksCount }}</strong>
                 </div>
                 <div class="sow-summary-card">
                     <label>PLANNED DURATION</label>
-                    <strong>15h</strong>
+                    <strong>{{ $totalHoursSum }}h</strong>
                 </div>
                 <div class="sow-summary-card">
                     <label>PLANNED START</label>

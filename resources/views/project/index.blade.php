@@ -108,21 +108,30 @@
 @endphp
 
 <div class="px-6 py-6 lg:px-8">
-    <div class="mx-auto max-w-[1600px]">
+    <div class="w-full">
         <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-                <h1 class="text-3xl font-semibold tracking-tight text-gray-900">Project</h1>
+                <h1 class="text-3xl font-semibold tracking-tight text-gray-900">All Projects</h1>
                 <p class="mt-1 max-w-3xl text-sm text-gray-500">
-                    Approved project and hybrid deals automatically open here, with SOW, NTP, reporting, delivery, and completion tracked inside one record.
+                    Central overview of every project from Work Order and SOW through Review, NTP, Execution, SOW Reporting, Delivery, transmittal, and formal completion.
                 </p>
             </div>
-            <button
-                type="button"
-                class="inline-flex h-11 items-center justify-center rounded-full bg-[#102d79] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#0d255f]"
-                onclick="window.jkncSlideOver.open(document.getElementById('projectManualCreateDrawer'))"
-            >
-                Create Project
-            </button>
+            <div class="flex items-center gap-3">
+                <button
+                    type="button"
+                    class="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+                    onclick="resetProjectFilters()"
+                >
+                    Reset Demo
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex h-10 items-center justify-center rounded-full bg-[#102d79] px-6 text-sm font-semibold text-white shadow-sm hover:bg-[#0d255f] active:scale-95 transition cursor-pointer"
+                    onclick="openCreateProjectModal()"
+                >
+                    Create Project
+                </button>
+            </div>
         </div>
 
         @if (session('success'))
@@ -131,7 +140,7 @@
         @if (session('error'))
             <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
         @endif
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 <p class="font-semibold">Create Project was not saved.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
@@ -150,32 +159,73 @@
             </div>
         @endif
 
-        {{-- ORDO STAGE FILTER GRID --}}
+        {{-- RECORD STATUS TABS --}}
+        <div class="registry-record-tabs mb-4" id="projectStatusTabs" aria-label="Filter projects by record status">
+            <button type="button" class="active" data-status-tab="Ongoing" onclick="filterProjectStatus('Ongoing', this)">
+                Ongoing <strong>{{ $statusCounts['ongoing'] ?? 0 }}</strong>
+            </button>
+            <button type="button" data-status-tab="Completed" onclick="filterProjectStatus('Completed', this)">
+                Completed <strong>{{ $statusCounts['completed'] ?? 0 }}</strong>
+            </button>
+            <button type="button" data-status-tab="Cancelled" onclick="filterProjectStatus('Cancelled', this)">
+                Cancelled <strong>{{ $statusCounts['cancelled'] ?? 0 }}</strong>
+            </button>
+            <button type="button" data-status-tab="Deleted" onclick="filterProjectStatus('Deleted', this)">
+                Deleted <strong>{{ $statusCounts['deleted'] ?? 0 }}</strong>
+            </button>
+        </div>
+
+        {{-- 10 LIFECYCLE STAGE FILTER GRID --}}
         <div class="stage-filter-grid mb-4" id="stageFilters" aria-label="Filter projects by lifecycle stage">
             <button type="button" class="stage-filter-card active" data-stage="all" onclick="filterProjectStage('all', this)">
-                <span>All Projects</span>
-                <strong>{{ $stats['all'] }}</strong>
-                <small>Total project records</small>
+                <span>ALL PROJECTS</span>
+                <strong>{{ $stageCounts['all'] ?? 0 }}</strong>
+                <small>Entire registry</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Work Order" onclick="filterProjectStage('Work Order', this)">
+                <span>WORK ORDER</span>
+                <strong>{{ $stageCounts['work_order'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
             </button>
             <button type="button" class="stage-filter-card" data-stage="SOW" onclick="filterProjectStage('SOW', this)">
-                <span>Work Order / SOW</span>
-                <strong>{{ $stats['start'] }}</strong>
-                <small>Setup & scoping</small>
+                <span>SOW</span>
+                <strong>{{ $stageCounts['sow'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
             </button>
-            <button type="button" class="stage-filter-card" data-stage="In Progress" onclick="filterProjectStage('In Progress', this)">
-                <span>Execution / In Progress</span>
-                <strong>{{ $stats['in_progress'] }}</strong>
-                <small>Active milestone delivery</small>
+            <button type="button" class="stage-filter-card" data-stage="Review" onclick="filterProjectStage('Review', this)">
+                <span>REVIEW</span>
+                <strong>{{ $stageCounts['review'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
             </button>
-            <button type="button" class="stage-filter-card" data-stage="Active" onclick="filterProjectStage('Active', this)">
-                <span>Active Lifecycle</span>
-                <strong>{{ $stats['active'] }}</strong>
-                <small>Ongoing projects</small>
+            <button type="button" class="stage-filter-card" data-stage="NTP" onclick="filterProjectStage('NTP', this)">
+                <span>NTP</span>
+                <strong>{{ $stageCounts['ntp'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
             </button>
-            <button type="button" class="stage-filter-card" data-stage="Completed" onclick="filterProjectStage('Completed', this)">
-                <span>Completed</span>
-                <strong>{{ $stats['completed'] }}</strong>
-                <small>COC approved & closed</small>
+            <button type="button" class="stage-filter-card" data-stage="Execution" onclick="filterProjectStage('Execution', this)">
+                <span>EXECUTION</span>
+                <strong>{{ $stageCounts['execution'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Reporting" onclick="filterProjectStage('Reporting', this)">
+                <span>REPORTING</span>
+                <strong>{{ $stageCounts['reporting'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Presentation" onclick="filterProjectStage('Presentation', this)">
+                <span>PRESENTATION</span>
+                <strong>{{ $stageCounts['presentation'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Delivery" onclick="filterProjectStage('Delivery', this)">
+                <span>DELIVERY</span>
+                <strong>{{ $stageCounts['delivery'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
+            </button>
+            <button type="button" class="stage-filter-card" data-stage="Completion" onclick="filterProjectStage('Completion', this)">
+                <span>COMPLETION</span>
+                <strong>{{ $stageCounts['completion'] ?? 0 }}</strong>
+                <small>Projects at this stage</small>
             </button>
         </div>
 
@@ -199,26 +249,61 @@
                     </div>
                     <div class="relative">
                         <button
-                            class="registry-menu-button flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition"
+                            class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition cursor-pointer"
                             id="registryMenuButton"
                             type="button"
-                            onclick="document.getElementById('registryMenu').classList.toggle('open')"
+                            onclick="toggleRegistryDropdown()"
                             aria-label="Registry options"
                         >
-                            <i class="fas fa-ellipsis-v text-xs"></i>
+                            <i class="fas fa-ellipsis-h text-sm"></i>
                         </button>
-                        <div class="registry-menu" id="registryMenu">
-                            <button type="button" onclick="exportProjectTable('csv')" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
-                                <i class="fas fa-file-excel text-emerald-600"></i> Download CSV / Excel
+                        <div class="absolute right-0 top-12 z-50 hidden w-72 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl text-left" id="registryMenu">
+                            <button type="button" onclick="exportProjectTable('excel')" class="block w-full py-1.5 text-left text-xs font-semibold text-slate-800 hover:text-blue-700 transition cursor-pointer">
+                                Download Excel
                             </button>
-                            <button type="button" onclick="window.print()" class="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:text-blue-700">
-                                <i class="fas fa-file-pdf text-rose-600"></i> Download / Print PDF
+                            <button type="button" onclick="window.print()" class="block w-full py-1.5 text-left text-xs font-semibold text-slate-800 hover:text-blue-700 transition cursor-pointer">
+                                Download / Print PDF
                             </button>
-                            <div class="registry-menu-divider"></div>
-                            <strong>Quick Actions</strong>
-                            <button id="openProjectDeleteSelectedModal" type="button" class="hidden text-xs font-semibold text-rose-600 hover:bg-rose-50 p-2 rounded-lg text-left">
-                                <i class="fas fa-trash-alt mr-1"></i> Delete Selected
-                            </button>
+                            <div class="my-2.5 border-t border-slate-100"></div>
+                            <div class="text-[11px] font-bold text-slate-500 mb-2.5">Visible Columns</div>
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('project', this.checked)">
+                                    <span>Project</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('business', this.checked)">
+                                    <span>Business / Client</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('stage', this.checked)">
+                                    <span>Current Stage</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('health', this.checked)">
+                                    <span>Health</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('progress', this.checked)">
+                                    <span>Progress</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('target', this.checked)">
+                                    <span>Target Completion</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('lead', this.checked)">
+                                    <span>Project Lead</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('associate', this.checked)">
+                                    <span>Lead Associate</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" checked class="h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600" onchange="toggleRegistryColumn('assigned', this.checked)">
+                                    <span>Assigned Persons</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -238,13 +323,15 @@
                     Current Stage
                     <select id="filterStage" onchange="filterProjectRows()">
                         <option value="">All stages</option>
-                        <option value="SOW">SOW / Scope</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="For NTP Approval">For NTP Approval</option>
+                        <option value="Work Order">Work Order</option>
+                        <option value="SOW">SOW</option>
+                        <option value="Review">Review</option>
+                        <option value="NTP">NTP</option>
                         <option value="Execution">Execution</option>
                         <option value="Reporting">Reporting</option>
+                        <option value="Presentation">Presentation</option>
                         <option value="Delivery">Delivery</option>
-                        <option value="Completed">Completed</option>
+                        <option value="Completion">Completion</option>
                     </select>
                 </label>
                 <label>
@@ -254,6 +341,7 @@
                         <option value="On Track">On Track</option>
                         <option value="Needs Attention">Needs Attention</option>
                         <option value="At Risk">At Risk</option>
+                        <option value="Completed">Completed</option>
                     </select>
                 </label>
                 <label>
@@ -270,46 +358,56 @@
                     <select id="filterLead" onchange="filterProjectRows()">
                         <option value="">All project leads</option>
                         @foreach ($employeeRecords as $emp)
-                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                            <option value="{{ $emp['name'] ?? $emp['label'] ?? '' }}">{{ $emp['name'] ?? $emp['label'] ?? '' }}</option>
                         @endforeach
                     </select>
                 </label>
                 <label>
                     Lead Associate
                     <select id="filterAssociate" onchange="filterProjectRows()">
-                        <option value="">All associates</option>
+                        <option value="">All lead associates</option>
                         @foreach ($employeeRecords as $emp)
-                            <option value="{{ $emp['name'] }}">{{ $emp['name'] }}</option>
+                            <option value="{{ $emp['name'] ?? $emp['label'] ?? '' }}">{{ $emp['name'] ?? $emp['label'] ?? '' }}</option>
                         @endforeach
                     </select>
                 </label>
-                <button class="btn inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition" type="button" id="clearRegistryFilters" onclick="resetProjectFilters()">
-                    Clear Filters
-                </button>
+                <label>
+                    Assigned Persons
+                    <select id="filterAssigned" onchange="filterProjectRows()">
+                        <option value="">All assigned persons</option>
+                        @foreach ($employeeRecords as $emp)
+                            <option value="{{ $emp['name'] ?? $emp['label'] ?? '' }}">{{ $emp['name'] ?? $emp['label'] ?? '' }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <div class="registry-filters-clear-wrap">
+                    <button class="inline-flex h-9 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition" type="button" id="clearRegistryFilters" onclick="resetProjectFilters()">
+                        Clear Filters
+                    </button>
+                </div>
             </div>
 
             {{-- RESULT BAR --}}
-            <div class="registry-result-bar">
-                <span id="registryResultCount">{{ $projects->count() }} projects</span>
+            <div class="flex items-center justify-between px-5 py-2.5 bg-white border-b border-slate-100 text-xs text-slate-500 font-normal">
+                <span id="registryResultCount">{{ $projects->count() }} project{{ $projects->count() === 1 ? '' : 's' }}</span>
                 <span id="activeRegistryFilter">All lifecycle stages</span>
             </div>
 
             {{-- REGISTRY TABLE --}}
-            <div class="table-wrap overflow-x-auto">
-                <table class="min-w-full text-xs" id="projectRegistryTable">
-                    <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+            <div class="table-wrap w-full overflow-hidden">
+                <table class="w-full text-xs" id="projectRegistryTable">
+                    <thead class="bg-white text-slate-500 border-b border-slate-100">
                         <tr>
-                            <th class="px-4 py-3 text-left w-10" data-column="select">
-                                <input id="projectSelectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                            </th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="project">PROJECT / REFERENCE</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="business">BUSINESS / CLIENT</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="stage">CURRENT STAGE</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="health">HEALTH</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="progress">PROGRESS</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="target">TARGET COMPLETION</th>
-                            <th class="px-4 py-3 text-left font-bold uppercase tracking-wider" data-column="lead">PROJECT LEAD</th>
-                            <th class="px-4 py-3 text-right font-bold uppercase tracking-wider" data-column="action">ACTION</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[17%]" data-column="project">PROJECT / REFERENCE</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[13%]" data-column="business">BUSINESS / CLIENT</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[7%]" data-column="stage">CURRENT STAGE</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[7%]" data-column="health">HEALTH</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[6%]" data-column="progress">PROGRESS</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[8%]" data-column="target">TARGET COMPLETION</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[8%]" data-column="lead">PROJECT LEAD</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[8%]" data-column="associate">LEAD ASSOCIATE</th>
+                            <th class="px-3 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[18%]" data-column="assigned">ASSIGNED PERSONS</th>
+                            <th class="px-3 py-3.5 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500 w-[8%]" data-column="action">ACTION</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 bg-white text-slate-700" id="rows">
@@ -317,13 +415,56 @@
                             @php
                                 $contactPerson = trim(collect([$project->contact?->first_name, $project->contact?->last_name])->filter()->implode(' ')) ?: ($project->client_name ?: 'Client not recorded');
                                 $businessName = $project->company?->company_name ?: ($project->business_name ?: 'No Business Recorded');
-                                $isCompleted = $project->status === 'Completed';
-                                $progress = $isCompleted ? 100 : (in_array($project->status, ['Execution', 'In Progress']) ? 70 : (in_array($project->status, ['Reporting', 'Delivery']) ? 90 : 30));
-                                $health = $isCompleted ? 'Completed' : 'On Track';
-                                $targetDate = $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('Y-m-d') : '';
-                                $phaseLabel = in_array($project->status, ['Start', 'SOW']) ? 'SOW' : $project->status;
+                                $isCompleted = in_array(strtolower($project->status), ['completed', 'completion']) || in_array(strtolower($project->current_phase ?? ''), ['completed', 'completion']);
+                                $isCancelled = in_array(strtolower($project->status), ['cancelled', 'cancel']);
+                                $isDeleted = in_array(strtolower($project->status), ['deleted', 'delete']);
+                                $recordStatus = $isCompleted ? 'Completed' : ($isCancelled ? 'Cancelled' : ($isDeleted ? 'Deleted' : 'Ongoing'));
+                                
+                                $phaseLabel = $project->real_stage ?? ($project->current_phase ?: $project->status);
+                                $progress = $project->real_progress ?? (data_get($project->metadata, 'progress') ?? 0);
+                                $health = $project->real_health ?? (data_get($project->metadata, 'health') ?? 'On Track');
+
+                                $targetDate = $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('M d, Y') : 'Not set';
+                                $targetDateRaw = $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('Y-m-d') : '';
+                                
+                                $projectLead = $project->assigned_project_manager ?: ($project->assigned_consultant ?: 'Unassigned');
+                                $leadAssociate = $project->assigned_associate ?: 'Unassigned';
+
+                                $assignedList = collect([
+                                    $project->assigned_project_manager,
+                                    $project->assigned_consultant,
+                                    $project->assigned_associate,
+                                    $project->deal?->assigned_person,
+                                    $project->deal?->assigned_team_members,
+                                    data_get($project->metadata, 'assigned_persons'),
+                                    data_get($project->metadata, 'team_members'),
+                                ])
+                                ->flatMap(function($item) {
+                                    if (is_array($item)) return $item;
+                                    if (is_string($item)) {
+                                        return preg_split('/[,;\n]+/', $item);
+                                    }
+                                    return [];
+                                })
+                                ->map(fn($n) => trim($n))
+                                ->filter(fn($n) => !empty($n) && !in_array(strtolower($n), ['unassigned', 'null', '-']))
+                                ->unique()
+                                ->values();
+
+                                if ($assignedList->isEmpty()) {
+                                    $assignedList = collect([$projectLead !== 'Unassigned' ? $projectLead : ($leadAssociate !== 'Unassigned' ? $leadAssociate : 'Unassigned')]);
+                                }
+
+                                $badgeClass = match (strtolower($phaseLabel)) {
+                                    'completed', 'completion' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                    'cancelled' => 'bg-rose-50 text-rose-700 border-rose-200',
+                                    default => 'bg-blue-50 text-blue-600 border-blue-200',
+                                };
                             @endphp
                             <tr class="project-data-row hover:bg-slate-50/80 transition"
+                                data-id="{{ $project->id }}"
+                                data-status="{{ $recordStatus }}"
+                                data-raw-status="{{ $project->status }}"
                                 data-title="{{ strtolower($project->name) }}"
                                 data-ref="{{ strtolower($project->project_code) }}"
                                 data-deal="{{ strtolower($project->deal?->deal_code ?? '') }}"
@@ -332,56 +473,73 @@
                                 data-stage="{{ $phaseLabel }}"
                                 data-health="{{ $health }}"
                                 data-progress="{{ $progress }}"
-                                data-lead="{{ $project->assigned_project_manager ?: ($project->assigned_consultant ?: '') }}"
-                                data-associate="{{ $project->assigned_associate ?: '' }}"
-                                data-target="{{ $targetDate }}">
-                                <td class="px-4 py-3.5" data-column="select">
-                                    <input type="checkbox" name="project_checkbox" value="{{ $project->id }}" class="project-row-checkbox h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                data-lead="{{ $projectLead }}"
+                                data-associate="{{ $leadAssociate }}"
+                                data-assigned="{{ strtolower($assignedList->implode(' ')) }}"
+                                data-target="{{ $targetDateRaw }}">
+                                <td class="px-3 py-3.5" data-column="project">
+                                    <div class="font-bold text-slate-900 text-[13px] leading-snug">{{ $project->name }}</div>
+                                    <div class="text-[10px] text-slate-400 font-medium tracking-tight uppercase mt-0.5 whitespace-nowrap">{{ $project->project_code }} · {{ $project->deal?->deal_code ?? 'No Deal reference' }}</div>
                                 </td>
-                                <td class="px-4 py-3.5" data-column="project">
-                                    <div class="font-bold text-slate-900">{{ $project->name }}</div>
-                                    <div class="text-[11px] text-slate-500 font-medium">{{ $project->project_code }} · {{ $project->deal?->deal_code ?? 'No Deal reference' }}</div>
+                                <td class="px-3 py-3.5" data-column="business">
+                                    <strong class="font-bold text-slate-900 text-[12px] leading-snug block uppercase">{{ $businessName }}</strong>
+                                    <div class="text-[11px] text-slate-500 mt-0.5 whitespace-nowrap">{{ $contactPerson }}</div>
                                 </td>
-                                <td class="px-4 py-3.5" data-column="business">
-                                    <strong class="font-bold text-slate-900 block">{{ $businessName }}</strong>
-                                    <div class="text-[11px] text-slate-500">{{ $contactPerson }}</div>
-                                </td>
-                                <td class="px-4 py-3.5" data-column="stage">
-                                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold {{ $phaseBadgeClasses[$phaseLabel] ?? 'bg-slate-100 text-slate-700 border border-slate-200' }}">
+                                <td class="px-3 py-3.5 whitespace-nowrap" data-column="stage">
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold border {{ $badgeClass }}">
                                         {{ $phaseLabel }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3.5" data-column="health">
-                                    <span class="inline-flex items-center gap-1.5 font-bold {{ $isCompleted ? 'text-emerald-700' : 'text-blue-700' }}">
-                                        <span class="h-2 w-2 rounded-full {{ $isCompleted ? 'bg-emerald-500' : 'bg-blue-500' }}"></span>
+                                <td class="px-3 py-3.5 whitespace-nowrap" data-column="health">
+                                    <span class="font-bold text-slate-800 text-[12px]">
                                         {{ $health }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3.5" data-column="progress">
-                                    <div class="registry-progress">
-                                        <div class="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1">
-                                            <span>{{ $progress }}%</span>
+                                <td class="px-3 py-3.5 whitespace-nowrap" data-column="progress">
+                                    <div>
+                                        <div class="font-bold text-slate-800 text-[12px] leading-none mb-1">
+                                            {{ $progress }}%
                                         </div>
-                                        <div class="h-1.5 w-24 rounded-full bg-slate-100 overflow-hidden">
-                                            <div class="h-full bg-blue-600 rounded-full" style="width: {{ $progress }}%"></div>
+                                        <div class="h-1.5 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full rounded-full bg-[#1b3b89]" style="width: {{ $progress }}%;"></div>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="target">
-                                    {{ $project->target_completion_date ? \Carbon\Carbon::parse($project->target_completion_date)->format('M d, Y') : 'Not set' }}
+                                <td class="px-3 py-3.5 font-normal text-slate-600 text-[12px] whitespace-nowrap" data-column="target">
+                                    {{ $targetDate }}
                                 </td>
-                                <td class="px-4 py-3.5 font-medium text-slate-600" data-column="lead">
-                                    {{ $project->assigned_project_manager ?: ($project->assigned_consultant ?: 'Unassigned') }}
+                                <td class="px-3 py-3.5 font-medium text-slate-700 text-[12px] leading-snug whitespace-nowrap" data-column="lead">
+                                    {{ $projectLead }}
                                 </td>
-                                <td class="px-4 py-3.5 text-right" data-column="action">
-                                    <a href="{{ route('project.show', $project) }}" class="btn sm inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-800 transition">
-                                        Open Project <i class="fas fa-arrow-right text-[10px]"></i>
+                                <td class="px-3 py-3.5 font-medium text-slate-700 text-[12px] leading-snug whitespace-nowrap" data-column="associate">
+                                    {{ $leadAssociate }}
+                                </td>
+                                <td class="px-3 py-3.5" data-column="assigned">
+                                    <div class="flex flex-wrap items-center gap-1">
+                                        @foreach ($assignedList as $person)
+                                            <span class="inline-flex items-center rounded-full bg-[#ebf1fa] px-2.5 py-0.5 text-[10px] font-medium text-[#334155] whitespace-nowrap">
+                                                {{ $person }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3.5 text-center whitespace-nowrap" data-column="action">
+                                    <a href="{{ route('project.show', $project) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-[#1b3b89] px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#152e6d] transition cursor-pointer">
+                                        Open Project
                                     </a>
+                                    <div class="mt-1 flex items-center justify-center gap-1">
+                                        <button type="button" onclick="openCancelProjectModal('{{ $project->id }}', '{{ addslashes($project->name) }}', '{{ $project->project_code }}')" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10.5px] font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition cursor-pointer">
+                                            Cancel
+                                        </button>
+                                        <button type="button" onclick="openSingleProjectDelete('{{ $project->id }}', '{{ addslashes($project->name) }}', '{{ $project->project_code }}')" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10.5px] font-medium text-red-600 shadow-sm hover:bg-rose-50 hover:border-red-200 transition cursor-pointer">
+                                            Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr id="noRecordsRow">
-                                <td colspan="9" class="px-4 py-12 text-center text-sm text-slate-400">
+                                <td colspan="10" class="px-4 py-12 text-center text-sm text-slate-400">
                                     <i class="fas fa-folder-open text-3xl text-slate-300 block mb-2"></i>
                                     No project engagements have been recorded yet.
                                 </td>
@@ -390,22 +548,134 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- PAGINATION FOOTER BAR --}}
+            <div class="registry-pagination flex items-center justify-between p-4 border-t border-slate-100 bg-white">
+                <div class="flex items-center gap-2 text-xs text-slate-500 font-bold uppercase">
+                    <span>SHOW</span>
+                    <select id="projectPageSize" class="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 outline-none" onchange="changeProjectPageSize(this.value)">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div id="projectPaginationSummary" class="text-xs text-slate-500">
+                    Showing 1–{{ min($projects->count(), 10) }} of {{ $projects->count() }}
+                </div>
+                <div class="registry-page-buttons flex items-center gap-1.5" id="projectPaginationButtons">
+                    <button type="button" id="projectPrevBtn" class="px-3 py-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-lg disabled:opacity-40" onclick="changeProjectPage('prev')">Previous</button>
+                    <button type="button" class="px-3 py-1.5 text-xs font-bold text-white bg-[#102d79] rounded-lg active">1</button>
+                    <button type="button" id="projectNextBtn" class="px-3 py-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-lg disabled:opacity-40" onclick="changeProjectPage('next')">Next</button>
+                </div>
+            </div>
         </div>
 
-        {{-- Delete Selected Modal --}}
+        {{-- Cancel Project Modal (Exact Screenshot Design) --}}
+        <div id="projectCancelModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+            <button id="projectCancelOverlay" type="button" aria-label="Close cancel project modal" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] transition-opacity" onclick="closeProjectCancelModal()"></button>
+            <div class="absolute left-1/2 top-1/2 w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white shadow-2xl overflow-hidden border border-slate-100">
+                <form id="projectCancelForm" method="POST" action="">
+                    @csrf
+                    {{-- Modal Header --}}
+                    <div class="p-7 pb-4">
+                        <div class="text-[11px] font-black uppercase tracking-wider text-[#1e3a8a]">CANCEL PROJECT</div>
+                        <div class="flex items-start justify-between mt-1">
+                            <div>
+                                <h2 class="text-2xl font-black tracking-tight text-[#0f2757]">Cancel project record</h2>
+                                <p class="mt-1 text-xs font-semibold text-slate-500">
+                                    <span id="projectCancelRefText">PROJ-2026-120</span> · <span id="projectCancelNameText">Transfer of Share From Dany and Ronald to X10</span>
+                                </p>
+                            </div>
+                            <button type="button" onclick="closeProjectCancelModal()" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition cursor-pointer">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Modal Body --}}
+                    <div class="px-7 py-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="projectCancelReason" class="text-xs font-bold text-slate-800">Reason</label>
+                            <span class="text-[10px] font-black tracking-wider text-rose-600 uppercase">REQUIRED</span>
+                        </div>
+                        <textarea
+                            id="projectCancelReason"
+                            name="reason"
+                            required
+                            rows="5"
+                            class="w-full rounded-2xl border-2 border-blue-400/80 bg-white p-4 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 resize-y"
+                            placeholder="Explain why this project is being cancelled..."
+                        ></textarea>
+                        <p class="mt-4 text-[11px] text-slate-400 font-normal leading-relaxed">
+                            This action is retained with the acting user, date, time, and reason in the project history.
+                        </p>
+                    </div>
+
+                    {{-- Modal Footer --}}
+                    <div class="border-t border-slate-100 px-7 py-4.5 bg-white flex items-center justify-end gap-3 mt-4">
+                        <button type="button" onclick="closeProjectCancelModal()" class="h-11 rounded-full border border-slate-200 bg-white px-7 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" class="h-11 rounded-full bg-[#1b3b89] px-7 text-xs font-bold text-white shadow hover:bg-[#152e6d] transition cursor-pointer">
+                            Cancel Project
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Delete Project Modal (Exact Screenshot Design) --}}
         <div id="projectDeleteSelectedModal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
-            <button id="projectDeleteSelectedOverlay" type="button" aria-label="Close delete projects modal" class="absolute inset-0 bg-slate-900/45"></button>
-            <div class="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl">
-                <h2 class="text-xl font-semibold text-gray-900">Delete Selected Projects</h2>
-                <p class="mt-1 text-sm text-gray-500">This action will permanently delete the selected project records.</p>
+            <button id="projectDeleteSelectedOverlay" type="button" aria-label="Close delete project modal" class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] transition-opacity" onclick="closeProjectDeleteModal()"></button>
+            <div class="absolute left-1/2 top-1/2 w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white shadow-2xl overflow-hidden border border-slate-100">
                 <form id="projectBulkDeleteForm" method="POST" action="{{ route('project.bulk-delete') }}">
                     @csrf
                     @method('DELETE')
                     <div id="projectBulkDeleteSelectedItems"></div>
-                    <p class="mt-4 text-sm text-gray-700">Are you sure you want to delete <span id="projectBulkDeleteCountText" class="font-semibold text-gray-900">0 projects</span>?</p>
-                    <div class="mt-5 flex justify-end gap-3">
-                        <button id="cancelProjectDeleteSelectedModal" type="button" class="h-10 rounded-lg border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button type="submit" class="h-10 rounded-lg bg-red-600 px-5 text-sm font-medium text-white hover:bg-red-700">Delete Selected</button>
+
+                    {{-- Modal Header --}}
+                    <div class="p-7 pb-4">
+                        <div class="text-[11px] font-black uppercase tracking-wider text-[#1e3a8a]">DELETE PROJECT</div>
+                        <div class="flex items-start justify-between mt-1">
+                            <div>
+                                <h2 class="text-2xl font-black tracking-tight text-[#0f2757]">Delete project record</h2>
+                                <p class="mt-1 text-xs font-semibold text-slate-500">
+                                    <span id="projectDeleteRefText">PROJ-2026-119</span> · <span id="projectDeleteNameText">Transfer Shares Ronald to Stephan</span>
+                                </p>
+                            </div>
+                            <button type="button" onclick="closeProjectDeleteModal()" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition cursor-pointer">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Modal Body --}}
+                    <div class="px-7 py-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <label for="projectDeleteReason" class="text-xs font-bold text-slate-800">Reason</label>
+                            <span class="text-[10px] font-black tracking-wider text-rose-600 uppercase">REQUIRED</span>
+                        </div>
+                        <textarea
+                            id="projectDeleteReason"
+                            name="reason"
+                            required
+                            rows="5"
+                            class="w-full rounded-2xl border-2 border-blue-400/80 bg-white p-4 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 resize-y"
+                            placeholder="Explain why this project is being moved to Deleted..."
+                        ></textarea>
+                        <p class="mt-4 text-[11px] text-slate-400 font-normal leading-relaxed">
+                            This action is retained with the acting user, date, time, and reason in the project history.
+                        </p>
+                    </div>
+
+                    {{-- Modal Footer --}}
+                    <div class="border-t border-slate-100 px-7 py-4.5 bg-white flex items-center justify-end gap-3 mt-4">
+                        <button type="button" onclick="closeProjectDeleteModal()" class="h-11 rounded-full border border-slate-200 bg-white px-7 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" class="h-11 rounded-full bg-[#b8323e] hover:bg-[#a12934] px-7 text-xs font-bold text-white shadow transition cursor-pointer">
+                            Move to Deleted
+                        </button>
                     </div>
                 </form>
             </div>
@@ -413,336 +683,219 @@
     </div>
 </div>
 
-<x-slide-over id="projectManualCreateDrawer" width="sm:max-w-[95vw]">
-    <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-        <div>
-            <h2 class="text-lg font-semibold text-gray-900">Create Project</h2>
-            <p class="mt-1 text-sm text-gray-500">Manually create a project record and open the SOW form to fill out details, scope, activities, and requirements.</p> 
-        </div>
-        <button type="button" class="rounded-full p-2 text-gray-500 hover:bg-gray-100" onclick="window.jkncSlideOver.close(document.getElementById('projectManualCreateDrawer'))">
-            <span class="sr-only">Close</span>
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-
-    <form method="POST" action="{{ route('project.manual.store') }}" class="flex h-full flex-col overflow-hidden">
-        @csrf
-        <input type="hidden" name="source_mode" id="project_source_mode" value="{{ $oldSourceMode === 'deal' ? 'deal' : 'manual' }}">
-        <input type="hidden" name="deal_id" id="project_deal_id" value="{{ old('deal_id') }}">
-        <input type="hidden" name="contact_id" id="project_contact_id" value="{{ old('contact_id') }}">
-        <input type="hidden" name="company_id" id="project_company_id" value="{{ old('company_id') }}">
-        <div class="flex-1 overflow-y-auto px-6 py-5">
-            <div class="grid gap-4 xl:grid-cols-[52%,48%]">
-                <aside class="min-w-0 xl:sticky xl:top-0 xl:self-start">
-                    <div id="projectTemplatePreview" class="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50 p-5 shadow-sm">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">SOW Form Preview</p>
-                                <p id="projectTemplatePreviewName" class="mt-2 text-lg font-semibold text-slate-900">Blank Project Form</p>
-                            </div>
-                            <span id="projectTemplatePreviewBadge" class="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">Default</span>
-                        </div>
-                        <div class="mt-4 max-h-[calc(100vh-220px)] overflow-y-auto rounded-2xl border border-[#d7deea] bg-white p-3 shadow-sm xl:scale-[1.02] xl:origin-top-left">
-                            <div class="border border-[#163b7a] bg-white">
-                                <div class="h-1.5 bg-[#163b7a]"></div>
-                                <div class="p-3">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <img src="{{ asset('images/imaglogo.png') }}" alt="John Kelly and Company" class="h-10 w-auto object-contain">
-                                        <div class="text-right">
-                                            <div class="font-[Georgia] text-[18px] font-bold uppercase leading-tight text-slate-900">Scope Of Work</div>
-                                            <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">PROJ-F-002</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Condeal Ref No.</div>
-                                            <div id="projectTemplateMetaCondeal" class="mt-1 font-semibold text-slate-900">-</div>
-                                        </div>
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Project Code</div>
-                                            <div id="projectTemplateMetaCode" class="mt-1 font-semibold text-slate-900">Auto-generated</div>
-                                        </div>
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Client</div>
-                                            <div id="projectTemplateMetaClient" class="mt-1 font-semibold text-slate-900">Pending selection</div>
-                                        </div>
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Business</div>
-                                            <div id="projectTemplateMetaBusiness" class="mt-1 font-semibold text-slate-900">Pending selection</div>
-                                        </div>
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Version</div>
-                                            <div id="projectTemplatePreviewVersion" class="mt-1 font-semibold text-slate-900">1.0</div>
-                                        </div>
-                                        <div class="border border-slate-200 px-2 py-1.5">
-                                            <div class="font-semibold uppercase text-slate-500">Status</div>
-                                            <div id="projectTemplatePreviewStatuses" class="mt-1 font-semibold text-slate-900">Draft template</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-3 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Within Scope</div>
-                                    <table class="w-full table-fixed border-collapse text-[9px] font-[Georgia] text-slate-900">
-                                        <thead>
-                                            <tr>
-                                                <th class="border border-slate-900 px-1 py-1 font-normal">Main Task</th>
-                                                <th class="border border-slate-900 px-1 py-1 font-normal">Sub Task</th>
-                                                <th class="border border-slate-900 px-1 py-1 font-normal">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="projectTemplateWithinScope"></tbody>
-                                    </table>
-
-                                    <div class="mt-3 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Out Of Scope</div>
-                                    <div id="projectTemplateOutScope" class="border border-slate-900 border-t-0 px-2 py-2 text-[9px] leading-5 font-[Georgia] text-slate-900"></div>
-
-                                    <div class="mt-4 border border-slate-900 border-t-0 px-3 py-5 text-center font-[Georgia] text-[9px] text-slate-900">
-                                        <div class="mx-auto w-[70%] border-b border-slate-900 pb-1 font-semibold" id="projectTemplateSignatureName">Client representative signature</div>
-                                        <div class="mt-2 italic">Client Fullname & Signature</div>
-                                    </div>
-
-                                    <div class="mt-4 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Internal Approval</div>
-                                    <div class="grid grid-cols-2 border-l border-r border-b border-slate-900 font-[Georgia] text-[9px] text-slate-900">
-                                        <div class="border-r border-slate-900 px-3 py-3">
-                                            <div class="text-slate-500 italic">Prepared By</div>
-                                            <div id="projectTemplatePreparedBy" class="mt-3 border-b border-slate-900 pb-1 min-h-[18px]"></div>
-                                            <div class="mt-2 text-[8px] italic">Name / Signature / Date</div>
-                                        </div>
-                                        <div class="px-3 py-3">
-                                            <div class="text-slate-500 italic">Reviewed By</div>
-                                            <div id="projectTemplateReviewedBy" class="mt-3 border-b border-slate-900 pb-1 min-h-[18px]"></div>
-                                            <div class="mt-2 text-[8px] italic">Name / Signature / Date</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-4 bg-[#163b7a] px-2 py-1 text-center font-[Georgia] text-[11px] font-bold uppercase tracking-[0.08em] text-white">Records</div>
-                                    <div class="grid grid-cols-[1fr_38%] border-l border-r border-b border-slate-900 font-[Georgia] text-[9px] text-slate-900">
-                                        <div class="border-r border-slate-900 px-3 py-3">
-                                            <div class="mb-2">Date Received: ____________________</div>
-                                            <div>Date Returned: ____________________</div>
-                                        </div>
-                                        <div class="flex items-center justify-center px-3 py-6 italic text-center">Conforme / Record Custodian</div>
-                                    </div>
-
-                                    <div class="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[10px] text-slate-600">
-                                        <span id="projectTemplatePreviewEffect">The project will start from a blank/default SOW structure.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-                <div class="min-w-0 max-w-[720px] justify-self-end space-y-5">
-            <section class="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p class="text-sm font-semibold text-gray-900">How do you want to create this project?</p>
-                <div class="mt-3 grid gap-3 md:grid-cols-2">
-                    <button type="button" data-project-source-option="deal" class="project-source-option rounded-2xl border px-4 py-4 text-left transition {{ $oldSourceMode === 'deal' ? 'border-[#102d79] bg-white ring-2 ring-[#102d79]/10' : 'border-gray-200 bg-white hover:border-gray-300' }}">
-                        <span class="block text-sm font-semibold text-gray-900">Link Existing Deal</span>
-                        <span class="mt-1 block text-xs text-gray-500">Pick an open deal and preload its client, company, scope, and staffing details.</span>
-                    </button>
-                    <button type="button" data-project-source-option="manual" class="project-source-option rounded-2xl border px-4 py-4 text-left transition {{ $oldSourceMode !== 'deal' ? 'border-[#102d79] bg-white ring-2 ring-[#102d79]/10' : 'border-gray-200 bg-white hover:border-gray-300' }}">
-                        <span class="block text-sm font-semibold text-gray-900">Manual</span>
-                        <span class="mt-1 block text-xs text-gray-500">Start manually, then optionally select an existing contact or company to fill the client details.</span>
-                    </button>
-                </div>
-            </section>
-
-            <section id="projectDealLinkSection" class="space-y-3 {{ $oldSourceMode === 'deal' ? '' : 'hidden' }}">
+{{-- CREATE PROJECT MODAL (Exact match to target UI/UX) --}}
+<div id="createProjectModal" class="fixed inset-0 z-[70] hidden overflow-y-auto" aria-hidden="true">
+    <div class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onclick="closeCreateProjectModal()"></div>
+    <div class="flex min-h-full items-center justify-center p-4 sm:p-6">
+        <div class="relative w-full max-w-4xl transform rounded-3xl bg-white p-6 sm:p-8 text-left shadow-2xl transition-all border border-slate-100">
+            {{-- Header --}}
+            <div class="flex items-start justify-between">
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Search Existing Deal</label>
-                    <input
-                        type="text"
-                        id="projectDealSearch"
-                        value=""
-                        placeholder="Type deal code, deal name, client, or company..."
-                        autocomplete="off"
-                        class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900"
-                    >
-                    <p class="mt-2 text-xs text-gray-500">Only deals without a linked project are shown here.</p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900">Create Project</h2>
+                    <p class="mt-0.5 text-xs font-medium text-slate-500">How do you want to create this project?</p>
                 </div>
-                <div id="projectDealResults" class="hidden max-h-64 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-sm"></div>
-                <div id="projectDealSelectionSummary" class="{{ old('deal_id') ? '' : 'hidden' }} rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"></div>
-            </section>
-
-            <section id="projectManualLinkSection" class="space-y-4 {{ $oldSourceMode === 'deal' ? 'hidden' : '' }}">
-                <div class="rounded-2xl border border-gray-200 p-4">
-                    <h3 class="text-base font-semibold text-gray-900">Customer Type</h3>
-                    <div class="mt-3 grid grid-cols-2 gap-2">
-                        @foreach (['business' => 'Business', 'individual' => 'Individual'] as $value => $label)
-                            <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                <input type="radio" name="project_customer_type" value="{{ $value }}" @checked(old('project_customer_type', 'individual') === $value) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span>{{ $label }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                </div>
-                <div>
-                    <h3 id="projectSelectionSectionTitle" class="text-base font-semibold text-gray-900">Select Existing Contact / Client</h3>
-                    <p id="projectSearchHelpText" class="mt-1 text-xs text-gray-500">Select a customer type, then search the matching records.</p>
-                </div>
-                <div class="relative">
-                    <label id="projectContactSearchLabel" class="mb-2 block text-sm font-medium text-gray-700" for="projectContactSearch">Search Existing Client</label>
-                    <input
-                        type="text"
-                        id="projectContactSearch"
-                        value=""
-                        placeholder="Type name, company, email, or mobile..."
-                        autocomplete="off"
-                        class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900"
-                    >
-                    <div id="projectContactResults" class="mt-2 hidden max-h-64 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-sm"></div>
-                </div>
-                <div id="projectManualSelectionSummary" class="{{ old('contact_id') || old('company_id') ? '' : 'hidden' }} rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"></div>
-            </section>
-
-            <div class="grid gap-3 md:grid-cols-2">
-                <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-medium text-gray-700">SOW Template</label>
-                    <select name="template_id" id="project_template_id" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                        <option value="">Start from blank/default</option>
-                        @foreach ($sowTemplates as $template)
-                            <option value="{{ $template->id }}" @selected((string) old('template_id') === (string) $template->id)>{{ $template->name }}</option>
-                        @endforeach
-                    </select>
-                    <p class="mt-2 text-xs text-gray-500">Choose a saved SOW template to prefill the first Scope of Work document for this new project.</p>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Project Name</label>
-                    <input name="name" id="project_name" value="{{ old('name') }}" required class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Client Name</label>
-                    <input name="client_name" id="project_client_name" value="{{ old('client_name') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Business Name</label>
-                    <input name="business_name" id="project_business_name" value="{{ old('business_name') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Planned Start</label>
-                    <input type="date" name="planned_start_date" id="project_planned_start_date" value="{{ old('planned_start_date') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Target Completion</label>
-                    <input type="date" name="target_completion_date" id="project_target_completion_date" value="{{ old('target_completion_date') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Client Confirmation Name</label>
-                    <input name="client_confirmation_name" id="project_client_confirmation_name" value="{{ old('client_confirmation_name') }}" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                </div>
-                <div class="relative" data-employee-picker>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Project Manager</label>
-                    <input name="assigned_project_manager" id="project_assigned_project_manager" value="{{ old('assigned_project_manager') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                </div>
-                <div class="relative" data-employee-picker>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Lead Consultant</label>
-                    <input name="assigned_consultant" id="project_assigned_consultant" value="{{ old('assigned_consultant') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                </div>
-                <div class="relative md:col-span-2" data-employee-picker>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Lead Associate</label>
-                    <input name="assigned_associate" id="project_assigned_associate" value="{{ old('assigned_associate') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                </div>
-                <div class="relative md:col-span-2" data-employee-picker>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Sales &amp; Marketing</label>
-                    <input name="sales_marketing" id="project_sales_marketing" value="{{ old('sales_marketing') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                </div>
-                <div class="relative md:col-span-2" data-employee-picker>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Finance</label>
-                    <input name="finance" id="project_finance" value="{{ old('finance') }}" autocomplete="off" data-employee-search-input class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <div class="absolute z-20 mt-1 hidden w-full rounded-xl border border-gray-200 bg-white shadow-lg" data-employee-search-results></div>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Scope Summary</label>
-                    <textarea name="scope_summary" id="project_scope_summary" rows="3" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900">{{ old('scope_summary') }}</textarea>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="mb-2 block text-sm font-medium text-gray-700">SOW Engagement Requirements</label>
-                    <textarea name="engagement_requirements_text" rows="5" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900" placeholder="One requirement per line">{{ old('engagement_requirements_text') }}</textarea>
-                </div>
-                <input type="hidden" name="service_area" id="project_service_area" value="{{ old('service_area') }}">
-                <textarea name="services" id="project_services" class="hidden">{{ old('services') }}</textarea>
-                <textarea name="products" id="project_products" class="hidden">{{ old('products') }}</textarea>
+                <button type="button" onclick="closeCreateProjectModal()" class="inline-flex items-center justify-center rounded-full border border-slate-300 px-4 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition">
+                    Close
+                </button>
             </div>
 
-            <section class="rounded-2xl border border-gray-200 p-4">
-                <h3 class="text-base font-semibold text-gray-900">Service Identification</h3>
-                <div class="mt-4 space-y-4">
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700">Service Area</label>
-                        <div id="project-service-area-options-grid" class="grid gap-2 sm:grid-cols-2">
-                            @foreach ($serviceAreaOptions as $option)
-                                @if ($option !== 'Others')
-                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                                        <input type="checkbox" name="service_area_options[]" value="{{ $option }}" @checked(in_array($option, $selectedServiceAreas, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <span>{{ $option }}</span>
-                                    </label>
-                                @endif
-                            @endforeach
-                        </div>
-                    </div>
+            <form id="createProjectForm" method="POST" action="{{ route('project.manual.store') }}" class="mt-5 space-y-4">
+                @csrf
+                <input type="hidden" name="source_mode" id="cp_source_mode" value="deal">
+                <input type="hidden" name="contact_id" id="cp_contact_id" value="">
+                <input type="hidden" name="company_id" id="cp_company_id" value="">
+                <input type="hidden" name="service_area" id="cp_service_area" value="">
+                <input type="hidden" name="services" id="cp_services" value="">
+                <input type="hidden" name="products" id="cp_products" value="">
+                <input type="hidden" name="engagement_type" id="cp_engagement_type" value="Project">
 
-                    <div class="space-y-4">
-                        <label class="block text-sm font-medium text-gray-700">Services</label>
-                        <div id="projectServicesEmptyState" class="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count($selectedServiceAreas) > 0 ? 'hidden' : '' }}">
-                            Select a service area first to show matching services.
-                        </div>
-                        <div id="projectServicesGrid" class="grid gap-4 lg:grid-cols-2 {{ count($selectedServiceAreas) > 0 ? '' : 'hidden' }}">
-                            @foreach ($serviceGroups as $group => $options)
-                                <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-3 {{ in_array($group, $selectedServiceAreas, true) ? '' : 'hidden' }}" data-project-service-group="{{ $group }}">
-                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $group }}</p>
-                                    <div class="space-y-2">
-                                        @foreach ($options as $option)
-                                            <label class="flex items-start gap-2 text-sm text-gray-700">
-                                                <input type="checkbox" name="service_options[]" value="{{ $option }}" data-project-service-group-option="{{ $group }}" @checked(in_array($option, $selectedServices, true)) class="mt-0.5 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                                <span>{{ $option }}</span>
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            </section>
+                {{-- Main submission hidden fields --}}
+                <input type="hidden" name="name" id="cp_main_name" value="">
+                <input type="hidden" name="client_name" id="cp_main_client_name" value="">
+                <input type="hidden" name="business_name" id="cp_main_business_name" value="">
+                <input type="hidden" name="assigned_project_manager" id="cp_main_assigned_project_manager" value="">
+                <input type="hidden" name="assigned_associate" id="cp_main_assigned_associate" value="">
+                <input type="hidden" name="target_completion_date" id="cp_main_target_completion_date" value="">
+                <input type="hidden" name="planned_start_date" id="cp_main_planned_start_date" value="">
 
-            <section class="rounded-2xl border border-gray-200 p-4">
-                <h3 class="text-base font-semibold text-gray-900">Products</h3>
-                <p class="mt-1 text-xs text-gray-500">Products follow the selected service area. Without a selected service area, only products without a service area are shown.</p>
-                <div id="projectProductsEmptyState" class="mt-3 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500 {{ count($productOptionsByServiceArea) > 0 ? 'hidden' : '' }}">
-                    No unlinked products are available.
+                {{-- 3 Creation Mode Selection Cards --}}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    <button type="button" id="cpModeCardDeal" onclick="switchCpMode('deal')" class="rounded-2xl border-2 border-blue-600 bg-blue-50/20 p-4 text-left transition relative cursor-pointer">
+                        <span class="block text-[13px] font-bold text-slate-900">Link Existing Deal</span>
+                        <span class="mt-1 block text-[11px] text-slate-500 leading-snug">Preload its client, business, engagement, source references, staffing, and selected SOW workstreams.</span>
+                    </button>
+                    <button type="button" id="cpModeCardManual" onclick="switchCpMode('manual')" class="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 relative cursor-pointer">
+                        <span class="block text-[13px] font-bold text-slate-900">Manual</span>
+                        <span class="mt-1 block text-[11px] text-slate-500 leading-snug">Enter the project and client information manually.</span>
+                    </button>
+                    <button type="button" id="cpModeCardDuplicate" onclick="switchCpMode('duplicate')" class="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 relative cursor-pointer">
+                        <span class="block text-[13px] font-bold text-slate-900">Duplicate Existing Project</span>
+                        <span class="mt-1 block text-[11px] text-slate-500 leading-snug">Copy its planning structure without approvals, timers, reports, or completion evidence.</span>
+                    </button>
                 </div>
-                <div id="project-product-options-grid" class="mt-3 grid gap-4">
-                    @foreach ($productOptionsByServiceArea as $serviceArea => $options)
-                        <div data-project-product-group="{{ $serviceArea }}" data-product-unlinked-group="{{ $serviceArea === 'Products Without Service Area' ? 'true' : 'false' }}">
-                            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{{ $serviceArea }}</p>
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                @foreach ($options as $option)
-                                    <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-project-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}" data-project-product-search="{{ \Illuminate\Support\Str::lower($option.' '.$serviceArea) }}">
-                                        <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
-                                        <span>{{ $option }}</span>
-                                    </label>
+
+                {{-- MODE 1: Link Existing Deal (Exact Picture 1) --}}
+                <div id="cpPanelDeal" class="space-y-4 pt-2">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3.5">
+                        {{-- Row 1 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">EXISTING DEAL</label>
+                            <select id="cpDealSelect" name="deal_id" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" onchange="onCpDealChange(this.value)">
+                                <option value="">Select an existing deal...</option>
+                                @foreach ($dealRecords as $deal)
+                                    <option value="{{ $deal['id'] }}">{{ $deal['deal_code'] }} — {{ $deal['deal_name'] }}</option>
                                 @endforeach
-                            </div>
+                            </select>
                         </div>
-                    @endforeach
-                </div>
-            </section>
-                </div>
-            </div>
-        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">PROJECT TITLE</label>
+                            <input type="text" id="cpProjectTitleDeal" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="Transfer of Share From Dany and Ronald to X10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">BUSINESS / COMPANY</label>
+                            <input type="text" id="cpBusinessNameDeal" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="X10 REAL ESTATE CORPORATION">
+                        </div>
 
-        <div class="border-t border-gray-200 px-6 py-4">
-            <div class="flex items-center justify-end gap-3">
-                <button type="button" class="inline-flex h-11 items-center rounded-full border border-gray-300 px-5 text-sm font-medium text-gray-700 hover:bg-gray-50" onclick="window.jkncSlideOver.close(document.getElementById('projectManualCreateDrawer'))">Cancel</button>
-                <button type="submit" class="inline-flex h-11 items-center rounded-full bg-[#102d79] px-5 text-sm font-semibold text-white hover:bg-[#0d255f]">Create</button>
-            </div>
+                        {{-- Row 2 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">CLIENT</label>
+                            <input type="text" id="cpClientNameDeal" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="May Flor D. Dabatos">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">EPA NO.</label>
+                            <input type="text" id="cpEpaNoDeal" readonly class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-bold text-slate-800" placeholder="EPA-2026-065">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">PROJECT LEAD</label>
+                            <input type="text" id="cpProjectLeadDeal" list="projectEmployeeOptions" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="John Kelly Abalde">
+                        </div>
+
+                        {{-- Row 3 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">LEAD ASSOCIATE</label>
+                            <input type="text" id="cpLeadAssociateDeal" list="projectEmployeeOptions" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="Rubeca Potayre">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">TARGET COMPLETION</label>
+                            <input type="text" id="cpTargetCompletionDeal" class="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" placeholder="Sep 18, 2026">
+                        </div>
+                        <div></div>
+                    </div>
+
+                    {{-- SOW Workstreams Section --}}
+                    <div id="cpWorkstreamsSection" class="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm mt-3">
+                        <div class="flex items-center justify-between bg-[#f0f4fb] px-6 py-3.5 border-b border-slate-200">
+                            <span class="font-bold text-slate-900 text-xs tracking-wide">SOW Workstreams</span>
+                            <span class="text-[11px] text-slate-500 font-medium">Select workstreams to preload</span>
+                        </div>
+                        <div id="cpWorkstreamsList" class="divide-y divide-slate-100 px-6 py-2 max-h-48 overflow-y-auto">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                {{-- MODE 2: Manual (Exact Picture 2) --}}
+                <div id="cpPanelManual" class="space-y-4 pt-2 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3.5">
+                        {{-- Row 1 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">PROJECT TITLE</label>
+                            <input type="text" id="cpProjectTitleManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">BUSINESS / COMPANY</label>
+                            <input type="text" id="cpBusinessNameManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">CLIENT NAME</label>
+                            <input type="text" id="cpClientNameManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+
+                        {{-- Row 2 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">CLIENT EMAIL</label>
+                            <input type="email" id="cpClientEmailManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">EPA NO.</label>
+                            <input type="text" id="cpEpaNoManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">PROJECT LEAD</label>
+                            <input type="text" id="cpProjectLeadManual" list="projectEmployeeOptions" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+
+                        {{-- Row 3 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">LEAD ASSOCIATE</label>
+                            <input type="text" id="cpLeadAssociateManual" list="projectEmployeeOptions" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">TARGET START</label>
+                            <input type="date" id="cpTargetStartManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">TARGET COMPLETION</label>
+                            <input type="date" id="cpTargetCompletionManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+
+                        {{-- Row 4 --}}
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">SERVICE / PROJECT</label>
+                            <input type="text" id="cpServicesManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">SERVICE AREA</label>
+                            <input type="text" id="cpServiceAreaManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">ENGAGEMENT TYPE</label>
+                            <select id="cpEngagementTypeManual" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                                <option value="Project" selected>Project</option>
+                                <option value="Consultancy">Consultancy</option>
+                                <option value="Retainer">Retainer</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- MODE 3: Duplicate Existing Project (Exact Picture 3) --}}
+                <div id="cpPanelDuplicate" class="space-y-3 pt-2 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-3.5">
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">EXISTING PROJECT</label>
+                            <select id="cpDuplicateSelect" name="duplicate_project_id" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600" onchange="onCpDuplicateChange(this.value)">
+                                <option value="">Select project to duplicate...</option>
+                                @foreach ($projects as $proj)
+                                    <option value="{{ $proj->id }}">{{ $proj->project_code }} — {{ $proj->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">NEW PROJECT TITLE</label>
+                            <input type="text" id="cpProjectTitleDuplicate" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold tracking-wider text-slate-500 uppercase mb-1.5">NEW TARGET COMPLETION</label>
+                            <input type="date" id="cpTargetCompletionDuplicate" class="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">Only project information, assignments, and workstream structure are copied. The new project begins at Work Order.</p>
+                </div>
+
+                {{-- Modal Footer --}}
+                <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeCreateProjectModal()" class="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-full bg-[#1b3b89] px-7 text-xs font-bold text-white shadow hover:bg-[#152e6d] transition">
+                        Create Project
+                    </button>
+                </div>
+            </form>
         </div>
-    </form>
-</x-slide-over>
+    </div>
+</div>
 
 <datalist id="projectEmployeeOptions">
     @foreach (($employeeRecords ?? []) as $employee)
@@ -750,53 +903,279 @@
     @endforeach
 </datalist>
 
+@php
+    $cpProjectRecordsData = [];
+    if (!empty($projects)) {
+        foreach ($projects as $p) {
+            $cpProjectRecordsData[] = [
+                'id' => $p->id,
+                'code' => $p->project_code,
+                'name' => $p->name,
+                'business' => $p->business_name,
+                'client' => $p->client_name,
+                'lead' => $p->assigned_project_manager ?: $p->assigned_consultant,
+                'associate' => $p->assigned_associate,
+                'target' => $p->target_completion_date ? $p->target_completion_date->format('Y-m-d') : '',
+                'services' => $p->services,
+            ];
+        }
+    }
+@endphp
+
 <script>
-    (() => {
-        const dealRecords = @json($dealRecords ?? []);
-        const contactRecords = @json($contactRecords ?? []);
-        const companyRecords = @json($companyRecords ?? []);
-        const employeeRecords = @json($employeeRecords ?? []);
-        const sowTemplatePreviewData = @json($sowTemplatePreviewData);
+    window.toggleRegistryDropdown = function() {
+        const menu = document.getElementById('registryMenu');
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    };
 
-        const sourceModeInput = document.getElementById('project_source_mode');
-        const dealIdInput = document.getElementById('project_deal_id');
-        const contactIdInput = document.getElementById('project_contact_id');
-        const companyIdInput = document.getElementById('project_company_id');
-        const dealSection = document.getElementById('projectDealLinkSection');
-        const manualSection = document.getElementById('projectManualLinkSection');
-        const dealSearch = document.getElementById('projectDealSearch');
-        const contactSearch = document.getElementById('projectContactSearch');
-        const templateSelect = document.getElementById('project_template_id');
-        const templatePreview = document.getElementById('projectTemplatePreview');
-        const templatePreviewName = document.getElementById('projectTemplatePreviewName');
-        const templatePreviewBadge = document.getElementById('projectTemplatePreviewBadge');
-        const templateMetaCondeal = document.getElementById('projectTemplateMetaCondeal');
-        const templateMetaCode = document.getElementById('projectTemplateMetaCode');
-        const templateMetaClient = document.getElementById('projectTemplateMetaClient');
-        const templateMetaBusiness = document.getElementById('projectTemplateMetaBusiness');
-        const templatePreviewVersion = document.getElementById('projectTemplatePreviewVersion');
-        const templatePreviewStatuses = document.getElementById('projectTemplatePreviewStatuses');
-        const templatePreviewEffect = document.getElementById('projectTemplatePreviewEffect');
-        const templateSignatureName = document.getElementById('projectTemplateSignatureName');
-        const templatePreparedBy = document.getElementById('projectTemplatePreparedBy');
-        const templateReviewedBy = document.getElementById('projectTemplateReviewedBy');
-        const templateWithinScope = document.getElementById('projectTemplateWithinScope');
-        const templateOutScope = document.getElementById('projectTemplateOutScope');
-        const dealResults = document.getElementById('projectDealResults');
-        const contactResults = document.getElementById('projectContactResults');
-        const dealSummary = document.getElementById('projectDealSelectionSummary');
-        const manualSummary = document.getElementById('projectManualSelectionSummary');
-        const sourceButtons = Array.from(document.querySelectorAll('[data-project-source-option]'));
-        const customerTypeInputs = Array.from(document.querySelectorAll('input[name="project_customer_type"]'));
-        const projectContactSearchLabel = document.getElementById('projectContactSearchLabel');
-        const projectSelectionSectionTitle = document.getElementById('projectSelectionSectionTitle');
-        const projectSearchHelpText = document.getElementById('projectSearchHelpText');
+    window.toggleRegistryColumn = function(colName, isVisible) {
+        const table = document.getElementById('projectRegistryTable');
+        if (!table) return;
+        const cells = table.querySelectorAll(`[data-column="${colName}"]`);
+        cells.forEach(el => {
+            el.style.display = isVisible ? '' : 'none';
+        });
+    };
 
-        const selectedState = {
-            deal: null,
-            contact: null,
-            company: null,
+    window.exportProjectTable = function(type) {
+        const table = document.getElementById('projectRegistryTable');
+        if (!table) return;
+
+        let csv = [];
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+            if (row.style.display === 'none') return;
+            const cols = row.querySelectorAll('th, td');
+            let rowData = [];
+            cols.forEach(col => {
+                if (col.style.display === 'none' || col.getAttribute('data-column') === 'action') return;
+                let text = col.innerText.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ').trim();
+                rowData.push('"' + text.replace(/"/g, '""') + '"');
+            });
+            if (rowData.length > 0) csv.push(rowData.join(','));
+        });
+
+        const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv.join('\n'));
+        const link = document.createElement('a');
+        link.setAttribute('href', csvContent);
+        link.setAttribute('download', 'project_registry_' + new Date().toISOString().slice(0, 10) + '.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    document.addEventListener('click', function(e) {
+        const btn = document.getElementById('registryMenuButton');
+        const menu = document.getElementById('registryMenu');
+        if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    const cpDealRecords = {!! json_encode($dealRecords ?? []) !!};
+    const cpContactRecords = {!! json_encode($contactRecords ?? []) !!};
+    const cpCompanyRecords = {!! json_encode($companyRecords ?? []) !!};
+    const cpEmployeeRecords = {!! json_encode($employeeRecords ?? []) !!};
+    const cpProjectRecords = {!! json_encode($cpProjectRecordsData) !!};
+
+    window.openCreateProjectModal = function() {
+        const modal = document.getElementById('createProjectModal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+
+        const dealSelect = document.getElementById('cpDealSelect');
+        if (dealSelect && dealSelect.options.length > 1 && !dealSelect.value) {
+            dealSelect.selectedIndex = 1;
+            onCpDealChange(dealSelect.value);
+        }
+    };
+
+    window.closeCreateProjectModal = function() {
+        const modal = document.getElementById('createProjectModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    };
+
+    window.switchCpMode = function(mode) {
+        document.getElementById('cp_source_mode').value = mode;
+
+        const cardDeal = document.getElementById('cpModeCardDeal');
+        const cardManual = document.getElementById('cpModeCardManual');
+        const cardDuplicate = document.getElementById('cpModeCardDuplicate');
+
+        const panelDeal = document.getElementById('cpPanelDeal');
+        const panelManual = document.getElementById('cpPanelManual');
+        const panelDuplicate = document.getElementById('cpPanelDuplicate');
+
+        const activeClasses = ['border-2', 'border-blue-600', 'bg-blue-50/20'];
+        const inactiveClasses = ['border', 'border-slate-200', 'bg-white'];
+
+        [cardDeal, cardManual, cardDuplicate].forEach(c => {
+            if (c) {
+                c.classList.remove(...activeClasses);
+                c.classList.add(...inactiveClasses);
+            }
+        });
+
+        panelDeal?.classList.add('hidden');
+        panelManual?.classList.add('hidden');
+        panelDuplicate?.classList.add('hidden');
+
+        if (mode === 'deal') {
+            cardDeal?.classList.remove(...inactiveClasses);
+            cardDeal?.classList.add(...activeClasses);
+            panelDeal?.classList.remove('hidden');
+            const dealSelect = document.getElementById('cpDealSelect');
+            if (dealSelect?.value) {
+                onCpDealChange(dealSelect.value);
+            }
+        } else if (mode === 'manual') {
+            cardManual?.classList.remove(...inactiveClasses);
+            cardManual?.classList.add(...activeClasses);
+            panelManual?.classList.remove('hidden');
+        } else if (mode === 'duplicate') {
+            cardDuplicate?.classList.remove(...inactiveClasses);
+            cardDuplicate?.classList.add(...activeClasses);
+            panelDuplicate?.classList.remove('hidden');
+            const dupSelect = document.getElementById('cpDuplicateSelect');
+            if (dupSelect?.value) {
+                onCpDuplicateChange(dupSelect.value);
+            }
+        }
+    };
+
+    window.onCpDealChange = function(dealId) {
+        if (!dealId) {
+            renderCpWorkstreams([]);
+            return;
+        }
+        const deal = cpDealRecords.find(d => String(d.id) === String(dealId));
+        if (!deal) return;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || '';
         };
+
+        setVal('cpProjectTitleDeal', deal.deal_name || deal.title || '');
+        setVal('cpBusinessNameDeal', deal.business_name || deal.company_name || '');
+        setVal('cpClientNameDeal', deal.client_name || [deal.first_name, deal.last_name].filter(Boolean).join(' ') || '');
+        setVal('cpEpaNoDeal', deal.deal_code ? deal.deal_code.replace('CONDEAL-', 'EPA-') : '');
+        setVal('cpProjectLeadDeal', deal.assigned_consultant || deal.assigned_project_manager || 'John Kelly Abalde');
+        setVal('cpLeadAssociateDeal', deal.assigned_associate || 'Rubeca Potayre');
+        
+        let targetFormatted = 'Sep 18, 2026';
+        if (deal.target_completion_date) {
+            try {
+                const d = new Date(deal.target_completion_date);
+                if (!isNaN(d.getTime())) {
+                    targetFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                }
+            } catch (e) {}
+        }
+        setVal('cpTargetCompletionDeal', targetFormatted);
+
+        setVal('cp_contact_id', deal.contact_id || '');
+        setVal('cp_company_id', deal.company_id || '');
+        setVal('cp_service_area', deal.service_area || '');
+        setVal('cp_services', deal.services || '');
+        setVal('cp_products', deal.products || '');
+
+        let workstreams = [];
+        if (deal.services) {
+            workstreams = deal.services.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        if (workstreams.length === 0 && deal.service_area) {
+            workstreams = [deal.service_area];
+        }
+        if (workstreams.length === 0) {
+            workstreams = ['Share Transfer Documentation', 'BIR Share Transfer Processing'];
+        }
+
+        renderCpWorkstreams(workstreams);
+    };
+
+    window.onCpDuplicateChange = function(projId) {
+        if (!projId) return;
+        const proj = cpProjectRecords.find(p => String(p.id) === String(projId));
+        if (!proj) return;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || '';
+        };
+
+        setVal('cpProjectTitleDuplicate', proj.name || '');
+        setVal('cpTargetCompletionDuplicate', proj.target || '');
+    };
+
+    function renderCpWorkstreams(workstreams) {
+        const listEl = document.getElementById('cpWorkstreamsList');
+        if (!listEl) return;
+
+        if (!workstreams || workstreams.length === 0) {
+            listEl.innerHTML = `<div class="py-4 text-center text-xs text-slate-400">No workstreams available for this deal.</div>`;
+            return;
+        }
+
+        listEl.innerHTML = workstreams.map((ws, idx) => {
+            const taskCount = idx === 0 ? 5 : (idx === 1 ? 3 : 4);
+            return `
+                <label class="flex items-center justify-between py-3 px-3 cursor-pointer hover:bg-slate-50/80 rounded-xl transition">
+                    <input type="checkbox" name="workstreams[]" value="${ws}" checked class="h-6 w-6 rounded-md text-blue-600 focus:ring-blue-500 border-slate-300 accent-blue-600">
+                    <div class="text-right">
+                        <div class="font-bold text-slate-900 text-xs">${ws}</div>
+                        <div class="text-[11px] text-slate-500 font-medium">${taskCount} tasks</div>
+                    </div>
+                </label>
+            `;
+        }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('createProjectForm');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                const mode = document.getElementById('cp_source_mode').value;
+                const setMain = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val || '';
+                };
+
+                if (mode === 'deal') {
+                    setMain('cp_main_name', document.getElementById('cpProjectTitleDeal').value);
+                    setMain('cp_main_business_name', document.getElementById('cpBusinessNameDeal').value);
+                    setMain('cp_main_client_name', document.getElementById('cpClientNameDeal').value);
+                    setMain('cp_main_assigned_project_manager', document.getElementById('cpProjectLeadDeal').value);
+                    setMain('cp_main_assigned_associate', document.getElementById('cpLeadAssociateDeal').value);
+                    
+                    const deal = cpDealRecords.find(d => String(d.id) === String(document.getElementById('cpDealSelect').value));
+                    setMain('cp_main_target_completion_date', deal?.target_completion_date || '');
+                } else if (mode === 'manual') {
+                    setMain('cp_main_name', document.getElementById('cpProjectTitleManual').value);
+                    setMain('cp_main_business_name', document.getElementById('cpBusinessNameManual').value);
+                    setMain('cp_main_client_name', document.getElementById('cpClientNameManual').value);
+                    setMain('cp_main_assigned_project_manager', document.getElementById('cpProjectLeadManual').value);
+                    setMain('cp_main_assigned_associate', document.getElementById('cpLeadAssociateManual').value);
+                    setMain('cp_main_planned_start_date', document.getElementById('cpTargetStartManual').value);
+                    setMain('cp_main_target_completion_date', document.getElementById('cpTargetCompletionManual').value);
+                    setMain('cp_services', document.getElementById('cpServicesManual').value);
+                    setMain('cp_service_area', document.getElementById('cpServiceAreaManual').value);
+                    setMain('cp_engagement_type', document.getElementById('cpEngagementTypeManual').value);
+                } else if (mode === 'duplicate') {
+                    setMain('cp_main_name', document.getElementById('cpProjectTitleDuplicate').value);
+                    setMain('cp_main_target_completion_date', document.getElementById('cpTargetCompletionDuplicate').value);
+                }
+            });
+        }
+    });
+
+    (() => {
 
         const setFieldValue = (id, value) => {
             const field = document.getElementById(id);
@@ -1506,7 +1885,7 @@
         syncCompositeFields();
         setManualSummary();
         renderProjectTemplatePreview();
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             window.jkncSlideOver?.open(document.getElementById('projectManualCreateDrawer'));
         @endif
     })();
@@ -1589,21 +1968,96 @@
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProjectDeleteModal(); });
     })();
 
+    let currentSelectedProjectStatus = 'Ongoing';
     let currentSelectedProjectStage = 'all';
+
+    function updateStageCardCounts() {
+        const rows = document.querySelectorAll('.project-data-row');
+        const counts = {
+            'all': 0,
+            'work order': 0,
+            'sow': 0,
+            'review': 0,
+            'ntp': 0,
+            'execution': 0,
+            'reporting': 0,
+            'presentation': 0,
+            'delivery': 0,
+            'completion': 0
+        };
+
+        const stageMap = {
+            'work order': ['work order', 'start', 'intake'],
+            'sow': ['sow', 'sow preparation'],
+            'review': ['review', 'internal review'],
+            'ntp': ['ntp', 'for ntp approval'],
+            'execution': ['execution', 'in progress'],
+            'reporting': ['reporting', 'sow reporting', 'rsat reporting'],
+            'presentation': ['presentation', 'client review'],
+            'delivery': ['delivery', 'turn-over'],
+            'completion': ['completion', 'completed']
+        };
+
+        rows.forEach(row => {
+            const rowStatus = row.getAttribute('data-status') || 'Ongoing';
+            if (currentSelectedProjectStatus && rowStatus.toLowerCase() !== currentSelectedProjectStatus.toLowerCase()) {
+                return;
+            }
+
+            counts['all']++;
+
+            const rowStage = (row.getAttribute('data-stage') || '').toLowerCase();
+            const rawStatus = (row.getAttribute('data-raw-status') || '').toLowerCase();
+
+            for (const [stageKey, aliases] of Object.entries(stageMap)) {
+                if (aliases.includes(rowStage) || aliases.includes(rawStatus)) {
+                    counts[stageKey]++;
+                    break;
+                }
+            }
+        });
+
+        document.querySelectorAll('#stageFilters .stage-filter-card').forEach(card => {
+            const stageKey = (card.getAttribute('data-stage') || 'all').toLowerCase();
+            const strong = card.querySelector('strong');
+            if (strong) {
+                strong.textContent = counts[stageKey] !== undefined ? counts[stageKey] : 0;
+            }
+        });
+    }
+
+    window.filterProjectStatus = function(statusTab, btn) {
+        currentSelectedProjectStatus = statusTab;
+        document.querySelectorAll('#projectStatusTabs button').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        // Reset stage filter back to 'all' when switching status tab
+        currentSelectedProjectStage = 'all';
+        document.querySelectorAll('#stageFilters .stage-filter-card').forEach(c => c.classList.remove('active'));
+        document.querySelector('#stageFilters .stage-filter-card[data-stage="all"]')?.classList.add('active');
+        const stageSelect = document.getElementById('filterStage');
+        if (stageSelect) stageSelect.value = '';
+
+        projectCurrentPage = 1;
+        updateStageCardCounts();
+        filterProjectRows();
+    };
 
     window.filterProjectStage = function(stage, btn) {
         currentSelectedProjectStage = stage;
-        document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
+        document.querySelectorAll('#stageFilters .stage-filter-card').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
         
         const stageSelect = document.getElementById('filterStage');
         if (stageSelect) {
             stageSelect.value = stage === 'all' ? '' : stage;
         }
+        projectCurrentPage = 1;
         filterProjectRows();
     };
 
     window.filterProjectRows = function() {
+        updateStageCardCounts();
         const q = (document.getElementById('q')?.value || '').toLowerCase().trim();
         const fromDate = document.getElementById('filterFrom')?.value || '';
         const toDate = document.getElementById('filterTo')?.value || '';
@@ -1616,13 +2070,27 @@
         const rows = document.querySelectorAll('.project-data-row');
         let visibleCount = 0;
 
+        const stageMap = {
+            'work order': ['work order', 'start', 'intake'],
+            'sow': ['sow', 'sow preparation'],
+            'review': ['review', 'internal review'],
+            'ntp': ['ntp', 'for ntp approval'],
+            'execution': ['execution', 'in progress'],
+            'reporting': ['reporting', 'sow reporting', 'rsat reporting'],
+            'presentation': ['presentation', 'client review'],
+            'delivery': ['delivery', 'turn-over'],
+            'completion': ['completion', 'completed']
+        };
+
         rows.forEach(row => {
             const title = row.getAttribute('data-title') || '';
             const ref = row.getAttribute('data-ref') || '';
             const deal = row.getAttribute('data-deal') || '';
             const business = row.getAttribute('data-business') || '';
             const client = row.getAttribute('data-client') || '';
-            const rowStage = row.getAttribute('data-stage') || '';
+            const rowStage = (row.getAttribute('data-stage') || '').toLowerCase();
+            const rawStatus = (row.getAttribute('data-raw-status') || '').toLowerCase();
+            const rowStatus = row.getAttribute('data-status') || 'Ongoing';
             const rowHealth = row.getAttribute('data-health') || '';
             const rowProgress = parseInt(row.getAttribute('data-progress') || '0', 10);
             const rowLead = row.getAttribute('data-lead') || '';
@@ -1631,21 +2099,20 @@
 
             let match = true;
 
+            if (currentSelectedProjectStatus && rowStatus !== currentSelectedProjectStatus) {
+                match = false;
+            }
+
             if (q) {
                 const combined = `${title} ${ref} ${deal} ${business} ${client}`.toLowerCase();
                 if (!combined.includes(q)) match = false;
             }
 
             if (stage && stage !== 'all') {
-                if (stage === 'Active') {
-                    if (!['Start', 'SOW', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'].includes(rowStage)) match = false;
-                } else if (stage === 'SOW') {
-                    if (!['Start', 'SOW', 'Work Order'].includes(rowStage)) match = false;
-                } else if (stage === 'In Progress') {
-                    if (!['In Progress', 'Execution'].includes(rowStage)) match = false;
-                } else {
-                    if (rowStage.toLowerCase() !== stage.toLowerCase()) match = false;
-                }
+                const searchStageKey = stage.toLowerCase();
+                const validStages = stageMap[searchStageKey] || [searchStageKey];
+                const matchesStage = validStages.some(s => s === rowStage || s === rawStatus);
+                if (!matchesStage) match = false;
             }
 
             if (health && rowHealth !== health) match = false;
@@ -1656,6 +2123,10 @@
                 if (progress === 'completed' && rowProgress < 100) match = false;
             }
 
+            const assigned = document.getElementById('filterAssigned')?.value || '';
+            const rowAssigned = row.getAttribute('data-assigned') || '';
+
+            if (assigned && !rowAssigned.toLowerCase().includes(assigned.toLowerCase())) match = false;
             if (lead && !rowLead.toLowerCase().includes(lead.toLowerCase())) match = false;
             if (associate && !rowAssociate.toLowerCase().includes(associate.toLowerCase())) match = false;
 
@@ -1663,12 +2134,20 @@
             if (toDate && rowTarget && rowTarget > toDate) match = false;
 
             if (match) {
-                row.style.display = '';
+                row.dataset.filtered = 'true';
                 visibleCount++;
             } else {
+                row.dataset.filtered = 'false';
                 row.style.display = 'none';
             }
         });
+
+        const noRecordsRow = document.getElementById('noRecordsRow');
+        if (noRecordsRow) {
+            noRecordsRow.style.display = visibleCount === 0 ? '' : 'none';
+        }
+
+        applyProjectPagination();
 
         const countEl = document.getElementById('registryResultCount');
         if (countEl) countEl.textContent = `${visibleCount} project${visibleCount === 1 ? '' : 's'}`;
@@ -1679,7 +2158,119 @@
         }
     };
 
+    let projectCurrentPage = 1;
+    let projectPageSize = 10;
+
+    function applyProjectPagination() {
+        const rows = Array.from(document.querySelectorAll('.project-data-row')).filter(r => r.dataset.filtered === 'true');
+        const total = rows.length;
+        const totalPages = Math.max(1, Math.ceil(total / projectPageSize));
+        if (projectCurrentPage > totalPages) projectCurrentPage = totalPages;
+        if (projectCurrentPage < 1) projectCurrentPage = 1;
+
+        const startIdx = (projectCurrentPage - 1) * projectPageSize;
+        const endIdx = startIdx + projectPageSize;
+
+        rows.forEach((row, idx) => {
+            if (idx >= startIdx && idx < endIdx) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const summaryEl = document.getElementById('projectPaginationSummary');
+        if (summaryEl) {
+            if (total === 0) {
+                summaryEl.textContent = 'Showing 0–0 of 0';
+            } else {
+                summaryEl.textContent = `Showing ${startIdx + 1}–${Math.min(endIdx, total)} of ${total}`;
+            }
+        }
+
+        const prevBtn = document.getElementById('projectPrevBtn');
+        const nextBtn = document.getElementById('projectNextBtn');
+        if (prevBtn) prevBtn.disabled = projectCurrentPage <= 1;
+        if (nextBtn) nextBtn.disabled = projectCurrentPage >= totalPages;
+    }
+
+    window.changeProjectPageSize = function(size) {
+        projectPageSize = parseInt(size, 10) || 10;
+        projectCurrentPage = 1;
+        applyProjectPagination();
+    };
+
+    window.changeProjectPage = function(direction) {
+        if (direction === 'prev') {
+            projectCurrentPage = Math.max(1, projectCurrentPage - 1);
+        } else if (direction === 'next') {
+            projectCurrentPage++;
+        }
+        applyProjectPagination();
+    };
+
+    window.openCancelProjectModal = function(id, name, code) {
+        const modal = document.getElementById('projectCancelModal');
+        const form = document.getElementById('projectCancelForm');
+        const nameText = document.getElementById('projectCancelNameText');
+        const refText = document.getElementById('projectCancelRefText');
+        const reasonInput = document.getElementById('projectCancelReason');
+        if (!modal || !form) return;
+
+        form.action = `/project/${id}/cancel`;
+        if (nameText) nameText.textContent = name;
+        if (refText) refText.textContent = code || `PROJ-${id}`;
+        if (reasonInput) {
+            reasonInput.value = '';
+            setTimeout(() => reasonInput.focus(), 100);
+        }
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+    };
+
+    window.closeProjectCancelModal = function() {
+        const modal = document.getElementById('projectCancelModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    };
+
+    window.openSingleProjectDelete = function(id, name, code) {
+        const deleteModal = document.getElementById('projectDeleteSelectedModal');
+        const bulkDeleteItems = document.getElementById('projectBulkDeleteSelectedItems');
+        const nameText = document.getElementById('projectDeleteNameText');
+        const refText = document.getElementById('projectDeleteRefText');
+        const reasonInput = document.getElementById('projectDeleteReason');
+        if (!deleteModal) return;
+
+        if (bulkDeleteItems) {
+            bulkDeleteItems.innerHTML = `<input type="hidden" name="selected_projects[]" value="${id}">`;
+        }
+        if (nameText) nameText.textContent = name;
+        if (refText) refText.textContent = code || `PROJ-${id}`;
+        if (reasonInput) {
+            reasonInput.value = '';
+            setTimeout(() => reasonInput.focus(), 100);
+        }
+        deleteModal.classList.remove('hidden');
+        deleteModal.setAttribute('aria-hidden', 'false');
+    };
+
+    window.closeProjectDeleteModal = function() {
+        const deleteModal = document.getElementById('projectDeleteSelectedModal');
+        if (deleteModal) {
+            deleteModal.classList.add('hidden');
+            deleteModal.setAttribute('aria-hidden', 'true');
+        }
+    };
+
     window.resetProjectFilters = function() {
+        if (window.location.search) {
+            window.location.href = window.location.pathname;
+            return;
+        }
+
         if (document.getElementById('q')) document.getElementById('q').value = '';
         if (document.getElementById('filterFrom')) document.getElementById('filterFrom').value = '';
         if (document.getElementById('filterTo')) document.getElementById('filterTo').value = '';
@@ -1688,11 +2279,17 @@
         if (document.getElementById('filterProgress')) document.getElementById('filterProgress').value = '';
         if (document.getElementById('filterLead')) document.getElementById('filterLead').value = '';
         if (document.getElementById('filterAssociate')) document.getElementById('filterAssociate').value = '';
+        if (document.getElementById('filterAssigned')) document.getElementById('filterAssigned').value = '';
         
+        currentSelectedProjectStatus = 'Ongoing';
+        document.querySelectorAll('#projectStatusTabs button').forEach(b => b.classList.remove('active'));
+        document.querySelector('#projectStatusTabs button[data-status-tab="Ongoing"]')?.classList.add('active');
+
         currentSelectedProjectStage = 'all';
         document.querySelectorAll('.stage-filter-card').forEach(c => c.classList.remove('active'));
         document.querySelector('.stage-filter-card[data-stage="all"]')?.classList.add('active');
 
+        projectCurrentPage = 1;
         filterProjectRows();
     };
 
@@ -1700,7 +2297,7 @@
         const rows = document.querySelectorAll('.project-data-row');
         let csv = 'PROJECT,REFERENCE,BUSINESS,CLIENT,STAGE,HEALTH,PROGRESS,TARGET,LEAD\n';
         rows.forEach(r => {
-            if (r.style.display !== 'none') {
+            if (r.dataset.filtered === 'true') {
                 const title = `"${(r.getAttribute('data-title') || '').replace(/"/g, '""')}"`;
                 const ref = `"${(r.getAttribute('data-ref') || '').replace(/"/g, '""')}"`;
                 const business = `"${(r.getAttribute('data-business') || '').replace(/"/g, '""')}"`;
@@ -1722,5 +2319,9 @@
         link.click();
         document.body.removeChild(link);
     };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        filterProjectRows();
+    });
 </script>
 @endsection

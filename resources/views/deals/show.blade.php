@@ -17065,6 +17065,93 @@
 
 <script>
     window.DEAL_BOOTSTRAP = {!! json_encode($dealBootstrap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
+
+    window.openProposalWorkspace = function() {
+        var modal = document.getElementById('proposalWorkspaceModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeProposalWorkspaceModal = function() {
+        var modal = document.getElementById('proposalWorkspaceModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.openClientReviewPortalModal = function() {
+        var modal = document.getElementById('proposalClientPortalModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeClientReviewPortalModal = function() {
+        var modal = document.getElementById('proposalClientPortalModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.openDispatchActionRequestModal = function() {
+        var modal = document.getElementById('proposalDispatchModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeDispatchActionRequestModal = function() {
+        var modal = document.getElementById('proposalDispatchModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.openUpdateDecisionModal = function() {
+        var modal = document.getElementById('proposalDecisionModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeUpdateDecisionModal = function() {
+        var modal = document.getElementById('proposalDecisionModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.openSendProposalModal = function() {
+        var modal = document.getElementById('proposalSendModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeSendProposalModal = function() {
+        var modal = document.getElementById('proposalSendModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.openAdjustDiscountModal = function() {
+        var modal = document.getElementById('proposalDiscountModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    window.closeAdjustDiscountModal = function() {
+        var modal = document.getElementById('proposalDiscountModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    window.printProposalPDF = function() {
+        var modal = document.getElementById('proposalWorkspaceModal');
+        if (modal && modal.style.display !== 'none') {
+            window.print();
+        } else {
+            window.print();
+        }
+    };
 </script>
 <script src="{{ asset('js/deals-engine.js') }}?v={{ time() }}"></script>
 

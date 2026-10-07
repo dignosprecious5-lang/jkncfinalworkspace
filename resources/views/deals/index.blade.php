@@ -2447,9 +2447,17 @@
  
                                 $stageDeals = 
                                     $deals->filter(function ($deal) use ($stage) { 
- 
-                                        return $deal->pipeline_stage === $stage; 
- 
+                                        $st = $deal->pipeline_stage;
+                                        if ($st === $stage) return true;
+                                        return match($stage) {
+                                            'Inquiry' => in_array($st, ['Inquiry', 'Inquiry / Consultation', 'Intake']),
+                                            'Proposal' => in_array($st, ['Proposal', 'Solutioning / Proposal']),
+                                            'Negotiation' => in_array($st, ['Negotiation', 'Negotiation / Finalizing']),
+                                            'Activation' => in_array($st, ['Activation', 'Activated']),
+                                            'Closed Won' => in_array($st, ['Closed Won', 'approved']),
+                                            'Closed Lost' => in_array($st, ['Closed Lost', 'rejected']),
+                                            default => $st === $stage,
+                                        };
                                     }); 
  
  

@@ -233,6 +233,19 @@
             width: 100%;
         }
 
+        .radio-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            width: 100%;
+        }
+
+        @media (max-width: 640px) {
+            .radio-grid-3 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+        }
+
         .choice {
             border: 1px solid #dfe5ec;
             border-radius: 8px;
@@ -945,7 +958,50 @@
             </section>
 
             <!-- =========================================================
-                 2. DEAL INFORMATION
+                 2. ENGAGEMENT TYPE
+            ========================================================== -->
+            <section class="section deal-section engagement-type bg-white rounded-xl border border-gray-200 p-6 space-y-4 shadow-sm mb-6">
+
+                <div class="section-title">
+                    Engagement Type <span class="ordo-tooltip-icon" tabindex="0" data-tooltip="Defines how the service will be delivered: Project, Regular Retainer, or Hybrid.">i</span>
+                </div>
+
+                <div class="radio-grid-3" style="margin-top: 14px;">
+                    <label class="choice" data-tooltip="Use for a defined engagement with a specific scope and deliverables.">
+                        <input
+                            type="radio"
+                            name="engagement_type"
+                            value="Project Engagement"
+                            x-model="engagementType"
+                        >
+                        Project Engagement
+                    </label>
+
+                    <label class="choice" data-tooltip="Use for an ongoing recurring service.">
+                        <input
+                            type="radio"
+                            name="engagement_type"
+                            value="Regular (Retainer) Engagement"
+                            x-model="engagementType"
+                        >
+                        Regular (Retainer) Engagement
+                    </label>
+
+                    <label class="choice" data-tooltip="Use for a combination of project deliverables and recurring support.">
+                        <input
+                            type="radio"
+                            name="engagement_type"
+                            value="Hybrid Engagement"
+                            x-model="engagementType"
+                        >
+                        Hybrid Engagement
+                    </label>
+                </div>
+
+            </section>
+
+            <!-- =========================================================
+                 3. DEAL INFORMATION
             ========================================================== -->
             <section class="section deal-section deal-information bg-white rounded-xl border border-gray-200 p-6 space-y-4 shadow-sm mb-6">
 
@@ -1059,7 +1115,7 @@
             <button
                 type="submit"
                 class="btn btn-save"
-                :disabled="isSubmitting || !accountId || (customerType === 'Business' && !contactId)"
+                :disabled="isSubmitting"
             >
                 <span x-show="!isSubmitting">Create Inquiry</span>
                 <span x-show="isSubmitting" x-cloak>Creating Inquiry...</span>
@@ -1197,6 +1253,7 @@
             serviceMap: serviceMap || {},
 
             customerType: '{{ old('customer_type', 'Business') }}',
+            engagementType: '{{ old('engagement_type', '') }}',
             accountId: initialAccountId || '',
             companyId: '',
             contactId: '',
@@ -1323,13 +1380,41 @@
                     return;
                 }
 
-                this.companyId = account.company_id || '';
-                const matchingContacts = this.contacts.filter(c => String(c.company_id) === String(this.companyId));
-                if (matchingContacts.length >= 1) {
-                    this.contactId = matchingContacts[0].id;
-                } else {
-                    this.contactId = '';
+                this.companyId = account.company_id || (account.company ? account.company.id : '');
+                
+                let targetContactId = '';
+
+                if (account.company && account.company.primary_contact_id) {
+                    targetContactId = account.company.primary_contact_id;
+                } else if (account.individual_contact_id) {
+                    targetContactId = account.individual_contact_id;
                 }
+
+                if (!targetContactId && this.companyId) {
+                    const match = this.contacts.find(c => String(c.company_id) === String(this.companyId));
+                    if (match) targetContactId = match.id;
+                }
+
+                if (!targetContactId && account.company && account.company.company_name) {
+                    const compName = account.company.company_name.toLowerCase().trim();
+                    const match = this.contacts.find(c => c.company_name && c.company_name.toLowerCase().trim() === compName);
+                    if (match) targetContactId = match.id;
+                }
+
+                if (!targetContactId && account.account_name) {
+                    const accName = account.account_name.toLowerCase();
+                    const match = this.contacts.find(c => {
+                        const fullName = [c.first_name, c.last_name].filter(Boolean).join(' ').toLowerCase();
+                        return fullName && accName.includes(fullName);
+                    });
+                    if (match) targetContactId = match.id;
+                }
+
+                if (!targetContactId && this.contacts.length > 0) {
+                    targetContactId = this.contacts[0].id;
+                }
+
+                this.contactId = targetContactId ? String(targetContactId) : '';
             },
 
             loadIndividualAccount() {
@@ -1341,14 +1426,27 @@
                 }
 
                 this.companyId = '';
+                let targetContactId = '';
+
                 if (account.individual_contact_id) {
-                    this.contactId = account.individual_contact_id;
+                    targetContactId = account.individual_contact_id;
+                } else if (account.company && account.company.primary_contact_id) {
+                    targetContactId = account.company.primary_contact_id;
                 } else {
-                    const matchingContact = this.contacts.find(c =>
-                        c.first_name && account.account_name && account.account_name.toLowerCase().includes(c.first_name.toLowerCase())
-                    );
-                    this.contactId = matchingContact ? matchingContact.id : '';
+                    const accName = (account.account_name || '').toLowerCase();
+                    const matchingContact = this.contacts.find(c => {
+                        const fname = (c.first_name || '').toLowerCase();
+                        const lname = (c.last_name || '').toLowerCase();
+                        return (fname && accName.includes(fname)) || (lname && accName.includes(lname));
+                    });
+                    if (matchingContact) targetContactId = matchingContact.id;
                 }
+
+                if (!targetContactId && this.contacts.length > 0) {
+                    targetContactId = this.contacts[0].id;
+                }
+
+                this.contactId = targetContactId ? String(targetContactId) : '';
             },
 
             loadContact() {
@@ -1358,12 +1456,20 @@
             filteredContacts() {
                 if (this.customerType === 'Business') {
                     if (this.companyId) {
-                        return this.contacts.filter(c => String(c.company_id) === String(this.companyId));
+                        const matching = this.contacts.filter(c => String(c.company_id) === String(this.companyId));
+                        if (matching.length > 0) return matching;
+
+                        const account = this.findAccount();
+                        if (account && account.company && account.company.primary_contact_id) {
+                            const prim = this.contacts.filter(c => String(c.id) === String(account.company.primary_contact_id));
+                            if (prim.length > 0) return prim;
+                        }
                     }
-                    return this.contacts.filter(c => c.company_id);
+                    return this.contacts;
                 } else {
                     if (this.contactId) {
-                        return this.contacts.filter(c => String(c.id) === String(this.contactId));
+                        const matching = this.contacts.filter(c => String(c.id) === String(this.contactId));
+                        if (matching.length > 0) return matching;
                     }
                     return this.contacts;
                 }
@@ -1567,6 +1673,20 @@
                     e.preventDefault();
                     return false;
                 }
+
+                if (!this.accountId) {
+                    e.preventDefault();
+                    alert('Please select or create an Account before submitting the inquiry.');
+                    return false;
+                }
+
+                if (this.customerType === 'Business' && !this.contactId) {
+                    const contacts = this.filteredContacts();
+                    if (contacts.length > 0) {
+                        this.contactId = contacts[0].id;
+                    }
+                }
+
                 this.isSubmitting = true;
             }
         };

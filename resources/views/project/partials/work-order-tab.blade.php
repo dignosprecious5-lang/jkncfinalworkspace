@@ -25,14 +25,42 @@
         ['role' => 'Sales / Account Representative', 'responsibilities' => [], 'persons' => [], 'ack' => 'Pending'],
     ];
 
-    $projectStages = [
-        ['stage' => 'Work Order', 'responsibilities' => ['Reviewer'], 'persons' => ['Maria Santos'], 'ack' => 'Pending'],
-        ['stage' => 'Work Order', 'responsibilities' => ['Approver'], 'persons' => ['Lyndon Earl Rio'], 'ack' => 'Pending'],
-        ['stage' => 'SOW', 'responsibilities' => ['Responsible'], 'persons' => ['John Kelly Abalde'], 'ack' => 'Pending'],
-        ['stage' => 'Review', 'responsibilities' => ['Reviewer'], 'persons' => ['John Kelly Abalde'], 'ack' => 'Pending'],
-        ['stage' => 'NTP', 'responsibilities' => ['Approver'], 'persons' => [$contactName ?: 'May Flor D. Dabatos'], 'ack' => 'Pending'],
-        ['stage' => 'Execution', 'responsibilities' => ['Responsible'], 'persons' => ['Rubeca Potayre'], 'ack' => 'Pending'],
+    $allStagesList = ['Work Order', 'SOW', 'Review', 'NTP', 'Execution', 'Reporting', 'Delivery', 'Completion'];
+    $defaultAssignments = [
+        'Work Order' => [
+            'Reviewer' => ['Maria Santos'],
+            'Approver' => ['Lyndon Earl Rio'],
+        ],
+        'SOW' => [
+            'Responsible' => [$project->assigned_project_manager ?: 'John Kelly Abalde'],
+            'Executor' => [$project->assigned_associate ?: 'Rubeca Potayre'],
+            'Reviewer' => ['Maria Santos'],
+            'Approver' => ['Lyndon Earl Rio'],
+        ],
+        'Review' => [
+            'Reviewer' => [$project->assigned_consultant ?: 'John Kelly Abalde'],
+            'Approver' => ['Lyndon Earl Rio'],
+        ],
+        'NTP' => [
+            'Approver' => [$contactName ?: 'Elena Rodriguez'],
+        ],
+        'Execution' => [
+            'Responsible' => [$project->assigned_associate ?: 'Rubeca Potayre'],
+        ],
     ];
+
+    $projectStages = [];
+    foreach ($allStagesList as $sName) {
+        foreach ($allResponsibilities as $resp) {
+            $assignedPersons = $defaultAssignments[$sName][$resp] ?? [];
+            $projectStages[] = [
+                'stage' => $sName,
+                'responsibilities' => [$resp],
+                'persons' => $assignedPersons,
+                'ack' => 'Pending'
+            ];
+        }
+    }
 
     $scheduleRows = [
         ['stage' => 'Work Order', 'start' => $project->planned_start_date ? \Carbon\Carbon::parse($project->planned_start_date)->format('Y-m-d') : '2026-08-17', 'end' => $project->planned_start_date ? \Carbon\Carbon::parse($project->planned_start_date)->addDays(3)->format('Y-m-d') : '2026-08-20'],

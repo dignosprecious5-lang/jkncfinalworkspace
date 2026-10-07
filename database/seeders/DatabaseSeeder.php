@@ -28,6 +28,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AssessmentQuestionSeeder::class,
             RegularProjectSeeder::class,
+            TestDealsSeeder::class,
+            LinkAccountContactsSeeder::class,
         ]);
     }
 }

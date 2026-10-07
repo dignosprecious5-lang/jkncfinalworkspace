@@ -39,7 +39,6 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
             'can_edit_user_roles' => 'boolean',
             'can_delete_users' => 'boolean',
             'is_active' => 'boolean',

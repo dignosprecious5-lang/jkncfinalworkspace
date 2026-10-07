@@ -1819,155 +1819,87 @@
           <div class="life" id="life"></div>
         </div>
         <div class="layout">
-          <aside class="sidecard">
-            <div class="side-title">STAGE MANAGEMENT</div>
-
-            <div class="side-section">
-              <h4>STAGE HANDLING</h4>
-              <div class="timer-card">
-                <div class="timer-row">
-                  <span id="ntpTimerState">NTP Preparation</span>
-                  <span class="clock" id="ntpTimerClock">00:00:00</span>
+          <aside class="sidecard" aria-live="polite" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:16px; box-sizing:border-box; width:100%;">
+            <div class="side-title" style="font-size:11px; font-weight:900; color:#1e3a8a; text-transform:uppercase; letter-spacing:0.06em; padding:0 0 16px 0; margin:0;">STAGE MANAGEMENT</div>
+            
+            <div class="stage-management-panel wo-management">
+              <!-- STAGE STATUS -->
+              <section style="margin-bottom: 18px; padding-top: 0;">
+                <h4 style="font-size:9.5px; font-weight:800; color:#708099; text-transform:uppercase; margin:0 0 8px 0; letter-spacing:0.06em;">STAGE STATUS</h4>
+                <div class="stage-status-value approved" id="stageStatusBox" style="background:#ffffff; border:1px solid #d0dbe7; border-radius:14px; padding:14px 16px; font-size:15px; font-weight:800; color:#1e293b; display:flex; align-items:center; min-height:48px; box-sizing:border-box;">
+                  Approved
                 </div>
-                <div class="timer-actions">
-                  <button class="tbtn start" id="ntpTimerStart">▶ Start</button>
-                  <button class="tbtn pause" id="ntpTimerPause">Ⅱ Pause</button>
-                  <button class="tbtn stop" id="ntpTimerStop">■ Stop</button>
+              </section>
+
+              <!-- STAGE HANDLING -->
+              <section style="margin-bottom: 18px; padding-top: 0;">
+                <h4 style="font-size:9.5px; font-weight:800; color:#708099; text-transform:uppercase; margin:0 0 8px 0; letter-spacing:0.06em;">STAGE HANDLING</h4>
+                <div class="stage-total" style="display:flex; justify-content:space-between; align-items:center; background:#f0f5fa; border:1px solid #d6e2f0; border-radius:14px; padding:14px 16px; margin-bottom:10px; width:100%; box-sizing:border-box; gap:10px;">
+                  <span style="font-size:10px; color:#475569; font-weight:700; line-height:1.3; flex-shrink:0;">Total Stage<br>Handling<br>Time</span>
+                  <strong class="clock" id="ntpTimerClock" style="font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:20px; font-weight:800; color:#1e3a8a; white-space:nowrap; flex-shrink:0; letter-spacing:0.05em;">00:00:38</strong>
                 </div>
-                <div class="review-total">
-                  Total NTP handling time:
-                  <strong id="ntpHandlingTotal">0m</strong>
+                <dl class="stage-handling" style="display:grid; gap:5px; font-size:9.5px; margin:0; padding:0 2px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">In Progress</dt><dd style="font-weight:700; color:#475569; margin:0; font-family:ui-monospace, SFMono-Regular, Consolas, monospace;" id="ntpProgressTime">00:00:38</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">On Hold</dt><dd style="font-weight:700; color:#475569; margin:0; font-family:ui-monospace, SFMono-Regular, Consolas, monospace;">00:00:00</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Waiting</dt><dd style="font-weight:700; color:#475569; margin:0; font-family:ui-monospace, SFMono-Regular, Consolas, monospace;">00:00:00</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Responsible</dt><dd style="font-weight:800; color:#1e3a8a; margin:0;">Unassigned</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Executor</dt><dd style="font-weight:800; color:#1e3a8a; margin:0;">Unassigned</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Coordinator</dt><dd style="font-weight:800; color:#1e3a8a; margin:0;">Unassigned</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Support</dt><dd style="font-weight:800; color:#1e3a8a; margin:0;">Unassigned</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Waiting On</dt><dd style="font-weight:700; color:#475569; margin:0;">&mdash;</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Started</dt><dd style="font-weight:700; color:#475569; margin:0;">06/10/2026, 10:50:44</dd></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center;"><dt style="color:#8da0b8; font-weight:600; margin:0;">Completed</dt><dd style="font-weight:700; color:#475569; margin:0;">&mdash;</dd></div>
+                </dl>
+              </section>
+
+              <!-- REQUIRED APPROVALS -->
+              <section style="margin-bottom: 18px; padding-top: 0;">
+                <h4 style="font-size:9.5px; font-weight:800; color:#708099; text-transform:uppercase; margin:0 0 8px 0; letter-spacing:0.06em;">REQUIRED APPROVALS</h4>
+                <div style="display:grid; gap:8px;">
+                  <div style="background:#f6f8fb; border:1px solid #f1f5f9; border-radius:14px; padding:12px 14px;">
+                    <strong style="font-size:10.5px; font-weight:800; color:#1e293b; display:block; line-height:1.25; margin-bottom:2px;">May Flor D. Dabatos &mdash; Pending</strong>
+                    <span style="font-size:9px; color:#708099; font-weight:500; display:block;">Waiting for approval evidence</span>
+                  </div>
+                  <div style="background:#f6f8fb; border:1px solid #f1f5f9; border-radius:14px; padding:12px 14px;">
+                    <strong style="font-size:10.5px; font-weight:800; color:#1e293b; display:block; line-height:1.25; margin-bottom:2px;">John Kelly Abalde &mdash; Pending</strong>
+                    <span style="font-size:9px; color:#708099; font-weight:500; display:block;">Waiting for approval evidence</span>
+                  </div>
+                  <div style="background:#f6f8fb; border:1px solid #f1f5f9; border-radius:14px; padding:12px 14px;">
+                    <strong style="font-size:10.5px; font-weight:800; color:#1e293b; display:block; line-height:1.25; margin-bottom:2px;">Rubeca Potayre &mdash; Pending</strong>
+                    <span style="font-size:9px; color:#708099; font-weight:500; display:block;">Waiting for approval evidence</span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </section>
 
-            <div class="side-section">
-              <h4>STAGE STATUS</h4>
-              <div class="ntp-status-row">
-                <span>Review Gate</span
-                ><span class="ntp-status-pill approved">Complete</span>
-              </div>
-              <div class="ntp-status-row">
-                <span>NTP</span
-                ><span class="ntp-status-pill" id="ntpStatusPill">In Progress</span>
-              </div>
-              <div class="ntp-status-row">
-                <span>Client Approval</span
-                ><span class="ntp-status-pill pending" id="clientApprovalPill"
-                  >Pending</span
-                >
-              </div>
-              <div class="ntp-status-row">
-                <span>Lead Consultant</span><span class="ntp-status-pill pending" id="leadConsultantApprovalPill">Pending</span>
-              </div>
-              <div class="ntp-status-row">
-                <span>Lead Associate</span><span class="ntp-status-pill pending" id="leadAssociateApprovalPill">Pending</span>
-              </div>
-              <div class="ntp-approval-evidence" id="ntpApprovalEvidence"></div>
-            </div>
+              <!-- STAGE CONTROLS -->
+              <section style="margin-bottom: 18px; padding-top: 0;">
+                <h4 style="font-size:9.5px; font-weight:800; color:#708099; text-transform:uppercase; margin:0 0 8px 0; letter-spacing:0.06em;">STAGE CONTROLS</h4>
+                <div style="display:grid; gap:8px;">
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 14px; font-size:10px; color:#64748b; line-height:1.4;">
+                    Complete the Work Order before this stage becomes available.
+                  </div>
+                  <button type="button" disabled style="display:flex; align-items:center; justify-content:flex-start; width:100%; height:44px; border-radius:14px; border:1px solid #dce4f0; background:#ffffff; font-size:11px; font-weight:800; color:#8fa0b5; cursor:not-allowed; padding:0 16px; box-sizing:border-box;">
+                    Send to Client
+                  </button>
+                  <button type="button" onclick="window.print()" style="display:flex; align-items:center; justify-content:flex-start; width:100%; height:44px; border-radius:14px; border:1px solid #dce4f0; background:#ffffff; font-size:11px; font-weight:800; color:#8fa0b5; cursor:pointer; padding:0 16px; box-sizing:border-box;">
+                    Print
+                  </button>
+                  <button type="button" style="display:flex; align-items:center; justify-content:flex-start; width:100%; height:44px; border-radius:14px; border:1px solid #dce4f0; background:#ffffff; font-size:11px; font-weight:800; color:#8fa0b5; box-sizing:border-box; padding:0 16px;">
+                    Download
+                  </button>
+                </div>
+              </section>
 
-            <div class="side-section">
-              <h4>STAGE CONTROLS</h4>
-              <div class="autosave-row" id="ntpAutosaveRow">
-                <span><span class="autosave-dot"></span>Auto-Save</span>
-                <strong id="ntpAutosaveState">On</strong>
-              </div>
-
-              <div class="ntp-action-grid">
-                <button class="ntp-action-btn primary" id="saveNtpBtn">
-                  <span>Save</span><span id="saveNtpState">Saved</span>
+              <!-- EXECUTION GATE -->
+              <section style="padding-top: 0;">
+                <h4 style="font-size:9.5px; font-weight:800; color:#708099; text-transform:uppercase; margin:0 0 8px 0; letter-spacing:0.06em;">EXECUTION GATE</h4>
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 14px; font-size:10px; color:#64748b; line-height:1.4; margin-bottom:8px;">
+                  Execution remains locked until Client, Lead Consultant, and Lead Associate approvals are recorded.
+                </div>
+                <button type="button" disabled style="display:flex; align-items:center; justify-content:center; width:100%; height:44px; border-radius:14px; background:#f8fafc; color:#b0bec5; border:1px solid #e2e8f0; font-size:11px; font-weight:800; padding:0 16px; box-sizing:border-box; cursor:not-allowed;">
+                  Proceed to Execution
                 </button>
-                <button class="ntp-action-btn" id="editNtpBtn">
-                  <span>Edit NTP</span><span>Before issue only</span>
-                </button>
-                <button class="ntp-action-btn" id="issueNtpBtn">
-                  <span>Send to Client</span>
-                </button>
-                <button class="ntp-action-btn success" id="approveNtpBtn">
-                  <span>Record Online Approval</span>
-                </button>
-                <button class="ntp-action-btn" id="uploadSignedBtn">
-                  <span>Upload Approved NTP</span>
-                </button>
-                <button class="ntp-action-btn" id="changeApprovedNtpBtn" hidden>
-                  <span>Change Uploaded NTP</span>
-                </button>
-                <button class="ntp-action-btn danger" id="removeApprovedNtpBtn" hidden>
-                  <span>Remove Uploaded NTP</span>
-                </button>
-                <button class="ntp-action-btn" id="printNtpBtn">
-                  <span>Print</span>
-                </button>
-                <button class="ntp-action-btn" id="downloadNtpBtn">
-                  <span>Download</span>
-                </button>
-                <button class="ntp-action-btn" id="previewApprovedNtpBtn">
-                  <span>Preview Approved NTP</span>
-                </button>
-                <button class="ntp-action-btn danger" id="revertNtpBtn">
-                  <span>Revert to Review / RSAT</span>
-                </button>
-              </div>
-
-              <div class="ntp-form">
-                <label>Approval For</label>
-                <select id="approvalParty">
-                  <option value="client">Client</option>
-                  <option value="leadConsultant">Lead Consultant</option>
-                  <option value="leadAssociate">Lead Associate</option>
-                </select>
-              </div>
-
-              <div class="ntp-form">
-                <label>Approval Method</label>
-                <select id="clientApprovalMethod">
-                  <option>Signed NTP / Wet Signature</option>
-                  <option>Electronic Signature</option>
-                  <option>Email Confirmation</option>
-                  <option>Client Portal Acceptance</option>
-                  <option>Manual Internal Recording</option>
-                </select>
-              </div>
-              <input type="file" id="signedNtpFile" accept="application/pdf,image/*" hidden />
-
-              <div class="ntp-form">
-                <label>Decision / Revert Note</label>
-                <textarea
-                  id="ntpActionNote"
-                  placeholder="Enter approval evidence details, clarification, or revert reason..."
-                ></textarea>
-              </div>
-
-              <div
-                class="attachment-chip"
-                id="signedEvidence"
-                style="display: none"
-              >
-                <span
-                  ><strong>Signed NTP</strong><br /><span
-                    id="signedEvidenceMeta"
-                    >Evidence attached</span
-                  ></span
-                >
-                <span>✓</span>
-              </div>
-            </div>
-
-            <div class="side-section">
-              <h4>EXECUTION GATE</h4>
-              <div class="execution-gate" id="executionGate">
-                Execution remains locked until the NTP is issued and Client
-                approval evidence is recorded.
-              </div>
-              <button class="execution-btn" id="proceedExecutionBtn" disabled>
-                Proceed to Execution
-              </button>
-            </div>
-
-            <div class="side-section">
-              <button class="demo-reset" id="resetNtpDemo" type="button">
-                Reset NTP Demo State
-              </button>
+              </section>
             </div>
           </aside>
           <section class="content">

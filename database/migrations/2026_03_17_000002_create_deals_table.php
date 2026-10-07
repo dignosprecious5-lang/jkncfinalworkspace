@@ -13,6 +13,8 @@ return new class extends Migration
             $table->foreignId('contact_id')->constrained()->cascadeOnDelete();
             $table->string('deal_name');
             $table->string('stage')->default('Inquiry');
+            $table->string('pipeline_stage')->nullable();
+            $table->timestamp('stage_entered_at')->nullable();
             $table->string('service_area')->nullable();
             $table->string('services')->nullable();
             $table->string('products')->nullable();

@@ -108,7 +108,7 @@ class RegularController extends Controller
 
         if (Schema::hasTable('projects')) {
             $query = Project::query()
-                ->with(['deal:id,deal_code', 'company:id,company_name'])
+                ->with(['deal', 'company', 'contact', 'sows', 'ntps', 'starts'])
                 ->latest();
 
             if ($search !== '') {
@@ -122,16 +122,76 @@ class RegularController extends Controller
 
             $regulars = $query->get()
                 ->filter(fn (Project $project): bool => $this->isRegularEngagement($project->engagement_type) && ! $project->isShell())
+                ->map(function (Project $project): Project {
+                    $sow = $project->sows->sortByDesc('id')->first();
+                    $within = collect($sow?->within_scope_items ?? []);
+                    $out = collect($sow?->out_of_scope_items ?? []);
+                    $allTasks = $within->concat($out);
+                    $totalTasks = $allTasks->count();
+                    $completedTasks = $allTasks->where('status', 'Completed')->count();
+
+                    $calcProgress = $totalTasks > 0 ? (int) round(($completedTasks / $totalTasks) * 100) : null;
+                    if ($calcProgress === null) {
+                        $calcProgress = data_get($project->metadata, 'progress');
+                    }
+                    if ($calcProgress === null) {
+                        $phaseKey = strtolower($project->current_phase ?: $project->status);
+                        $calcProgress = match ($phaseKey) {
+                            'work order', 'intake' => 10,
+                            'rsat', 'sow', 'start' => 20,
+                            'review' => 30,
+                            'ntp' => 40,
+                            'execution', 'in progress' => 50,
+                            'reporting', 'sow reporting' => 80,
+                            'presentation' => 90,
+                            'delivery' => 95,
+                            'completion', 'completed' => 100,
+                            default => in_array($phaseKey, ['completed', 'completion']) ? 100 : 0,
+                        };
+                    }
+                    $project->real_progress = $calcProgress;
+
+                    $calcHealth = data_get($project->metadata, 'health');
+                    if (!$calcHealth) {
+                        if (in_array(strtolower($project->status), ['completed', 'completion'])) {
+                            $calcHealth = 'Completed';
+                        } elseif ($project->target_completion_date && \Carbon\Carbon::parse($project->target_completion_date)->isPast()) {
+                            $calcHealth = 'At Risk';
+                        } else {
+                            $calcHealth = 'On Track';
+                        }
+                    }
+                    $project->real_health = $calcHealth;
+
+                    $phase = $project->current_phase ?: $project->status;
+                    if (in_array(strtolower($phase), ['start', 'intake'])) {
+                        $phase = 'Work Order';
+                    }
+                    $project->real_stage = $phase ?: 'Work Order';
+
+                    return $project;
+                })
                 ->values();
         }
 
-        $stats = [
+        $statusCounts = [
+            'ongoing' => $regulars->filter(fn (Project $p): bool => ! in_array(strtolower($p->status), ['completed', 'completion', 'cancelled', 'deleted'], true) && ! in_array(strtolower($p->current_phase ?? ''), ['completed', 'completion'], true))->count(),
+            'completed' => $regulars->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['completed', 'completion'], true) || in_array(strtolower($p->current_phase ?? ''), ['completed', 'completion'], true))->count(),
+            'cancelled' => $regulars->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['cancelled', 'cancel'], true))->count(),
+            'deleted' => $regulars->filter(fn (Project $p): bool => in_array(strtolower($p->status), ['deleted', 'delete'], true))->count(),
+        ];
+
+        $stageCounts = [
             'all' => $regulars->count(),
-            'rsat' => $regulars->where('current_phase', 'RSAT')->count(),
-            'in_progress' => $regulars->filter(fn (Project $regular): bool => in_array($regular->status, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true)
-                || in_array($regular->current_phase, ['In Progress', 'Execution', 'Reporting', 'Delivery'], true))->count(),
-            'active' => $regulars->whereIn('status', ['RSAT', 'In Progress', 'For NTP Approval', 'Execution', 'Reporting', 'Delivery'])->count(),
-            'completed' => $regulars->where('status', 'Completed')->count(),
+            'work_order' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Work Order', 'Start', 'Intake'], true) || in_array($p->status, ['Work Order', 'Start', 'Intake'], true))->count(),
+            'rsat' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['RSAT', 'RSAT Preparation', 'SOW'], true) || in_array($p->status, ['RSAT', 'RSAT Preparation', 'SOW'], true))->count(),
+            'review' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Review', 'Internal Review'], true) || in_array($p->status, ['Review', 'Internal Review'], true))->count(),
+            'ntp' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['NTP', 'For NTP Approval'], true) || in_array($p->status, ['NTP', 'For NTP Approval'], true))->count(),
+            'execution' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Execution', 'In Progress'], true) || in_array($p->status, ['Execution', 'In Progress'], true))->count(),
+            'reporting' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Reporting', 'SOW Reporting', 'RSAT Reporting'], true) || in_array($p->status, ['Reporting', 'SOW Reporting', 'RSAT Reporting'], true))->count(),
+            'presentation' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Presentation', 'Client Review'], true) || in_array($p->status, ['Presentation', 'Client Review'], true))->count(),
+            'delivery' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Delivery', 'Turn-over'], true) || in_array($p->status, ['Delivery', 'Turn-over'], true))->count(),
+            'completion' => $regulars->filter(fn (Project $p): bool => in_array($p->current_phase, ['Completion', 'Completed'], true) || in_array($p->status, ['Completion', 'Completed'], true))->count(),
         ];
 
         $rsatTemplates = Schema::hasTable('form_templates')
@@ -161,7 +221,8 @@ class RegularController extends Controller
         return view('regular.index', compact(
             'regulars',
             'search',
-            'stats',
+            'stageCounts',
+            'statusCounts',
             'rsatTemplates',
             'contactRecords',
             'companyRecords',
@@ -190,11 +251,28 @@ class RegularController extends Controller
             ->with('success', $deletedCount === 1 ? '1 regular engagement deleted successfully.' : "{$deletedCount} regular engagements deleted successfully.");
     }
 
+    public function cancel(Request $request, Project $regular): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $regular->update([
+            'status' => 'Cancelled',
+            'cancellation_reason' => $validated['reason'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('regular.index')
+            ->with('success', "Regular engagement \"{$regular->name}\" was marked as Cancelled.");
+    }
+
     public function storeManual(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'source_mode' => ['nullable', Rule::in(['manual', 'deal'])],
-            'deal_id' => ['nullable', 'integer', 'exists:deals,id', 'unique:projects,deal_id'],
+            'source_mode' => ['nullable', Rule::in(['manual', 'deal', 'duplicate'])],
+            'duplicate_project_id' => ['nullable', 'integer', 'exists:projects,id'],
+            'deal_id' => ['nullable', 'integer', 'exists:deals,id'],
             'contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -223,6 +301,7 @@ class RegularController extends Controller
             'sales_marketing' => ['nullable', 'string', 'max:255'],
             'finance' => ['nullable', 'string', 'max:255'],
             'client_confirmation_name' => ['nullable', 'string', 'max:255'],
+            'engagement_type' => ['nullable', 'string', 'max:100'],
             'engagement_requirements_text' => ['nullable', 'string', 'max:4000'],
             'template_id' => Schema::hasTable('form_templates')
                 ? ['nullable', 'integer', Rule::exists('form_templates', 'id')->where(function ($query) {
@@ -285,7 +364,7 @@ class RegularController extends Controller
             'contact_id' => $linkedContact?->id,
             'company_id' => $linkedCompany?->id,
             'name' => $validated['name'],
-            'engagement_type' => 'Regular Retainer',
+            'engagement_type' => $validated['engagement_type'] ?? ($linkedDeal?->engagement_type ?: 'Regular Retainer'),
             'status' => 'RSAT',
             'current_phase' => 'RSAT',
             'current_step' => 'RSAT Checklist',
@@ -1003,7 +1082,11 @@ class RegularController extends Controller
             ->whereDoesntHave('projects', fn ($query) => $query
                 ->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%'])
                 // Exclude deals that already have a shell workspace — those will activate via START approval
-                ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') != 'true'")
+                ->where(function ($q) {
+                    $q->whereNull('metadata->is_shell')
+                        ->orWhere('metadata->is_shell', false)
+                        ->orWhere('metadata->is_shell', '!=', true);
+                })
             )
             ->get()
             ->filter(fn (Deal $deal): bool => $this->isRegularEngagement($deal->engagement_type))
@@ -2041,6 +2124,7 @@ class RegularController extends Controller
 
                 return [
                     'id' => $employee->id,
+                    'name' => $label,
                     'label' => $label,
                     'position' => $employee->position,
                     'employee_code' => $employee->employee_code,

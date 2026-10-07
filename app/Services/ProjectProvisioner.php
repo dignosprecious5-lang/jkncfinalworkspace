@@ -169,8 +169,8 @@ class ProjectProvisioner
         $workspaceType = $regular ? 'regular' : 'project';
         $workspaceEngagementType = $regular
             ? ($hybrid ? 'Hybrid Regular' : ($deal->engagement_type ?: 'Regular Retainer'))
-            : ($hybrid ? 'Hybrid Project' : $deal->engagement_type);
-        $workspaceNameSuffix = $regular ? 'Regular' : 'Project';
+            : ($hybrid ? 'Hybrid' : ($deal->engagement_type ?: 'Project'));
+        $workspaceNameSuffix = $regular ? 'Regular' : ($hybrid ? 'Hybrid' : 'Project');
 
         // Shell workspaces have a neutral holding status until START is approved
         $workspaceStatus      = $shell ? 'shell'                : ($regular ? 'RSAT' : 'SOW');
