@@ -17,15 +17,41 @@ class OfficialBusinessEngagementService
 
     public function isEligible(Project $workspace, string $type): bool
     {
-        $regular = str_contains(strtolower(trim((string) $workspace->engagement_type)), 'regular');
+        if (! in_array($type, ['Regular', 'Project'], true) || $workspace->isShell()) {
+            return false;
+        }
 
-        return in_array($type, ['Regular', 'Project'], true)
-            && $regular === ($type === 'Regular')
-            && ! $workspace->isShell()
-            && in_array(strtolower(trim((string) $workspace->status)), [
-                'start', 'sow', 'rsat', 'in progress', 'for ntp approval',
-                'execution', 'reporting', 'delivery',
-            ], true);
+        $regular = str_contains(
+            strtolower(trim((string) $workspace->engagement_type)),
+            'regular'
+        );
+
+        if ($regular !== ($type === 'Regular')) {
+            return false;
+        }
+
+        $status = strtolower(trim((string) $workspace->status));
+
+        $activeStatuses = $type === 'Regular'
+            ? [
+                'rsat',
+                'in progress',
+                'for ntp approval',
+                'execution',
+                'reporting',
+                'delivery',
+            ]
+            : [
+                'start',
+                'sow',
+                'in progress',
+                'for ntp approval',
+                'execution',
+                'reporting',
+                'delivery',
+            ];
+
+        return in_array($status, $activeStatuses, true);
     }
 
     /** Legacy deal-only IDs are usable only when they identify exactly one workspace. */

@@ -218,7 +218,7 @@
                             <div class="obv3-preview-brand">John Kelly<br><span>&amp;</span> Company</div>
                             <p class="obv3-preview-company"><strong>JK&amp;C INC.</strong><br>{{ $companyHeader['company_address'] }}</p>
                         </div>
-                        <div class="obv3-preview-rule"></div>
+
 
                         <div class="obf-title obv3-preview-title">OFFICIAL BUSINESS TRAVEL FORM</div>
 
@@ -1894,10 +1894,7 @@
                             </div>
                         </section>
 
-                        <section class="form-section">
-                            <h3 class="form-title">Remarks</h3>
-                            <textarea name="remarks" x-model="form.remarks" :readonly="isView" rows="4" class="input"></textarea>
-                        </section>
+
 
                         <div class="obv3-footer-actions sticky bottom-0 bg-white border-t py-3 px-4 flex justify-end gap-3">
                             <button type="button" @click="closePanel()" class="px-5 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">
