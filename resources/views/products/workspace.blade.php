@@ -10365,11 +10365,11 @@ document.addEventListener('DOMContentLoaded', function() {
             markStepAsCompleted(6);
         }
 
-        // STEP 7: Engagement
-        const step7Field = document.getElementById('payment_structure_select');
-        if (step7Field && step7Field.value.trim() !== '' && !step7Field.value.toLowerCase().includes('select')) {
-            markStepAsCompleted(7);
-        }
+       // STEP 7: Engagement
+const step7Field = document.getElementById('recurrence_frequency_select'); // o kung ano man ang ID ng recurrence frequency sa HTML mo
+if (step7Field && step7Field.value.trim() !== '' && !step7Field.value.toLowerCase().includes('select')) {
+    markStepAsCompleted(7);
+}
 
         // STEP 8: Reporting
         const step8Field = document.querySelector('select[name="reporting_frequency"]');

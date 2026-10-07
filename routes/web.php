@@ -2105,3 +2105,5 @@ Route::patch(
 Route::post('/products/{id}/submit-approval', [ProductController::class, 'submitApproval'])->name('products.submit-approval');
 
     });
+
+    

@@ -1921,7 +1921,7 @@ public function updateCommercials(Request $request, $id)
     $product = Product::findOrFail($id);
 
     $validated = $request->validate([
-        'payment_structure' => 'required|string|max:255',
+       'payment_structure' => 'nullable|string|max:255',
         'payment_structure_custom' => 'nullable|string|max:255',
         'instantiation_execution_mode' => 'nullable|string|max:255',
         'recurrence_frequency' => 'required|string|max:255',
@@ -1947,7 +1947,7 @@ public function updateCommercials(Request $request, $id)
     ]);
 
     $updateData = [
-        'payment_structure' => $validated['payment_structure'],
+       'payment_structure' => $validated['payment_structure'] ?? null,
         'payment_structure_custom' => $validated['payment_structure_custom'] ?? null,
         'instantiation_execution_mode' => $validated['instantiation_execution_mode'] ?? null,
         'recurrence_frequency' => $validated['recurrence_frequency'],
