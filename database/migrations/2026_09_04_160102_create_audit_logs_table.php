@@ -6,22 +6,39 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
-        Schema::create('audit_logs', function (Blueprint $table) {
+        Schema::create('product_audit_logs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id')->nullable();
-            $table->string('user_name')->default('System / Guest');
-            $table->string('action'); // e.g., 'IMPORT_REQUIREMENTS', 'TASK_COMPLETED'
-            $table->string('module'); // e.g., 'Requirements', 'Engagements', 'Services'
-            $table->text('description');
-            $table->string('ip_address')->nullable();
+
+            $table->foreignId('product_id')
+                ->constrained('products')
+                ->cascadeOnDelete();
+
+            $table->string('user_name')->nullable();
+
+            $table->string('action')->nullable();
+
+            $table->string('title')->nullable();
+
+            $table->text('details')->nullable();
+
+            $table->text('description')->nullable();
+
+            $table->text('message')->nullable();
+
             $table->timestamps();
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('audit_logs');
+        Schema::dropIfExists('product_audit_logs');
     }
 };

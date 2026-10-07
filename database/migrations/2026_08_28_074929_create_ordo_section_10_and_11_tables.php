@@ -15,7 +15,6 @@ return new class extends Migration
         if (!Schema::hasTable('engagements')) {
             Schema::create('engagements', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('deal_id')->nullable()->constrained();
                 $table->foreignId('service_id')->constrained();
                 $table->foreignId('service_version_id')->constrained();
                 $table->enum('type', ['project', 'regular']);

@@ -14,6 +14,14 @@ class Service extends Model
     protected $guarded = [];
 
     /**
+     * Relationship para sa Service Area.
+     */
+    public function serviceArea(): BelongsTo
+    {
+        return $this->belongsTo(ServiceArea::class);
+    }
+
+    /**
      * Relationship para sa lahat ng bersyon ng serbisyo.
      */
     public function versions(): HasMany

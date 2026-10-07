@@ -25,3 +25,9 @@ Schedule::call(function () {
         $instantiator->generateNextRegularPeriod($engagement);
     }
 })->daily();
+
+// Overdue Escalation Schedule (Direktang nakaturo sa ating EscalateOverdueTasks command class)
+Schedule::command('services:escalate-overdue')->daily();
+
+// Report Preparation Schedule
+Schedule::command('services:prepare-reports')->daily();

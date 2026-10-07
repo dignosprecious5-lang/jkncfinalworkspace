@@ -18,9 +18,6 @@ class AuditLog extends Model
         'ip_address',
     ];
 
-    /**
-     * Helper function para sa mabilisang pag-log ng audit trail saanman sa system.
-     */
     public static function log(string $action, string $module, string $description): void
     {
         try {
@@ -35,7 +32,6 @@ class AuditLog extends Model
                 'ip_address'  => request()->ip(),
             ]);
         } catch (\Exception $e) {
-            // Safety fallback kapag wala pa ang table sa migration
             \Illuminate\Support\Facades\Log::warning("AuditLog creation failed: " . $e->getMessage());
         }
     }

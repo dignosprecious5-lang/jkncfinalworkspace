@@ -2,62 +2,116 @@
 
 namespace App\Imports;
 
-use App\Models\Requirement;
-use App\Models\ClientRequirement;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Schema;
-use Maatwebsite\Excel\Concerns\ToModel;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Illuminate\Support\Collection;
+use App\Models\Service;
+use App\Models\ServiceVersion;
+use App\Models\ServiceActivity;
 
-class RequirementsImport implements ToModel, WithHeadingRow
+class ServicesMultiImport implements WithMultipleSheets
 {
-    /**
-     * @param array $row
-     * @return Model|array|null
-     */
-    public function model(array $row): Model|array|null
+    public function sheets(): array
     {
-        $modelClass = class_exists(Requirement::class) ? Requirement::class : ClientRequirement::class;
-        $instance = new $modelClass();
-        $table = $instance->getTable();
+        return [
+            'Services' => new ServicesSheetImport(),
+            'Main Activities' => new MainActivitiesSheetImport(),
+            'Sub-Activities' => new SubActivitiesSheetImport(),
+        ];
+    }
+}
 
-        $data = [];
+// 1. SERVICES SHEET IMPORT (Section 16.1 & 16.2)
+class ServicesSheetImport implements ToCollection
+{
+    public function collection(Collection $rows)
+    {
+        $header = $rows->shift();
 
-        // Check each column dynamically before adding it to $data
-        if (Schema::hasColumn($table, 'service_id')) {
-            $data['service_id'] = $row['service_id'] ?? 1;
+        foreach ($rows as $row) {
+            if (empty($row[0])) continue;
+
+            $lastService = Service::latest('id')->first();
+            $nextId = $lastService ? $lastService->id + 1 : 1;
+            $serviceCode = 'SVC-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
+
+            $service = Service::create([
+                'service_code'        => $serviceCode,
+                'name'                => $row[0],
+                'category'            => $row[1] ?? 'General',
+                'engagement_behavior' => $row[2] ?? 'regular',
+                'status'              => 'draft',
+            ]);
+
+            $version = ServiceVersion::create([
+                'service_id'     => $service->id,
+                'version_number' => 'V1.0',
+                'status'         => 'draft',
+                'is_active'      => true,
+                'standard_price' => $row[3] ?? 0,
+            ]);
+
+            $service->update(['active_version_id' => $version->id]);
         }
+    }
+}
 
-        if (Schema::hasColumn($table, 'document_name')) {
-            $data['document_name'] = $row['document_name'] ?? $row['name'] ?? 'Imported Requirement';
-        } elseif (Schema::hasColumn($table, 'name')) {
-            $data['name'] = $row['document_name'] ?? $row['name'] ?? 'Imported Requirement';
+// 2. MAIN ACTIVITIES SHEET IMPORT
+class MainActivitiesSheetImport implements ToCollection
+{
+    public function collection(Collection $rows)
+    {
+        $header = $rows->shift();
+
+        foreach ($rows as $row) {
+            if (empty($row[0]) || empty($row[1])) continue; 
+
+            $service = Service::where('service_code', $row[0])->first();
+            if (!$service || !$service->activeVersion) continue;
+
+            ServiceActivity::create([
+                'service_version_id'     => $service->activeVersion->id,
+                'parent_id'              => null,
+                'name'                   => $row[1],
+                'sequence'               => $row[2] ?? 1,
+                'expected_days'          => $row[3] ?? 1,
+                'expected_working_hours' => $row[4] ?? 8,
+                'is_mandatory'           => true,
+                'is_billable'            => true,
+            ]);
         }
+    }
+}
 
-        if (Schema::hasColumn($table, 'description')) {
-            $data['description'] = $row['description'] ?? null;
+// 3. SUB-ACTIVITIES SHEET IMPORT
+class SubActivitiesSheetImport implements ToCollection
+{
+    public function collection(Collection $rows)
+    {
+        $header = $rows->shift();
+
+        foreach ($rows as $row) {
+            if (empty($row[0]) || empty($row[1]) || empty($row[2])) continue;
+
+            $service = Service::where('service_code', $row[0])->first();
+            if (!$service || !$service->activeVersion) continue;
+
+            $mainActivity = ServiceActivity::where('service_version_id', $service->activeVersion->id)
+                ->where('name', $row[1])
+                ->whereNull('parent_id')
+                ->first();
+
+            if (!$mainActivity) continue;
+
+            ServiceActivity::create([
+                'service_version_id'     => $service->activeVersion->id,
+                'parent_id'              => $mainActivity->id,
+                'name'                   => $row[2],
+                'expected_days'          => $row[3] ?? 1,
+                'expected_working_hours' => $row[4] ?? 4,
+                'is_mandatory'           => true,
+                'is_billable'            => true,
+            ]);
         }
-
-        if (Schema::hasColumn($table, 'client_type')) {
-            $data['client_type'] = $row['client_type'] ?? 'All';
-        }
-
-        if (Schema::hasColumn($table, 'source')) {
-            $data['source'] = $row['source'] ?? 'Client-supplied';
-        }
-
-        if (Schema::hasColumn($table, 'is_mandatory')) {
-            $data['is_mandatory'] = isset($row['is_mandatory']) ? (bool)$row['is_mandatory'] : true;
-        }
-
-        if (Schema::hasColumn($table, 'file_required')) {
-            $data['file_required'] = isset($row['file_required']) ? (bool)$row['file_required'] : true;
-        }
-
-        if (Schema::hasColumn($table, 'status')) {
-            $data['status'] = $row['status'] ?? 'pending';
-        }
-
-        return new $modelClass($data);
     }
 }
