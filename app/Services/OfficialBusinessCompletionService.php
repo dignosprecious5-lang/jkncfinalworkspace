@@ -10,7 +10,7 @@ class OfficialBusinessCompletionService
     /**
      * @return array<int, array{key: string, label: string, complete: bool, detail: string}>
      */
-    public function checklist(OfficialBusinessTrip $trip): array
+    public function checklist(OfficialBusinessTrip $trip, ?bool $ticketsTableExists = null): array
     {
         $items = [
             [
@@ -32,8 +32,11 @@ class OfficialBusinessCompletionService
         ];
 
         if ($trip->is_client_travel) {
-            $tickets = Schema::hasTable('official_business_trip_tickets')
-                ? $trip->tripTickets()->get(['id', 'reference_no', 'status'])
+            $ticketsAvailable = $ticketsTableExists ?? Schema::hasTable('official_business_trip_tickets');
+            $tickets = $ticketsAvailable
+                ? ($trip->relationLoaded('tripTickets')
+                    ? $trip->tripTickets
+                    : $trip->tripTickets()->get(['id', 'reference_no', 'status']))
                 : collect();
             $resolvedStatuses = ['completed', 'resolved', 'cancelled'];
             $unresolved = $tickets->reject(

@@ -107,7 +107,9 @@ class ActivitiesReportService
 
         $tasks = Task::query()
             ->with(array_merge($standardLoads, ['primaryAssignee:id,name,email', 'notes']))
-            ->get()
+            ->get();
+        $taskAttachments = $this->batchedAttachments(ActivityTypeRegistry::TASK, $tasks);
+        $tasks = $tasks
             ->map(fn (Task $task): array => $this->row(
                 ActivityTypeRegistry::TASK,
                 $task,
@@ -116,12 +118,15 @@ class ActivitiesReportService
                 $this->preferredDuration($task->actual_duration_minutes, $task->estimated_duration_minutes),
                 $task->status,
                 $task->assigned_to_user_id,
-                $task->primaryAssignee?->name ?: $task->owner
+                $task->primaryAssignee?->name ?: $task->owner,
+                $taskAttachments[$task->id] ?? []
             ));
 
         $events = Event::query()
             ->with(array_merge($standardLoads, ['notes']))
-            ->get()
+            ->get();
+        $eventAttachments = $this->batchedAttachments(ActivityTypeRegistry::EVENT, $events);
+        $events = $events
             ->map(fn (Event $event): array => $this->row(
                 ActivityTypeRegistry::EVENT,
                 $event,
@@ -130,12 +135,15 @@ class ActivitiesReportService
                 $this->preferredDuration($event->duration_minutes ?? $this->hoursToMinutes($event->actual_hours), $this->hoursToMinutes($event->estimated_hours)),
                 $event->status,
                 null,
-                $event->host
+                $event->host,
+                $eventAttachments[$event->id] ?? []
             ));
 
         $calls = Call::query()
             ->with(array_merge($standardLoads, ['notes']))
-            ->get()
+            ->get();
+        $callAttachments = $this->batchedAttachments(ActivityTypeRegistry::CALL, $calls);
+        $calls = $calls
             ->map(fn (Call $call): array => $this->row(
                 ActivityTypeRegistry::CALL,
                 $call,
@@ -144,12 +152,15 @@ class ActivitiesReportService
                 $call->duration_minutes ?? $this->durationToMinutes($call->duration),
                 $call->completed ? 'Completed' : 'Open',
                 null,
-                $call->owner ?: $call->from
+                $call->owner ?: $call->from,
+                $callAttachments[$call->id] ?? []
             ));
 
         $meetings = Meeting::query()
             ->with(array_merge($standardLoads, ['notes']))
-            ->get()
+            ->get();
+        $meetingAttachments = $this->batchedAttachments(ActivityTypeRegistry::MEETING, $meetings);
+        $meetings = $meetings
             ->map(fn (Meeting $meeting): array => $this->row(
                 ActivityTypeRegistry::MEETING,
                 $meeting,
@@ -161,30 +172,39 @@ class ActivitiesReportService
                 ),
                 $this->meetingDisplayStatus($meeting),
                 null,
-                $meeting->owner
+                $meeting->owner,
+                $meetingAttachments[$meeting->id] ?? []
             ));
 
         $messages = MessageConversation::query()
             ->visibleTo($user)
             ->with(['company:id,company_name', 'contact:id,first_name,last_name', 'assignedUser:id,name,email', 'preparedBy:id,name,email'])
-            ->get()
-            ->map(fn (MessageConversation $message): array => $this->messageRow($message));
+            ->get();
+        $messageAttachments = $this->batchedAttachments(ActivityTypeRegistry::MESSAGE, $messages);
+        $messages = $messages->map(fn (MessageConversation $message): array => $this->messageRow(
+            $message,
+            $messageAttachments[$message->id] ?? []
+        ));
 
         $emails = ! Schema::hasTable('email_activities')
             ? collect()
             : EmailActivity::query()
                 ->visibleTo($user)
                 ->with(['company:id,company_name', 'contactRecord:id,first_name,last_name', 'preparedBy:id,name,email'])
-                ->get()
-                ->map(fn (EmailActivity $email): array => $this->emailRow($email));
+                ->get();
+        $emailAttachments = $this->batchedAttachments(ActivityTypeRegistry::EMAIL, $emails);
+        $emails = $emails->map(fn (EmailActivity $email): array => $this->emailRow(
+            $email,
+            $emailAttachments[$email->id] ?? []
+        ));
 
-        $officialBusiness = $this->officialBusinessActivities
+        $officialBusinessSources = $this->officialBusinessActivities
             ->context($user)['records']
             ->flatMap(function (OfficialBusinessTrip $trip) use ($user): array|Collection {
                 if ((int) $trip->workflow_version < 3
                     || ! $trip->is_client_travel
                     || ! Schema::hasColumn('official_business_trip_tickets', 'company_id')) {
-                    return [$this->officialBusinessRow($trip, null, $user)];
+                    return [['trip' => $trip, 'ticket' => null]];
                 }
 
                 $tickets = $trip->tripTickets()
@@ -194,9 +214,31 @@ class ActivitiesReportService
                     ->filter(fn (OfficialBusinessTripTicket $ticket): bool => Gate::forUser($user)->allows('view', $ticket));
 
                 return $tickets->isEmpty()
-                    ? [$this->officialBusinessRow($trip, null, $user)]
-                    : $tickets->map(fn (OfficialBusinessTripTicket $ticket): array => $this->officialBusinessRow($trip, $ticket, $user));
+                    ? [['trip' => $trip, 'ticket' => null]]
+                    : $tickets->map(fn (OfficialBusinessTripTicket $ticket): array => ['trip' => $trip, 'ticket' => $ticket]);
             });
+        $officialBusinessAttachments = $this->attachments->forActivities(
+            $officialBusinessSources->map(fn (array $source): array => [
+                'type' => $source['ticket']
+                    ? ActivityTypeRegistry::OFFICIAL_BUSINESS_TRIP_TICKET
+                    : ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL,
+                'record' => $source['ticket'] ?? $source['trip'],
+            ])
+        );
+        $officialBusiness = $officialBusinessSources->map(function (array $source) use ($user, $officialBusinessAttachments): array {
+            $ticket = $source['ticket'];
+            $type = $ticket
+                ? ActivityTypeRegistry::OFFICIAL_BUSINESS_TRIP_TICKET
+                : ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL;
+            $record = $ticket ?? $source['trip'];
+
+            return $this->officialBusinessRow(
+                $source['trip'],
+                $ticket,
+                $user,
+                $officialBusinessAttachments[$type][$record->id] ?? []
+            );
+        });
 
         return collect()
             ->merge($tasks)
@@ -207,6 +249,17 @@ class ActivitiesReportService
             ->merge($messages)
             ->merge($officialBusiness)
             ->values();
+    }
+
+    private function batchedAttachments(string $type, Collection $records): array
+    {
+        if ($records->isEmpty()) {
+            return [];
+        }
+
+        return $this->attachments->forActivities(
+            $records->map(fn ($record): array => ['type' => $type, 'record' => $record])
+        )[$type] ?? [];
     }
 
     private function meetingDisplayStatus(Meeting $meeting): ?string
@@ -253,10 +306,9 @@ class ActivitiesReportService
         ?int $duration,
         $status,
         ?int $assignedToUserId,
-        ?string $assignedTo
+        ?string $assignedTo,
+        array $attachments
     ): array {
-        $attachments = $this->attachments->forActivity($type, $record);
-
         return [
             'id' => strtolower(str_replace('_', '-', $type)).'-'.$record->id,
             'source_activity_type' => $type,
@@ -297,10 +349,9 @@ class ActivitiesReportService
         ];
     }
 
-    private function messageRow(MessageConversation $message): array
+    private function messageRow(MessageConversation $message, array $attachments): array
     {
         $contact = $message->contact;
-        $attachments = $this->attachments->forActivity(ActivityTypeRegistry::MESSAGE, $message);
 
         return [
             'id' => 'message-'.$message->id,
@@ -335,9 +386,8 @@ class ActivitiesReportService
         ];
     }
 
-    private function emailRow(EmailActivity $email): array
+    private function emailRow(EmailActivity $email, array $attachments): array
     {
-        $attachments = $this->attachments->forActivity(ActivityTypeRegistry::EMAIL, $email);
         $recipients = collect($email->recipients ?? [])->filter()->implode(', ');
         $safeSummary = collect([
             'Subject: '.($email->subject ?: '(No subject)'),
@@ -397,7 +447,8 @@ class ActivitiesReportService
     private function officialBusinessRow(
         OfficialBusinessTrip $trip,
         ?OfficialBusinessTripTicket $ticket,
-        User $user
+        User $user,
+        array $attachments
     ): array
     {
         $canReadFinance = app(\App\Services\OfficialBusinessAuthorizationService::class)->canReadFinance($user);
@@ -414,9 +465,6 @@ class ActivitiesReportService
         $costTotal = $canReadFinance && $ticket && Schema::hasTable('official_business_trip_ticket_costs')
             ? (float) $ticket->costs()->sum('amount')
             : null;
-        $attachments = $ticket
-            ? $this->attachments->forActivity(ActivityTypeRegistry::OFFICIAL_BUSINESS_TRIP_TICKET, $ticket)
-            : $this->attachments->forActivity(ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL, $trip);
 
         return [
             'id' => $ticket ? 'official-business-trip-ticket-'.$ticket->id : 'official-business-travel-'.$trip->id,

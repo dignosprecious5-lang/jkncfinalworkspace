@@ -151,6 +151,8 @@ class ActivityController extends Controller
             }
         });
 
+        $relatedOptions = $this->relatedOptions();
+
         return response()->json([
             'tasks' => $tasks,
             'events' => $events,
@@ -183,8 +185,8 @@ class ActivityController extends Controller
             'currentUserId' => $currentUser?->id,
             'currentDepartmentId' => $currentDepartmentId,
             'teamUsers' => $teamUsers,
-            'relatedOptions' => $this->relatedOptions()->pluck('label')->all(),
-            'relatedRecords' => $this->relatedOptions()->values()->all(),
+            'relatedOptions' => $relatedOptions->pluck('label')->all(),
+            'relatedRecords' => $relatedOptions->values()->all(),
             'contacts' => Contact::query()
                 ->orderBy('first_name')
                 ->orderBy('last_name')
@@ -213,19 +215,30 @@ class ActivityController extends Controller
         OfficialBusinessActivityService $officialBusinessActivities
     ): array
     {
+        $attachments = app(ActivityAttachmentService::class)->forActivities(
+            collect([
+                ActivityTypeRegistry::TASK => $tasks,
+                ActivityTypeRegistry::EVENT => $events,
+                ActivityTypeRegistry::CALL => $calls,
+                ActivityTypeRegistry::MEETING => $meetings,
+                ActivityTypeRegistry::EMAIL => $emails,
+                ActivityTypeRegistry::MESSAGE => $messages,
+                ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL => $officialBusinessTrips,
+            ])->flatMap(fn ($records, $type) => $records->map(
+                fn ($record): array => ['type' => $type, 'record' => $record]
+            ))->all()
+        );
+
         return collect()
-            ->merge($tasks->map(fn (Task $task): array => $this->serializeTaskActivity($task)))
-            ->merge($events->map(fn (Event $event): array => $this->serializeEventActivity($event)))
-            ->merge($calls->map(fn (Call $call): array => $this->serializeCallActivity($call)))
-            ->merge($meetings->map(fn (Meeting $meeting): array => $this->serializeMeetingActivity($meeting)))
-            ->merge($emails->map(fn (EmailActivity $email): array => $this->serializeEmailActivity($email)))
-            ->merge($messages->map(fn (MessageConversation $message): array => $this->serializeMessageActivity($message)))
-            ->merge($officialBusinessTrips->map(function ($trip) use ($officialBusinessActivities): array {
+            ->merge($tasks->map(fn (Task $task): array => $this->serializeTaskActivity($task, $attachments[ActivityTypeRegistry::TASK][$task->id] ?? [])))
+            ->merge($events->map(fn (Event $event): array => $this->serializeEventActivity($event, $attachments[ActivityTypeRegistry::EVENT][$event->id] ?? [])))
+            ->merge($calls->map(fn (Call $call): array => $this->serializeCallActivity($call, $attachments[ActivityTypeRegistry::CALL][$call->id] ?? [])))
+            ->merge($meetings->map(fn (Meeting $meeting): array => $this->serializeMeetingActivity($meeting, $attachments[ActivityTypeRegistry::MEETING][$meeting->id] ?? [])))
+            ->merge($emails->map(fn (EmailActivity $email): array => $this->serializeEmailActivity($email, $attachments[ActivityTypeRegistry::EMAIL][$email->id] ?? [])))
+            ->merge($messages->map(fn (MessageConversation $message): array => $this->serializeMessageActivity($message, $attachments[ActivityTypeRegistry::MESSAGE][$message->id] ?? [])))
+            ->merge($officialBusinessTrips->map(function ($trip) use ($officialBusinessActivities, $attachments): array {
                 $activity = $officialBusinessActivities->toUnifiedActivity($trip);
-                $normalized = collect(app(ActivityAttachmentService::class)->forActivity(
-                    ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL,
-                    $trip
-                ))->reject(fn (array $attachment): bool => (bool) ($attachment['is_legacy'] ?? false));
+                $normalized = collect($attachments[ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL][$trip->id] ?? [])->reject(fn (array $attachment): bool => (bool) ($attachment['is_legacy'] ?? false));
                 $activity['attachments'] = collect($activity['attachments'])->merge($normalized)->values()->all();
 
                 return $activity;
@@ -235,7 +248,7 @@ class ActivityController extends Controller
             ->all();
     }
 
-    private function serializeTaskActivity(Task $task): array
+    private function serializeTaskActivity(Task $task, array $attachments): array
     {
         [$duration, $durationSource] = $this->preferredDuration(
             $task->actual_duration_minutes,
@@ -253,11 +266,14 @@ class ActivityController extends Controller
             $duration,
             $durationSource,
             $task->status,
-            $task->primaryAssignee?->name ?: $task->primaryAssignee?->email ?: $task->owner
+            $task->primaryAssignee?->name ?: $task->primaryAssignee?->email ?: $task->owner,
+            null,
+            null,
+            $attachments
         );
     }
 
-    private function serializeEventActivity(Event $event): array
+    private function serializeEventActivity(Event $event, array $attachments): array
     {
         [$duration, $durationSource] = $this->preferredDuration(
             $event->duration_minutes ?? $this->hoursToMinutes($event->actual_hours),
@@ -276,11 +292,13 @@ class ActivityController extends Controller
             $durationSource,
             $event->status,
             $event->host,
-            $event->related_account
+            $event->related_account,
+            null,
+            $attachments
         );
     }
 
-    private function serializeCallActivity(Call $call): array
+    private function serializeCallActivity(Call $call, array $attachments): array
     {
         $duration = $call->duration_minutes ?? $this->durationToMinutes($call->duration);
 
@@ -293,11 +311,14 @@ class ActivityController extends Controller
             $duration,
             $duration === null ? null : 'recorded',
             $call->completed ? 'Completed' : 'Open',
-            $call->owner ?: $call->from
+            $call->owner ?: $call->from,
+            null,
+            null,
+            $attachments
         );
     }
 
-    private function serializeMeetingActivity(Meeting $meeting): array
+    private function serializeMeetingActivity(Meeting $meeting, array $attachments): array
     {
         [$duration, $durationSource] = $this->preferredDuration(
             $meeting->duration_minutes ?? $this->durationToMinutes($meeting->actual_duration),
@@ -317,11 +338,12 @@ class ActivityController extends Controller
             $meeting->getRawOriginal('status'),
             $meeting->owner,
             $meeting->related_account,
-            $meeting->status
+            $meeting->status,
+            $attachments
         );
     }
 
-    private function serializeMessageActivity(MessageConversation $message): array
+    private function serializeMessageActivity(MessageConversation $message, array $attachments): array
     {
         $company = $message->company;
         $contact = $message->contact;
@@ -384,10 +406,7 @@ class ActivityController extends Controller
             'client_report_description' => $message->client_report_description,
             'include_in_client_report' => (bool) $message->include_in_client_report,
 
-            'attachments' => app(ActivityAttachmentService::class)->forActivity(
-                ActivityTypeRegistry::MESSAGE,
-                $message
-            ),
+            'attachments' => $attachments,
             'created_at' => $message->created_at?->toIso8601String(),
             'updated_at' => $message->updated_at?->toIso8601String(),
 
@@ -397,7 +416,7 @@ class ActivityController extends Controller
         ];
     }
 
-    private function serializeEmailActivity(EmailActivity $email): array
+    private function serializeEmailActivity(EmailActivity $email, array $attachments): array
     {
         $contact = $email->contactRecord;
         $contactName = $contact
@@ -428,7 +447,7 @@ class ActivityController extends Controller
             'prepared_by' => $email->preparedBy,
             'client_report_description' => $email->client_report_description,
             'include_in_client_report' => (bool) $email->include_in_client_report,
-            'attachments' => app(ActivityAttachmentService::class)->forActivity(ActivityTypeRegistry::EMAIL, $email),
+            'attachments' => $attachments,
             'provider' => $email->provider,
             'mailbox_key' => $email->mailbox_key,
             'provider_message_id' => $email->provider_message_id,
@@ -458,7 +477,8 @@ class ActivityController extends Controller
         $status,
         $owner,
         $fallbackAccount = null,
-        $displayStatus = null
+        $displayStatus = null,
+        array $attachments = []
     ): array {
         $company = $record->company;
         $contact = $record->contactRecord;
@@ -503,13 +523,13 @@ class ActivityController extends Controller
             'prepared_by' => $record->preparedBy,
             'client_report_description' => $record->client_report_description,
             'include_in_client_report' => (bool) $record->include_in_client_report,
-            'attachments' => $this->activityAttachments($type, $record),
+            'attachments' => $this->activityAttachments($type, $record, $attachments),
             'created_at' => $record->created_at?->toIso8601String(),
             'updated_at' => $record->updated_at?->toIso8601String(),
         ];
     }
 
-    private function activityAttachments(string $type, $record): array
+    private function activityAttachments(string $type, $record, array $attachments): array
     {
         $legacy = match ($type) {
             'call' => filled($record->audio_path) ? [[
@@ -571,7 +591,7 @@ class ActivityController extends Controller
             default => [],
         };
 
-        $normalized = collect(app(ActivityAttachmentService::class)->forActivity(strtoupper($type), $record))
+        $normalized = collect($attachments)
             ->reject(fn (array $attachment): bool => (bool) ($attachment['is_legacy'] ?? false))
             ->map(fn (array $attachment): array => $attachment + [
                 'kind' => $attachment['category'],

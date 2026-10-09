@@ -17,7 +17,7 @@ class OfficialBusinessActivityService
      *
      * @return array{records: Collection<int, OfficialBusinessTrip>, current_employee: ?Employee, identity: array, can_manage: bool}
      */
-    public function context(User $user): array
+    public function context(User $user, ?\Closure $scope = null): array
     {
         if (! Schema::hasTable('official_business_trips')) {
             return [
@@ -32,16 +32,38 @@ class OfficialBusinessActivityService
         $identity = $this->identity($currentEmployee, $user);
         $canManage = $this->canManage($user);
 
-        $records = OfficialBusinessTrip::query()
-            ->with([
-                'preparedBy:id,name,email',
-                'company:id,company_name',
-                'contactRecord:id,first_name,last_name',
-                'deal:id,deal_code,deal_name',
-                'project:id,project_code,name',
-            ])
-            ->latest()
-            ->get();
+        $relations = [
+            'preparedBy:id,name,email',
+            'company:id,company_name',
+            'contactRecord:id,first_name,last_name',
+            'deal:id,deal_code,deal_name',
+            'project:id,project_code,name',
+        ];
+
+        if (Schema::hasTable('official_business_trip_tickets')) {
+            $relations['tripTickets'] = fn ($query) => $query->orderBy('id');
+
+            if (Schema::hasTable('official_business_trip_ticket_stops')) {
+                $relations[] = 'tripTickets.stops';
+            }
+
+            if (Schema::hasTable('official_business_trip_ticket_personnel')) {
+                $relations[] = 'tripTickets.personnel';
+            }
+
+            if (Schema::hasTable('activity_attachments')) {
+                $relations[] = 'tripTickets.evidence';
+            }
+        }
+
+        $query = OfficialBusinessTrip::query()
+            ->with($relations);
+
+        if ($scope !== null) {
+            $scope($query);
+        }
+
+        $records = $query->latest()->get();
 
         return [
             'records' => $records,
@@ -62,10 +84,26 @@ class OfficialBusinessActivityService
         }
 
         if ((int) $trip->workflow_version >= 3) {
-            return ! empty($identity['employee_id'])
-                && $trip->tripTickets()
-                    ->whereHas('personnel', fn (Builder $query) => $query->where('employee_id', $identity['employee_id']))
-                    ->exists();
+            if (empty($identity['employee_id'])) {
+                return false;
+            }
+
+            if (
+                $trip->relationLoaded('tripTickets')
+                && $trip->tripTickets->every(
+                    fn ($ticket): bool => $ticket->relationLoaded('personnel')
+                )
+            ) {
+                return $trip->tripTickets->contains(
+                    fn ($ticket): bool => $ticket->personnel->contains(
+                        fn ($person): bool => $person->employee_id == $identity['employee_id']
+                    )
+                );
+            }
+
+            return $trip->tripTickets()
+                ->whereHas('personnel', fn (Builder $query) => $query->where('employee_id', $identity['employee_id']))
+                ->exists();
         }
 
         if (empty($identity['name'])) {

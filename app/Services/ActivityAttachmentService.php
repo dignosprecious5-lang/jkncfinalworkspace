@@ -30,6 +30,62 @@ class ActivityAttachmentService
             ->map(fn (ActivityAttachment $attachment): array => $this->serialize($attachment))
             ->all();
 
+        return $this->mergeAttachments($type, $record, $stored);
+    }
+
+    /**
+     * Batch attachments for records already authorized by the caller.
+     *
+     * @param iterable<array{type: string, record: Model}> $activities
+     * @return array<string, array<int, array<int, array<string, mixed>>>>
+     */
+    public function forActivities(iterable $activities): array
+    {
+        $recordsByType = [];
+        foreach ($activities as $activity) {
+            $type = $this->types->normalize($activity['type']);
+            $record = $activity['record'];
+            $recordsByType[$type][(int) $record->getKey()] = $record;
+        }
+
+        if ($recordsByType === []) {
+            return [];
+        }
+
+        $storedByType = [];
+        if (Schema::hasTable('activity_attachments')) {
+            foreach ($recordsByType as $type => $records) {
+                foreach (array_chunk(array_keys($records), 500) as $ids) {
+                    ActivityAttachment::query()
+                        ->with('uploadedBy:id,name,email')
+                        ->where('activity_type', $type)
+                        ->whereIn('activity_id', $ids)
+                        ->orderBy('uploaded_at')
+                        ->orderBy('id')
+                        ->get()
+                        ->each(function (ActivityAttachment $attachment) use (&$storedByType, $type): void {
+                            $storedByType[$type][(int) $attachment->activity_id][] = $this->serialize($attachment);
+                        });
+                }
+            }
+        }
+
+        $result = [];
+        foreach ($recordsByType as $type => $records) {
+            foreach ($records as $id => $record) {
+                $result[$type][$id] = $this->mergeAttachments(
+                    $type,
+                    $record,
+                    $storedByType[$type][$id] ?? []
+                );
+            }
+        }
+
+        return $result;
+    }
+
+    private function mergeAttachments(string $type, Model $record, array $stored): array
+    {
         return collect($stored)
             ->merge($this->legacyForActivity($type, $record))
             ->unique(fn (array $attachment): string => implode('|', [

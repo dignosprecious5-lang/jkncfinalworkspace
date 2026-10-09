@@ -115,19 +115,45 @@ class ActivityTimelineBuilder
             return collect();
         }
 
-        return $this->officialBusinessActivities->context($user)['records']
-            ->filter(function (OfficialBusinessTrip $trip) use ($foreignKey, $relatedId, $user): bool {
+        $canMatchTickets = $foreignKey === 'company_id'
+            && Schema::hasTable('official_business_trip_tickets')
+            && Schema::hasColumn('official_business_trip_tickets', 'company_id')
+            && Schema::hasColumn('official_business_trips', 'workflow_version');
+
+        $scope = function ($query) use ($foreignKey, $relatedId, $canMatchTickets): void {
+            $query->where(function ($query) use ($foreignKey, $relatedId, $canMatchTickets): void {
+                $query->where($foreignKey, $relatedId);
+
+                if ($canMatchTickets) {
+                    $query->orWhere(function ($query) use ($relatedId): void {
+                        $query->where('workflow_version', '>=', 3)
+                            ->whereHas('tripTickets', fn ($tickets) => $tickets->where('company_id', $relatedId));
+                    });
+                }
+            });
+        };
+
+        return $this->officialBusinessActivities->context($user, $scope)['records']
+            ->filter(function (OfficialBusinessTrip $trip) use ($foreignKey, $relatedId, $user, $canMatchTickets): bool {
                 if ((int) $trip->{$foreignKey} === $relatedId) {
                     return true;
                 }
 
                 if ($foreignKey !== 'company_id'
                     || (int) $trip->workflow_version < 3
-                    || ! Schema::hasColumn('official_business_trip_tickets', 'company_id')) {
+                    || ! $canMatchTickets) {
                     return false;
                 }
 
-                $ticket = $trip->tripTickets()->where('company_id', $relatedId)->first();
+                $ticket = $trip->relationLoaded('tripTickets')
+                    ? $trip->tripTickets->first(
+                        fn ($ticket) => (int) $ticket->company_id === $relatedId
+                    )
+                    : $trip->tripTickets()->where('company_id', $relatedId)->first();
+
+                if ($ticket !== null) {
+                    $ticket->setRelation('officialBusinessTrip', $trip);
+                }
 
                 return $ticket !== null && Gate::forUser($user)->allows('view', $ticket);
             })

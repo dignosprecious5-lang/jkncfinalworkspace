@@ -8802,6 +8802,10 @@ window.activitiesData = () => ({
         allActivitiesReportLoading: false,
         allActivitiesReportError: '',
         allActivitiesReportRequest: 0,
+        _scheduledActivitiesRefreshRunning: false,
+        _activitiesFetchRequest: 0,
+        _messageFetchRequest: 0,
+        _officialBusinessFetchRequest: 0,
         allActivitiesSearch: '',
         allActivitiesAccountFilter: '',
         allActivitiesStatusFilter: '',
@@ -9509,7 +9513,18 @@ window.activitiesData = () => ({
         },
 
         init() {
-            this.$watch('activeTab', () => this.currentPage = 1);
+            this.$watch('activeTab', (tab, previousTab) => {
+                this.currentPage = 1;
+                if (tab === 'all' && previousTab !== 'all') {
+                    this.fetchAllActivitiesReport();
+                }
+                if (tab === 'messages' && previousTab !== 'messages' && !this.messageLoading) {
+                    this.fetchMessages();
+                }
+                if (tab === 'official-business' && previousTab !== 'official-business' && !this.officialBusinessLoading) {
+                    this.fetchOfficialBusinessRecords();
+                }
+            });
             this.$watch('hasActivityDetail', visible => { if (!visible) this.restoreActivityListPosition(); });
             this.expandActiveSidebarGroup();
             this.$watch('activitySidebarGroup', () => this.expandActiveSidebarGroup());
@@ -9550,9 +9565,19 @@ window.activitiesData = () => ({
             });
             this.fetchVisitRecords();
 
-            // Refresh every 60 seconds and reschedule newly added meetings.
-            setInterval(() => {
-                this.fetchActivities();
+            // Refresh every 60 seconds without overlapping scheduled refreshes.
+            setInterval(async () => {
+                if (this._scheduledActivitiesRefreshRunning) return;
+
+                this._scheduledActivitiesRefreshRunning = true;
+
+                try {
+                    await this.fetchActivities({ scheduled: true });
+                } catch (error) {
+                    console.error('Scheduled Activities refresh failed:', error);
+                } finally {
+                    this._scheduledActivitiesRefreshRunning = false;
+                }
             }, 60000);
             setInterval(() => {
                 if (this.showMessageDetails && this.selectedMessageDetails?.channel === 'Messenger' && !this.messageSaving) {
@@ -9801,13 +9826,19 @@ window.activitiesData = () => ({
             }));
         },
 
-        async fetchActivities() {
-            const messageRequest = this.fetchMessages();
-            const officialBusinessRequest = this.fetchOfficialBusinessRecords();
+        async fetchActivities(options = {}) {
+            const requestId = ++this._activitiesFetchRequest;
+            const shouldFetchMessages = (!options.scheduled && !options.selective) || this.activeTab === 'all' ||
+                this.activeTab === 'messages' || Boolean(this.showMessageDetails);
+            const shouldFetchOfficialBusiness = (!options.scheduled && !options.selective) || this.activeTab === 'all' ||
+                this.activeTab === 'official-business' || Boolean(this.selectedOfficialBusinessDetails);
+            const messageRequest = shouldFetchMessages ? this.fetchMessages() : Promise.resolve();
+            const officialBusinessRequest = shouldFetchOfficialBusiness ? this.fetchOfficialBusinessRecords() : Promise.resolve();
 
             try {
                 const response = await fetch('/api/activities');
                 const data = await response.json();
+                if (requestId !== this._activitiesFetchRequest) return;
                 this.tasks = data.tasks;
                 this.events = data.events;
                 this.calls = data.calls;
@@ -9849,13 +9880,17 @@ window.activitiesData = () => ({
                 }
                 await messageRequest;
                 await officialBusinessRequest;
-                await this.fetchAllActivitiesReport();
+                if ((!options.scheduled && !options.selective) || this.activeTab === 'all') {
+                    await this.fetchAllActivitiesReport();
+                }
             } catch (error) {
                 console.error('Error fetching activities:', error);
             }
         },
 
+
         async fetchOfficialBusinessRecords() {
+            const requestId = ++this._officialBusinessFetchRequest;
             this.officialBusinessLoading = true;
             this.officialBusinessRequestError = '';
 
@@ -9864,6 +9899,7 @@ window.activitiesData = () => ({
                     headers: { Accept: 'application/json' }
                 });
                 const payload = await response.json().catch(() => ({}));
+                if (requestId !== this._officialBusinessFetchRequest) return;
 
                 if (!response.ok) {
                     const statusMessages = {
@@ -9933,12 +9969,13 @@ window.activitiesData = () => ({
                     this.deletedOfficialBusinessRecords = [];
                 }
             } catch (error) {
+                if (requestId !== this._officialBusinessFetchRequest) return;
                 this.officialBusinessRecords = [];
                 this.officialBusinessCanManage = false;
                 this.officialBusinessRequestError = error.message || 'Unable to load Official Business records.';
                 console.error('Error fetching Official Business records:', error);
             } finally {
-                this.officialBusinessLoading = false;
+                if (requestId === this._officialBusinessFetchRequest) this.officialBusinessLoading = false;
             }
         },
 
@@ -9969,16 +10006,19 @@ window.activitiesData = () => ({
         },
 
         async fetchMessages() {
+            const requestId = ++this._messageFetchRequest;
             this.messageLoading = true;
             this.messageRequestError = '';
 
             try {
-                this.messages = await this.messageApiRequest('/api/message-conversations');
+                const messages = await this.messageApiRequest('/api/message-conversations');
+                if (requestId === this._messageFetchRequest) this.messages = messages;
             } catch (error) {
+                if (requestId !== this._messageFetchRequest) return;
                 this.messageRequestError = error.message || 'Unable to load conversations.';
                 console.error('Error fetching message conversations:', error);
             } finally {
-                this.messageLoading = false;
+                if (requestId === this._messageFetchRequest) this.messageLoading = false;
             }
         },
 
@@ -9998,9 +10038,9 @@ window.activitiesData = () => ({
             if (!this.selectedMessageDetails?.id) return;
             try {
                 await this.messageApiRequest('/api/message-conversations/' + this.selectedMessageDetails.id, {
-                    method: 'PATCH', body: JSON.stringify({company_id: Number(this.messageRelationships.companyId) || null, contact_id: Number(this.messageRelationships.contactId) || null})
+                    method: 'PUT', body: JSON.stringify({company_id: Number(this.messageRelationships.companyId) || null, contact_id: Number(this.messageRelationships.contactId) || null})
                 });
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 await this.refreshMessageConversation();
             } catch (error) { alert(error.message); }
         },
@@ -10078,7 +10118,7 @@ window.activitiesData = () => ({
                 this.messages = [conversation, ...this.messages.filter(item => item.id !== conversation.id)];
                 this.resetNewMessage();
                 this.showNewMessage = false;
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 alert(action === 'draft'
                     ? 'Draft stored as a pending message. No external delivery was attempted.'
                     : 'Message stored as pending. No external delivery was attempted.');
@@ -10401,7 +10441,7 @@ window.activitiesData = () => ({
                     this.messageDraftAttachmentIds = [];
                     await this.refreshMessageConversation();
                 }
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 alert(sendExternal ? 'Reply queued for Messenger. Check its delivery status before submitting another reply.' : 'Message stored as pending. No external delivery was attempted.');
             } catch (error) {
                 if (this.isCurrentMessageDraft(session, conversationId)) this.messageRequestError = error.message || 'Unable to add the message.';
@@ -10508,7 +10548,8 @@ window.activitiesData = () => ({
                 this.newTask = { id: null, parentTaskId: null, name: '', dueDate: '', startDate: '', estimatedDurationMinutes: '', recurrence: '', reminderType: '', reminderValue: '', dependencyTaskIds: [], relatedAccount: '', companyId: null, contactId: null, assignedUserIds: [], relatedTo: [], description: '', priority: 'Normal', status: 'Open', completed: false, owner: (this.currentUser || this.systemUsers[0] || '') };
                 this.relatedSearch.tasks = '';
                 this.relatedPickerOpen.tasks = false;
-                await this.fetchActivities();
+                this.activitySaving.task = false;
+                this.fetchActivities({ selective: true }).catch(error => console.error('Error refreshing task after save:', error));
             } catch (error) {
                 console.error('Error saving task:', error);
                 alert(error.message || 'Unable to save task.');
@@ -10615,7 +10656,7 @@ window.activitiesData = () => ({
                 };
                 this.relatedSearch.events = '';
                 this.relatedPickerOpen.events = false;
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 console.error('Error saving event:', error);
                 alert(error.message || 'Unable to save event.');
@@ -10680,7 +10721,7 @@ window.activitiesData = () => ({
                 this.newCall = { companyId: '', contactId: '', id: null, contact: '', to: '', from: defaultUser, manualFrom: '', type: 'Outbound', startTime: '', startHour: '', duration: '', relatedTo: [], owner: defaultUser, agenda: '', purpose: '', completed: false };
                 this.relatedSearch.calls = '';
                 this.relatedPickerOpen.calls = false;
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 console.error('Error saving call:', error);
                 alert(error.message || 'Unable to save call.');
@@ -10819,7 +10860,8 @@ window.activitiesData = () => ({
                 };
                 this.relatedSearch.meetings = '';
                 this.relatedPickerOpen.meetings = false;
-                await this.fetchActivities();
+                this.activitySaving.meeting = false;
+                this.fetchActivities({ selective: true }).catch(error => console.error('Error refreshing meeting after save:', error));
             } catch (error) {
                 console.error('Error saving meeting:', error);
                 alert(error.message || 'Unable to save meeting.');
@@ -10898,7 +10940,7 @@ window.activitiesData = () => ({
             this.taskToolBusy = true;
             try {
                 await this.taskWorkspaceRequest('/api/tasks/bulk', { method: 'PATCH', body: JSON.stringify({ task_ids: this.selectedTasks, action: 'update', changes }) });
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 this.selectedTasks = [];
                 this.selectAll = false;
                 this.taskToolModal = null;
@@ -10914,7 +10956,7 @@ window.activitiesData = () => ({
             this.taskToolBusy = true;
             try {
                 await this.taskWorkspaceRequest('/api/tasks/bulk', { method: 'PATCH', body: JSON.stringify({ task_ids: this.selectedTasks, action: 'archive' }) });
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 this.selectedTasks = [];
                 this.selectAll = false;
                 this.taskToolModal = null;
@@ -10931,7 +10973,7 @@ window.activitiesData = () => ({
             try {
                 await this.taskWorkspaceRequest('/api/tasks/outline', { method: 'POST', body: JSON.stringify({ outline: this.taskOutlineText }) });
                 this.taskOutlineText = '';
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 alert(error.message || 'Unable to create the task outline.');
             } finally {
@@ -10943,7 +10985,7 @@ window.activitiesData = () => ({
             this.taskToolBusy = true;
             try {
                 await this.taskWorkspaceRequest(`/api/task-templates/${template.id}/instantiate`, { method: 'POST', body: JSON.stringify({}) });
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 this.taskToolModal = null;
             } catch (error) {
                 alert(error.message || 'Unable to create tasks from this template.');
@@ -10956,7 +10998,7 @@ window.activitiesData = () => ({
             this.taskToolBusy = true;
             try {
                 await this.taskWorkspaceRequest('/api/tasks/reorder', { method: 'PATCH', body: JSON.stringify({ items: [{ id: task.id, parent_task_id: parentTaskId || null, sort_order: Number(task.sort_order || 0) }] }) });
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 alert(error.message || 'Unable to change the task hierarchy.');
             } finally {
@@ -10978,7 +11020,7 @@ window.activitiesData = () => ({
             try {
                 const updated = await this.taskWorkspaceRequest(`/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ name: task.name, status }) });
                 this.mergeTaskWorkspaceRecord(updated);
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 alert(error.message || 'Unable to move the task.');
             }
@@ -11200,7 +11242,7 @@ window.activitiesData = () => ({
                     body: JSON.stringify({ name: this.selectedTaskDetails.name, status: 'Completed' })
                 });
                 this.mergeTaskWorkspaceRecord(task);
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 alert(error.message || 'Unable to complete the task.');
             } finally {
@@ -11413,7 +11455,7 @@ window.activitiesData = () => ({
                 const updated = await this.meetingWorkspaceRequest(`/api/meetings/${meetingId}/action-items/${item.id}/convert-to-task`, { method: 'POST', body: JSON.stringify({}) });
                 const index = (this.meetingWorkspace.action_items || []).findIndex(candidate => Number(candidate.id) === Number(item.id));
                 if (index !== -1) this.meetingWorkspace.action_items[index] = updated;
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 alert(error.message || 'Unable to convert the action item to a task.');
             } finally {
@@ -11558,7 +11600,7 @@ window.activitiesData = () => ({
 
                 this.selectedMeetingDetails = this.selectedCoreActivityDetails;
 
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
                 this.closeCoreActivityDetails();
 
                 alert('Meeting completed successfully.');
@@ -13302,7 +13344,7 @@ window.activitiesData = () => ({
                 this.emailComposeNotice = 'Unable to disconnect Gmail.';
                 return;
             }
-            await this.fetchActivities();
+            await this.fetchActivities({ selective: true });
         },
 
         openComposeEmail() {
@@ -13369,7 +13411,7 @@ window.activitiesData = () => ({
                 if (!response.ok) throw new Error(payload.message || 'Unable to queue the email.');
                 this.showComposeEmail = false;
                 this.emailAttachmentFiles = [];
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             }).catch(error => { this.emailComposeNotice = error.message || 'Unable to queue the email.'; });
         },
 
@@ -13873,12 +13915,16 @@ window.activitiesData = () => ({
                 : sourceActivityId;
 
             const officialBusinessSource = type === 'official_business_travel'
-                ? (this.officialBusinessRecords || []).find(
-                    record => String(record.id) === detailSourceId
-                )
+                ? (this._reportActivityLookups
+                    ? this._reportActivityLookups.officialBusiness.get(detailSourceId)
+                    : (this.officialBusinessRecords || []).find(
+                        record => String(record.id) === detailSourceId
+                    ))
                 : null;
 
-            const unifiedSource = this.unifiedActivities.find(activity => {
+            const unifiedSource = (this._reportActivityLookups
+                ? this._reportActivityLookups.unified.get(`${type}:${detailSourceId}`)
+                : this.unifiedActivities.find(activity => {
                 const activityType = String(
                     activity?.type
                     || activity?.activity_type
@@ -13893,7 +13939,7 @@ window.activitiesData = () => ({
 
                 return activityType === type
                     && activitySourceId === detailSourceId;
-            });
+            }));
 
             const source = officialBusinessSource || unifiedSource || {};
 
@@ -13956,7 +14002,45 @@ window.activitiesData = () => ({
                 if (!response.ok) throw new Error(dataset.message || 'Unable to load the Activities report.');
                 if (requestId !== this.allActivitiesReportRequest) return;
 
-                this.allActivitiesReportRows = (dataset.rows || []).map(row => this.reportActivity(row));
+                const unifiedLookup = new Map();
+
+                for (const activity of this.unifiedActivities) {
+                    const type = String(
+                        activity?.type || activity?.activity_type || ''
+                    ).toLowerCase();
+
+                    const sourceId = String(
+                        activity?.source_id ?? activity?.id ?? ''
+                    );
+
+                    const key = `${type}:${sourceId}`;
+
+                    if (!unifiedLookup.has(key)) {
+                        unifiedLookup.set(key, activity);
+                    }
+                }
+
+                const officialBusinessLookup = new Map();
+
+                for (const record of this.officialBusinessRecords || []) {
+                    const key = String(record.id);
+
+                    if (!officialBusinessLookup.has(key)) {
+                        officialBusinessLookup.set(key, record);
+                    }
+                }
+
+                this._reportActivityLookups = {
+                    unified: unifiedLookup,
+                    officialBusiness: officialBusinessLookup
+                };
+
+                try {
+                    this.allActivitiesReportRows = (dataset.rows || [])
+                        .map(row => this.reportActivity(row));
+                } finally {
+                    this._reportActivityLookups = null;
+                }
                 this.allActivitiesReportCoverage = dataset.duration_coverage || null;
                 const availableIds = new Set(this.allActivitiesReportRows.map(activity => this.activityKey(activity)));
                 this.selectedActivities = this.selectedActivities.filter(id => availableIds.has(id));
@@ -14101,7 +14185,7 @@ window.activitiesData = () => ({
                     );
                 }
 
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
             } catch (error) {
                 console.error('Unable to mark activity as done:', error);
                 alert(error.message || 'Unable to mark the activity as done.');
@@ -14189,7 +14273,7 @@ window.activitiesData = () => ({
                     );
                 }
 
-                await this.fetchActivities();
+                await this.fetchActivities({ selective: true });
 
                 if (payload?.calendar_sync_warning) {
                     alert(payload.calendar_sync_warning);

@@ -48,16 +48,44 @@ class OfficialBusinessTripController extends Controller
         $context = $officialBusinessActivities->context(Auth::user());
         $authorization = app(OfficialBusinessAuthorizationService::class);
         $user = Auth::user();
+        $user->loadMissing('employeeProfile');
         $canManageObf = $context['can_manage'];
         $currentEmployee = $context['current_employee'];
 
+        $schemaAvailability = [
+            'details' => Schema::hasTable('official_business_trip_details'),
+            'personnel' => Schema::hasTable('official_business_trip_personnel'),
+            'attachments' => Schema::hasTable('activity_attachments'),
+            'tickets' => Schema::hasTable('official_business_trip_tickets'),
+        ];
+
+        $context['records']->loadMissing([
+            'employee' => fn ($query) => $query->select(['id', 'user_id', 'position']),
+        ]);
+
+        $listingAttachments = collect();
+
+        if ($schemaAvailability['attachments']) {
+            $listingTripIds = $context['records']->pluck('id')->filter()->unique()->values();
+
+            if ($listingTripIds->isNotEmpty()) {
+                $listingAttachments = \App\Models\ActivityAttachment::query()
+                    ->where('activity_type', ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL)
+                    ->whereIn('activity_id', $listingTripIds->all())
+                    ->orderBy('uploaded_at')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('activity_id');
+            }
+        }
+
         $trips = $context['records']
-            ->map(function (OfficialBusinessTrip $trip) use ($context, $officialBusinessActivities, $completionService, $authorization, $canManageObf, $user) {
+            ->map(function (OfficialBusinessTrip $trip) use ($context, $officialBusinessActivities, $completionService, $authorization, $canManageObf, $user, $schemaAvailability, $currentEmployee, $listingAttachments) {
                 $completionChecklist = (int) $trip->workflow_version >= 3
-                    ? $completionService->checklist($trip)
+                    ? $completionService->checklist($trip, $schemaAvailability['tickets'])
                     : [];
                 $record = array_merge(
-                    $this->formatTrip($trip),
+                    $this->formatTrip($trip, $schemaAvailability, $currentEmployee, $listingAttachments),
                     $this->formatActivityTrip(
                         $trip,
                         $context['identity'],
@@ -94,10 +122,15 @@ class OfficialBusinessTripController extends Controller
                 }
 
                 $record['trip_tickets'] = (int) $trip->workflow_version >= 3 && $trip->is_client_travel
-                    ? $trip->tripTickets()
-                        ->with(['stops', 'personnel', 'evidence'])
-                        ->orderBy('id')
-                        ->get()
+                    ? ($trip->relationLoaded('tripTickets')
+                        ? $trip->tripTickets->sortBy('id')->values()
+                        : $trip->tripTickets()
+                            ->with(['stops', 'personnel', 'evidence'])
+                            ->orderBy('id')
+                            ->get())
+                        ->each(function (OfficialBusinessTripTicket $ticket) use ($trip): void {
+                            $ticket->setRelation('officialBusinessTrip', $trip);
+                        })
                         ->filter(fn (OfficialBusinessTripTicket $ticket): bool => Gate::forUser($user)->allows('view', $ticket))
                         ->map(fn (OfficialBusinessTripTicket $ticket): array => [
                             'id' => $ticket->id,
@@ -1864,19 +1897,20 @@ class OfficialBusinessTripController extends Controller
         $trip->refresh();
     }
 
-    private function formatTrip(OfficialBusinessTrip $trip): array
+    private function formatTrip(OfficialBusinessTrip $trip, ?array $schemaAvailability = null, ?Employee $listingEmployee = null, ?\Illuminate\Support\Collection $listingAttachments = null): array
     {
         $formatted = [
             'id' => $trip->id,
             'can_view' => app(OfficialBusinessAuthorizationService::class)->canView(Auth::user(), $trip),
             'can_edit' => app(OfficialBusinessAuthorizationService::class)->canEdit(Auth::user(), $trip),
-            'can_delete' => $this->canDeleteTrip($trip),
+            'can_delete' => $this->canDeleteTrip($trip, $listingEmployee),
             'ob_reference_no' => $trip->ob_reference_no,
             'classification' => $trip->classification,
-            'detail_rows' => Schema::hasTable('official_business_trip_details')
+            'detail_rows' => ($schemaAvailability["details"] ?? Schema::hasTable("official_business_trip_details"))
                 ? $trip->details()->with(['deal', 'project', 'travelDetail', 'transportationDetail'])->orderBy('sort_order')->orderBy('id')->get()
                     ->map(function ($detail): array {
                         $row = $detail->toArray();
+                        $row['no_engagement_selected'] = (bool) $detail->no_engagement_selected;
                         unset($row['deal'], $row['project'], $row['travel_detail'], $row['transportation_detail']);
                         $travel = $detail->travelDetail;
                         $row['travel'] = $travel ? [
@@ -1907,7 +1941,7 @@ class OfficialBusinessTripController extends Controller
                         return $row;
                     })->all()
                 : [],
-            'personnel_rows' => Schema::hasTable('official_business_trip_personnel')
+            'personnel_rows' => ($schemaAvailability["personnel"] ?? Schema::hasTable("official_business_trip_personnel"))
                 ? $trip->personnel()->orderBy('id')->get()->map(fn ($member) => [
                     'employee_id' => $member->employee_id,
                     'role' => $member->role ?? null,
@@ -1941,7 +1975,7 @@ class OfficialBusinessTripController extends Controller
             'actual_return' => $trip->actual_return?->toIso8601String(),
             'nature_of_travel' => $trip->nature_of_travel,
             'team_members' => $trip->team_members ?? [],
-            'team_member_employee_ids' => \Illuminate\Support\Facades\Schema::hasTable('official_business_trip_personnel')
+            'team_member_employee_ids' => ($schemaAvailability["personnel"] ?? \Illuminate\Support\Facades\Schema::hasTable("official_business_trip_personnel"))
                 ? $trip->personnel()->where('employee_id', '<>', $trip->employee_id)->pluck('employee_id')->all()
                 : [],
 
@@ -1972,11 +2006,13 @@ class OfficialBusinessTripController extends Controller
             'attachment_paths' => $trip->attachment_paths ?? [],
             'attachment_types' => $trip->attachment_types ?? [],
             'attachment_other' => $trip->attachment_other,
-            'create_attachments' => Schema::hasTable('activity_attachments')
-                ? \App\Models\ActivityAttachment::query()
-                    ->where('activity_type', ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL)
-                    ->where('activity_id', $trip->id)
-                    ->orderBy('uploaded_at')->orderBy('id')->get()
+            'create_attachments' => ($schemaAvailability["attachments"] ?? Schema::hasTable("activity_attachments"))
+                ? ($listingAttachments !== null
+                    ? $listingAttachments->get($trip->id, collect())
+                    : \App\Models\ActivityAttachment::query()
+                        ->where('activity_type', ActivityTypeRegistry::OFFICIAL_BUSINESS_TRAVEL)
+                        ->where('activity_id', $trip->id)
+                        ->orderBy('uploaded_at')->orderBy('id')->get())
                     ->map(fn (\App\Models\ActivityAttachment $attachment): array => [
                         'id' => $attachment->id,
                         'type' => $attachment->category,
@@ -2010,10 +2046,12 @@ class OfficialBusinessTripController extends Controller
                 (int) $trip->workflow_version >= 3
                 && $trip->is_client_travel
             )
-                ? $trip->tripTickets()
-                    ->with('stops')
-                    ->orderBy('id')
-                    ->get()
+                ? ($trip->relationLoaded('tripTickets')
+                    ? $trip->tripTickets->sortBy('id')->values()
+                    : $trip->tripTickets()
+                        ->with('stops')
+                        ->orderBy('id')
+                        ->get())
                     ->map(fn (OfficialBusinessTripTicket $ticket): array => [
                         'id' => $ticket->id,
                         'company_id' => $ticket->company_id,
@@ -2070,9 +2108,11 @@ class OfficialBusinessTripController extends Controller
             (int) $trip->workflow_version >= 3
             && $isClientTravel
         )
-            ? $trip->tripTickets()
-                ->orderBy('id')
-                ->get(['company_id', 'client_name_snapshot'])
+            ? ($trip->relationLoaded('tripTickets')
+                ? $trip->tripTickets->sortBy('id')->values()
+                : $trip->tripTickets()
+                    ->orderBy('id')
+                    ->get(['company_id', 'client_name_snapshot']))
             : collect();
 
         $clientNames = $ticketClients
@@ -2299,9 +2339,11 @@ class OfficialBusinessTripController extends Controller
             return null;
         }
 
-        $employee = Employee::query()
-            ->select(['id', 'user_id', 'position'])
-            ->find($trip->employee_id);
+        $employee = $trip->relationLoaded('employee')
+            ? $trip->getRelation('employee')
+            : Employee::query()
+                ->select(['id', 'user_id', 'position'])
+                ->find($trip->employee_id);
 
         return $this->effectiveEmployeePosition($employee);
     }
@@ -2312,7 +2354,7 @@ class OfficialBusinessTripController extends Controller
         return app(OfficialBusinessAuthorizationService::class)->canManage($user);
     }
 
-    private function canDeleteTrip(OfficialBusinessTrip $trip): bool
+    private function canDeleteTrip(OfficialBusinessTrip $trip, ?Employee $listingEmployee = null): bool
     {
         $user = Auth::user();
 
@@ -2324,15 +2366,25 @@ class OfficialBusinessTripController extends Controller
             return true;
         }
 
-        $employee = $this->currentEmployee();
+        $employee = $listingEmployee ?? $this->currentEmployee();
 
         return (int) $trip->created_by === (int) $user->id
             || ($employee && (int) $trip->employee_id === (int) $employee->id)
-            || ($employee && (int) $trip->workflow_version >= 3 && $trip->tripTickets()
-                ->whereHas('personnel', fn ($query) => $query->where('employee_id', $employee->id))
-                ->exists());
+            || ($employee && (int) $trip->workflow_version >= 3 && (
+                $trip->relationLoaded('tripTickets')
+                && $trip->tripTickets->every(
+                    fn ($ticket): bool => $ticket->relationLoaded('personnel')
+                )
+                    ? $trip->tripTickets->contains(
+                        fn ($ticket): bool => $ticket->personnel->contains(
+                            fn ($person): bool => (int) $person->employee_id === (int) $employee->id
+                        )
+                    )
+                    : $trip->tripTickets()
+                        ->whereHas('personnel', fn ($query) => $query->where('employee_id', $employee->id))
+                        ->exists()
+            ));
     }
-
     private function currentEmployee(): ?Employee
     {
         return $this->currentHumanCapitalEmployee(Auth::user());
