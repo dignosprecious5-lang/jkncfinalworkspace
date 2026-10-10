@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
 use App\Models\ProductAuditLog;
 use App\Models\ProductTerm;
+use App\Models\User;
+use App\Notifications\WorkspaceUpdatedNotification;
 
 class ProductController extends Controller
 {
@@ -532,6 +534,7 @@ public function updateOverview(Request $request, $id)
             );
         }
     }
+$this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -596,7 +599,7 @@ foreach ($validated as $field => $newValue) {
         );
     }
 }
-
+$this->notifyAdminsOfProductUpdate($product);
         return redirect()
         ->route('products.workspace', [
             'id' => $product->id,
@@ -673,6 +676,7 @@ foreach ($validated as $field => $newValue) {
         );
     }
 }
+$this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -685,8 +689,7 @@ foreach ($validated as $field => $newValue) {
             'Inventory Specifications saved successfully.'
         );
 }
-    /*
-```php
+
 /*
 |--------------------------------------------------------------------------
 | STEP 4 — STORE REQUIREMENT
@@ -738,6 +741,9 @@ public function storeRequirement(Request $request, $id)
         . "File Required: " . ($requirement->file_required ? 'Yes' : 'No') . "\n"
         . "Mandatory: " . ($requirement->is_mandatory ? 'Yes' : 'No')
     );
+
+
+    $this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -862,6 +868,9 @@ public function updateRequirement(
         'is_mandatory' => $request->boolean('is_mandatory'),
     ]);
 
+
+    $this->notifyAdminsOfProductUpdate($product);
+
     return redirect()
         ->route('products.workspace', [
             'id' => $product->id,
@@ -918,6 +927,7 @@ public function destroyRequirement(
             $sequence++;
         }
     });
+
 
     return redirect()
         ->route('products.workspace', [
@@ -1089,7 +1099,7 @@ public function storeActivity(
         . "Billable: " . ($activity->is_billable ? 'Yes' : 'No') . "\n"
         . "Mandatory: " . ($activity->is_mandatory ? 'Yes' : 'No')
     );
-
+$this->notifyAdminsOfProductUpdate($product);
     return redirect()
         ->route('products.workspace', [
             'id' => $product->id,
@@ -1915,7 +1925,7 @@ public function storeActivity(
                     }
                 }
             );
-
+$this->notifyAdminsOfProductUpdate($product);
             return redirect()
                 ->route(
                     'products.workspace',
@@ -1978,6 +1988,7 @@ public function updateCommercials(Request $request, $id)
     ]);
 
     $product->update($validated);
+$this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
     ->route('products.workspace', [
@@ -2078,6 +2089,8 @@ public function updateCommercials(Request $request, $id)
             );
         }
     }
+
+    $this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -2195,6 +2208,7 @@ public function updateReporting(Request $request, $id)
             );
         }
     }
+$this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -2308,6 +2322,7 @@ public function updateAutomation(Request $request, $id)
             );
         }
     }
+$this->notifyAdminsOfProductUpdate($product);
 
     return redirect()
         ->route('products.workspace', [
@@ -2319,6 +2334,61 @@ public function updateAutomation(Request $request, $id)
             'Automation configuration saved successfully.'
         );
 }
+
+/*
+|--------------------------------------------------------------------------
+| NOTIFICATIONS — PRODUCT WORKSPACE UPDATES
+|--------------------------------------------------------------------------
+*/
+
+private function notifyAdminsOfProductUpdate(Product $product): void
+{
+    $actor = auth()->user();
+    $updatedBy = $actor?->name ?? 'A user';
+
+    $admins = User::query()
+        ->where(function ($query) {
+            $query->where('role', 'admin')
+                ->orWhere('email', 'manager@example.com');
+        })
+        ->get();
+
+    \Log::info('Product workspace notification attempt', [
+        'product_id' => $product->id,
+        'recipient_count' => $admins->count(),
+    ]);
+
+    foreach ($admins as $admin) {
+        try {
+            $admin->notify(
+                new WorkspaceUpdatedNotification(
+                    'Product',
+                    $product->id,
+                    $product->name
+                        ?? $product->short_name
+                        ?? 'Product #' . $product->id,
+                    $updatedBy,
+                    route('products.workspace', [
+                        'id' => $product->id,
+                        'mode' => 'view',
+                    ])
+                )
+            );
+
+            \Log::info('Product workspace notification sent', [
+                'product_id' => $product->id,
+                'recipient_id' => $admin->id,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Product workspace notification failed', [
+                'product_id' => $product->id,
+                'recipient_id' => $admin->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+}
+
 
 
  /*
@@ -2344,7 +2414,8 @@ public function updateAutomation(Request $request, $id)
         'Saved changes for tab: ' . ucfirst(str_replace('_', ' ', $currentTab)),
         $product->id // Isama natin ang ID para sa produktong ito
     );
-
+$this->notifyAdminsOfProductUpdate($product);
+    
     return redirect()->back()->with('success', 'Updated successfully!');
 }
 
@@ -2374,6 +2445,8 @@ public function submitApproval($id)
         . "To: Pending Approval"
     );
 
+$this->notifyAdminsOfProductUpdate($product);
+
     // 3. I-redirect pabalik sa Product List / Dashboard ng mga Produkto
     return redirect()
         ->route('products.index')
@@ -2395,6 +2468,8 @@ public function submitApproval($id)
     $product->status = 'archived'; // O kung ano mang column/status value ang ginagamit mo para sa archived
     $product->save();
 
+$this->notifyAdminsOfProductUpdate($product);
+   
     return redirect()->route('products.index')->with('success', 'Product archived successfully.');
 }
 
@@ -2419,6 +2494,8 @@ public function duplicate($id)
     
     $newProduct->save();
 
+  $this->notifyAdminsOfProductUpdate($product);
+  
     return redirect()->route('products.index')->with('success', 'Product duplicated successfully.');
 }
 }

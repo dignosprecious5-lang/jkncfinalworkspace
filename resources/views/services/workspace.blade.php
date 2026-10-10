@@ -3596,7 +3596,7 @@ class="text-slate-900 hover:text-black hover:underline cursor-pointer text-left 
                         <div class="border border-slate-200 rounded-lg p-4 space-y-4">
                             <h3 class="font-bold text-slate-800 uppercase text-[11px] tracking-wider">CONFIGURED ENGAGEMENT SETTINGS</h3>
 
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <!-- Engagement Delivery Behavior with Icon Inside Box (Left Side) -->
                                 <div>
                                     <label class="block font-semibold text-slate-700 mb-1">Engagement Delivery Behavior</label>

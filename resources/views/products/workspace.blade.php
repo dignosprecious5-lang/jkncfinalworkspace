@@ -3,9 +3,8 @@
 @section('content')
 
 <div class="w-full px-6 space-y-6">
-{{-- =========================================================
-        1. TOP RIGHT: Maliit na "Back to Dashboard" sa pinakataas
-    ========================================================== --}}
+
+    {{-- BACK TO DASHBOARD --}}
     <div class="flex justify-end mb-[-12px]">
         <a href="{{ route('products.index') }}"
            class="text-blue-600 hover:text-blue-800 text-xs font-semibold flex items-center space-x-1">
@@ -13,43 +12,47 @@
         </a>
     </div>
 
-{{-- =========================================================
-    COMPLETENESS GATE & SUBMIT FOR APPROVAL BANNER
-========================================================== --}}
-<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 mb-6">
-    
-    <!-- Message Container -->
-    <div class="flex items-center space-x-2" id="completeness-message-container">
-        <i id="completeness-icon" class="fa-solid fa-triangle-exclamation text-slate-900 text-lg"></i>
-        <span id="completeness-text" class="text-slate-700 text-sm">
-            Completeness Gate Pending: Please complete all required sections to enable approval submission.
-        </span>
+    {{-- COMPLETENESS GATE --}}
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 mb-6">
+
+        <div class="flex items-center space-x-2" id="completeness-message-container">
+            <i id="completeness-icon"
+               class="fa-solid fa-triangle-exclamation text-slate-900 text-lg"></i>
+
+            <span id="completeness-text" class="text-slate-700 text-sm">
+                Completeness Gate Pending: Please complete all required sections to enable approval submission.
+            </span>
+        </div>
+
+        <div>
+            <span id="incomplete-badge"
+                  class="px-3 py-1.5 bg-slate-100 text-slate-500 font-bold text-xs rounded-lg border border-slate-200 uppercase tracking-wider">
+                Incomplete
+            </span>
+
+            <form id="submit-approval-form"
+                  action="{{ route('products.submit-approval', $product->id ?? 1) }}"
+                  method="POST"
+                  style="display: none;">
+                @csrf
+
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center space-x-1.5 cursor-pointer">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Submit for Approval</span>
+                </button>
+            </form>
+        </div>
+
     </div>
 
-    <!-- Action / Button Container -->
-    <div>
-        <span id="incomplete-badge" class="px-3 py-1.5 bg-slate-100 text-slate-500 font-bold text-xs rounded-lg border border-slate-200 uppercase tracking-wider">
-            Incomplete
-        </span>
-
-        <form id="submit-approval-form" action="{{ route('products.submit-approval', $product->id ?? 1) }}" method="POST" style="display: none;">
-            @csrf
-            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center space-x-1.5 cursor-pointer">
-                <i class="fa-solid fa-paper-plane"></i>
-                <span>Submit for Approval</span>
-            </button>
-        </form>
-    </div>
-
-</div>
-
-
-    {{-- =========================================================
-        3. PRODUCT WORKSPACE HEADER (May Dynamic View/Edit Mode Toggle)
-    ========================================================== --}}
+    {{-- PRODUCT WORKSPACE HEADER --}}
     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+
         <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
+
+            <div class="flex items-center space-x-3 flex-wrap">
+
                 <span class="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-md text-xs font-mono font-bold tracking-wider">
                     {{ $product->sku ?? 'PRD-0001' }}
                 </span>
@@ -58,7 +61,6 @@
                     {{ $product->name ?? 'Product Name' }}
                 </h1>
 
-                {{-- Dynamic Badge: Nagbabago depende sa kasalukuyang mode --}}
                 @if(request('mode') === 'view')
                     <span class="bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-1 rounded text-[11px] font-semibold flex items-center">
                         <i class="fa-solid fa-eye text-[9px] mr-1"></i>
@@ -70,10 +72,11 @@
                         Editing Mode
                     </span>
                 @endif
+
             </div>
 
-            {{-- Status, Version Badge, at Dynamic Toggle Buttons --}}
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 flex-wrap">
+
                 <span class="px-3 py-1 bg-white text-slate-700 rounded font-bold text-xs border border-slate-200 uppercase">
                     {{ $product->status ?? 'Draft' }}
                 </span>
@@ -83,40 +86,35 @@
                 </span>
 
                 @if(request('mode') === 'view')
-                    {{-- Kung nasa View Only mode, ang lalabas ay button para lumipat sa Edit Mode --}}
-                    <a href="?mode=edit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition shadow-sm inline-flex items-center space-x-1 cursor-pointer">
+                    <a href="?mode=edit"
+                       class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition shadow-sm inline-flex items-center space-x-1">
                         <i class="fa-solid fa-pen-to-square"></i>
                         <span>Edit Workspace</span>
                     </a>
                 @else
-                    {{-- Kung nasa Editing mode, ang lalabas ay button para lumipat sa View Only --}}
-                    <a href="?mode=view" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition shadow-sm inline-flex items-center space-x-1 cursor-pointer">
+                    <a href="?mode=view"
+                       class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition shadow-sm inline-flex items-center space-x-1">
                         <i class="fa-solid fa-eye text-slate-400"></i>
                         <span>View Only</span>
                     </a>
                 @endif
+
             </div>
         </div>
 
         <p class="text-xs text-slate-500 font-medium pt-1 border-t border-slate-100">
             Area:
-            <strong class="text-slate-700">
-                {{ $product->service_area ?? 'N/A' }}
-            </strong>
+            <strong class="text-slate-700">{{ $product->service_area ?? 'N/A' }}</strong>
 
             &bull;
 
             Category:
-            <strong class="text-slate-700">
-                {{ $product->category ?? 'N/A' }}
-            </strong>
+            <strong class="text-slate-700">{{ $product->category ?? 'N/A' }}</strong>
 
             &bull;
 
             Product Type:
-            <strong class="text-slate-700">
-                {{ $product->product_type ?? 'Product' }}
-            </strong>
+            <strong class="text-slate-700">{{ $product->product_type ?? 'Product' }}</strong>
 
             &bull;
 
@@ -125,16 +123,10 @@
                 {{ $product->inventory_stock ?? 0 }} Units Available
             </strong>
         </p>
+
     </div>
 
-</div>
-
-
-
-
-{{-- =========================================================
-        12-STEP WORKSPACE PIPELINE & NAVIGATION TABS
-    ========================================================== --}}
+    {{-- WORKSPACE PIPELINE --}}
     @php
         $pipeline = [
             1 => 'Overview',
@@ -165,88 +157,99 @@
             11 => 'fa-chart-line',
             12 => 'fa-clock-rotate-left',
         ];
+
+        $firstTabRow = array_slice($pipeline, 0, 6, true);
+        $secondTabRow = array_slice($pipeline, 6, 6, true);
     @endphp
 
-
-{{-- PIPELINE SECTION (Buo mula 1 hanggang 12 sa iisang hilera) --}}
+    {{-- PIPELINE PROGRESS --}}
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+
         <div class="flex items-center justify-between min-w-[1200px] px-6 relative">
+
             <div class="absolute left-12 right-12 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 z-0"></div>
 
             @foreach($pipeline as $step => $label)
-                @php
-                    $isCompleted = false; 
-                @endphp
 
                 <div class="relative z-10 flex flex-col items-center group flex-1">
+
                     <div id="pipe-step-{{ $step }}"
-                         class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition shadow-sm
-                         @if($isCompleted)
-                             bg-blue-600 text-white
-                         @else
-                             bg-white border-2 border-slate-300 text-slate-600
-                         @endif">
-                        @if($isCompleted)
-                            <i class="fa-solid fa-check text-xs"></i>
-                        @else
-                            {{ $step }}
-                        @endif
+                         class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition shadow-sm bg-white border-2 border-slate-300 text-slate-600">
+                        {{ $step }}
                     </div>
+
                     <span class="text-[10px] font-semibold text-slate-500 mt-1.5 whitespace-nowrap text-center">
                         {{ $label }}
                     </span>
+
                 </div>
+
             @endforeach
+
         </div>
+
     </div>
 
-{{-- NAVIGATION TABS SECTION (Naka-grid para perpektong align ang 6 columns) --}}
-@php
-    $firstTabRow = array_slice($pipeline, 0, 6, true);   // Tabs 1 to 6
-    $secondTabRow = array_slice($pipeline, 6, 6, true);  // Tabs 7 to 12
-@endphp
+    {{-- NAVIGATION TABS --}}
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
 
-<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 overflow-x-auto">
-    {{-- Row 1: Tabs 1 to 6 --}}
-    <div class="grid grid-cols-6 gap-2 min-w-[1200px]">
-        @foreach($firstTabRow as $step => $label)
-            <button type="button"
-                    onclick="switchWorkspaceTab({{ $step }})"
-                    id="tab-btn-{{ $step }}"
-                    class="workspace-tab-btn px-3 py-2.5 w-full justify-center
-                    {{ (request('tab', 1) == $step)
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'hover:bg-slate-100 text-slate-600' }}
-                    rounded-lg flex items-center space-x-1.5 cursor-pointer transition">
-                <i class="fa-solid {{ $tabIcons[$step] }} text-[11px]"></i>
-                <span class="whitespace-nowrap">
-                    {{ $label }}
-                </span>
-            </button>
-        @endforeach
+        {{-- ROW 1: TABS 1–6 --}}
+        <div class="grid grid-cols-6 gap-2 w-full">
+
+            @foreach($firstTabRow as $step => $label)
+
+                <button type="button"
+                        onclick="switchWorkspaceTab({{ $step }})"
+                        id="tab-btn-{{ $step }}"
+                        class="workspace-tab-btn w-full min-w-0 min-h-[44px] px-2 py-2.5 justify-center
+                        {{ request('tab', 1) == $step
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200' }}
+                        rounded-lg flex items-center gap-2 cursor-pointer transition">
+
+                    <i class="fa-solid {{ $tabIcons[$step] }} text-[11px] shrink-0"></i>
+
+                    <span class="text-xs font-medium text-center leading-tight">
+                        {{ $label }}
+                    </span>
+
+                </button>
+
+            @endforeach
+
+        </div>
+
+        {{-- ROW 2: TABS 7–12 --}}
+        <div class="grid grid-cols-6 gap-2 w-full pt-3 border-t border-slate-100">
+
+            @foreach($secondTabRow as $step => $label)
+
+                <button type="button"
+                        onclick="switchWorkspaceTab({{ $step }})"
+                        id="tab-btn-{{ $step }}"
+                        class="workspace-tab-btn w-full min-w-0 min-h-[44px] px-2 py-2.5 justify-center
+                        {{ request('tab', 1) == $step
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200' }}
+                        rounded-lg flex items-center gap-2 cursor-pointer transition">
+
+                    <i class="fa-solid {{ $tabIcons[$step] }} text-[11px] shrink-0"></i>
+
+                    <span class="text-xs font-medium text-center leading-tight">
+                        {{ $label }}
+                    </span>
+
+                </button>
+
+            @endforeach
+
+        </div>
+
     </div>
 
-    {{-- Row 2: Tabs 7 to 12 --}}
-    <div class="grid grid-cols-6 gap-2 min-w-[1200px] pt-2 border-t border-slate-100">
-        @foreach($secondTabRow as $step => $label)
-            <button type="button"
-                    onclick="switchWorkspaceTab({{ $step }})"
-                    id="tab-btn-{{ $step }}"
-                    class="workspace-tab-btn px-3 py-2.5 w-full justify-center
-                    {{ (request('tab', 1) == $step)
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'hover:bg-slate-100 text-slate-600' }}
-                    rounded-lg flex items-center space-x-1.5 cursor-pointer transition">
-                <i class="fa-solid {{ $tabIcons[$step] }} text-[11px]"></i>
-                <span class="whitespace-nowrap">
-                    {{ $label }}
-                </span>
-            </button>
-        @endforeach
-    </div>
-</div>
 
-    {{-- =========================================================
+
+{{-- =========================================================
     STEP 1 — PRODUCT OVERVIEW
 ========================================================== --}}
 
@@ -255,12 +258,8 @@
     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6"
 >
 
-    <!-- ===================================================== -->
-    <!-- HEADER -->
-    <!-- ===================================================== -->
-
+    {{-- HEADER --}}
     <div class="border-b border-slate-100 pb-3">
-
         <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
             Product Overview &amp; Knowledge Base
         </h3>
@@ -268,273 +267,165 @@
         <p class="text-xs text-slate-500 mt-0.5">
             Maintain the core product identity, explanation, purpose, and usage guidance.
         </p>
-
     </div>
 
-
-    <!-- ===================================================== -->
-    <!-- PRODUCT OVERVIEW FORM -->
-    <!-- ===================================================== -->
-
+    {{-- PRODUCT OVERVIEW FORM --}}
     <form
         action="{{ Route::has('products.overview.update') ? route('products.overview.update', $product->id) : '#' }}"
         method="POST"
         class="space-y-4 text-xs"
     >
-
         @csrf
         @method('PUT')
 
-        <input
-            type="hidden"
-            name="tab"
-            value="overview"
-        >
+        <input type="hidden" name="tab" value="overview">
+        <input type="hidden" name="mode" value="{{ $mode }}">
 
-        <input
-            type="hidden"
-            name="mode"
-            value="{{ $mode }}"
-        >
-
-
-        <!-- ===================================================== -->
-        <!-- BASIC PRODUCT INFORMATION -->
-        <!-- ===================================================== -->
-
+        {{-- BASIC PRODUCT INFORMATION --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-            <!-- SHORT NAME -->
-
+            {{-- SHORT NAME --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Short Name / Display Alias
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                An optional concise display name or alias used for quick identification across system modules.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Short Name / Display Alias
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <input
-                    type="text"
-                    name="short_name"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    value="{{ old('short_name', $product->short_name ?? '') }}"
-                    placeholder="Optional concise display name..."
-                    class="w-full border border-slate-300 rounded p-2 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                >
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            An optional concise display name or alias used for quick identification across system modules.
+                        </span>
+                    </span>
 
+                    <input
+                        type="text"
+                        name="short_name"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        value="{{ old('short_name', $product->short_name ?? '') }}"
+                        placeholder="Optional concise display name..."
+                        class="w-full border border-slate-300 rounded p-2 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                    >
+                </div>
             </div>
 
-
-            <!-- EXPECTED TURNAROUND -->
-
+            {{-- EXPECTED TURNAROUND --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Expected Turnaround Time
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                The projected timeframe required to complete, fulfill, or deliver the product under normal operating conditions.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Expected Turnaround Time
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <input
-                    type="text"
-                    name="expected_turnaround"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    value="{{ old('expected_turnaround', $product->expected_turnaround ?? '5-7 days') }}"
-                    placeholder="e.g. 5-7 days"
-                    class="w-full border border-slate-300 rounded p-2 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                >
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            The projected timeframe required to complete, fulfill, or deliver the product under normal operating conditions.
+                        </span>
+                    </span>
 
+                    <input
+                        type="text"
+                        name="expected_turnaround"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        value="{{ old('expected_turnaround', $product->expected_turnaround ?? '5-7 days') }}"
+                        placeholder="e.g. 5-7 days"
+                        class="w-full border border-slate-300 rounded p-2 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                    >
+                </div>
             </div>
 
-
-            <!-- EFFECTIVE DATE -->
-
+            {{-- EFFECTIVE DATE --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Effective Date
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                The official starting date when this specific product definition becomes active and applicable.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Effective Date
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <input
-                    type="date"
-                    name="effective_date"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    value="{{ old('effective_date', isset($product->effective_date) ? \Carbon\Carbon::parse($product->effective_date)->format('Y-m-d') : '') }}"
-                    class="w-full border border-slate-300 rounded p-2 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                >
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            The official starting date when this specific product definition becomes active and applicable.
+                        </span>
+                    </span>
 
+                    <input
+                        type="date"
+                        name="effective_date"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        value="{{ old('effective_date', isset($product->effective_date) ? \Carbon\Carbon::parse($product->effective_date)->format('Y-m-d') : '') }}"
+                        class="w-full border border-slate-300 rounded p-2 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                    >
+                </div>
             </div>
 
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- PRODUCT DESCRIPTIONS -->
-        <!-- ===================================================== -->
-
+        {{-- PRODUCT DESCRIPTIONS --}}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <!-- INTERNAL DESCRIPTION -->
-
+            {{-- INTERNAL DESCRIPTION --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Internal Description *
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Comprehensive internal explanation, background context, and operational guidelines intended for associates and team members.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Internal Description *
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-3 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <textarea
-                    name="internal_description"
-                    rows="3"
-                    required
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded p-2.5 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                    placeholder="Internal explanation and context for associates..."
-                >{{ old('internal_description', $product->internal_description ?? '') }}</textarea>
+                       {{-- JUSTIFIED TOOLTIP MEANING --}} <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none" >
+                            Comprehensive internal explanation, background context, and operational guidelines intended for associates and team members.
+                        </span>
+                    </span>
 
+                    <textarea
+                        name="internal_description"
+                        rows="3"
+                        required
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded p-2.5 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                        placeholder="Internal explanation and context for associates..."
+                    >{{ old('internal_description', $product->internal_description ?? '') }}</textarea>
+                </div>
             </div>
 
-
-            <!-- CLIENT-FACING DESCRIPTION -->
-
+            {{-- CLIENT-FACING DESCRIPTION --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Client-Facing Description
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                A polished, reusable summary of the product designed explicitly to be presented to clients within proposals, catalogs, quotations, and other client-facing materials.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Client-Facing Description
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-3 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <textarea
-                    name="client_description"
-                    rows="3"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded p-2.5 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                    placeholder="Reusable client-facing summary for proposals and catalog materials..."
-                >{{ old('client_description', $product->client_description ?? '') }}</textarea>
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            A polished, reusable summary of the product designed explicitly to be presented to clients within proposals, catalogs, quotations, and other client-facing materials.
+                        </span>
+                    </span>
 
+                    <textarea
+                        name="client_description"
+                        rows="3"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded p-2.5 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                        placeholder="Reusable client-facing summary for proposals and catalog materials..."
+                    >{{ old('client_description', $product->client_description ?? '') }}</textarea>
+                </div>
             </div>
 
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- ABOUT THIS PRODUCT -->
-        <!-- ===================================================== -->
-
+        {{-- ABOUT THIS PRODUCT --}}
         <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-
             <div class="flex items-center justify-between">
-
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     About This Product (Internal Explanation)
                 </label>
@@ -542,173 +433,105 @@
                 <span class="bg-slate-200 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded">
                     REFERENCE ONLY
                 </span>
-
             </div>
 
             <p class="text-xs text-slate-600 leading-relaxed pt-1">
                 Standardized product definition for associate guidance,
                 operational consistency, product positioning, and quality assurance.
             </p>
-
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- PURPOSE & WHEN TO USE -->
-        <!-- ===================================================== -->
-
+        {{-- PURPOSE & WHEN TO USE --}}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <!-- PURPOSE -->
-
+            {{-- PURPOSE --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            Purpose
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                The primary goal, objective, or reason why this specific product exists within the organization's catalog.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Purpose
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-3 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
+{{-- JUSTIFIED TOOLTIP MEANING --}} <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none" >
+                            The primary goal, objective, or reason why this specific product exists within the organization's catalog.
+                        </span>
+                    </span>
 
-                <textarea
-                    name="purpose"
-                    rows="2"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded p-2.5 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                    placeholder="Why the product exists..."
-                >{{ old('purpose', $product->purpose ?? '') }}</textarea>
-
+                    <textarea
+                        name="purpose"
+                        rows="2"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded p-2.5 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                        placeholder="Why the product exists..."
+                    >{{ old('purpose', $product->purpose ?? '') }}</textarea>
+                </div>
             </div>
 
-
-            <!-- WHEN TO USE -->
-
+            {{-- WHEN TO USE --}}
             <div>
-
                 <label class="block font-semibold text-slate-600 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        <span>
-                            When to Use
-                        </span>
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Typical business scenarios, client conditions, or triggers where this product is appropriately applied, recommended, or offered.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    When to Use
                 </label>
 
+                <div class="relative">
+                    <span class="absolute left-3 top-3 z-20 group cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-                <textarea
-                    name="when_to_use"
-                    rows="2"
-                    {{ $isViewOnly ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded p-2.5 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-                    placeholder="Typical situations where product applies..."
-                >{{ old('when_to_use', $product->when_to_use ?? '') }}</textarea>
+{{-- JUSTIFIED TOOLTIP MEANING --}} <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none" >
+                            Typical business scenarios, client conditions, or triggers where this product is appropriately applied, recommended, or offered.
+                        </span>
+                    </span>
 
+                    <textarea
+                        name="when_to_use"
+                        rows="2"
+                        {{ $isViewOnly ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded p-2.5 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                        placeholder="Typical situations where product applies..."
+                    >{{ old('when_to_use', $product->when_to_use ?? '') }}</textarea>
+                </div>
             </div>
 
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- WHAT THIS PRODUCT IS NOT -->
-        <!-- ===================================================== -->
-
+        {{-- WHAT THIS PRODUCT IS NOT --}}
         <div>
-
             <label class="block font-semibold text-slate-600 mb-1">
-
-                <span class="inline-flex items-center gap-1">
-
-                    <span>
-                        What This Product Is Not
-                    </span>
-
-                    <span class="relative inline-flex items-center group cursor-pointer">
-
-                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                        <!-- TOOLTIP OUTSIDE FIELD -->
-
-                        <span
-                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                        >
-                            Clarifications or boundary notes to prevent confusion regarding closely related products, offerings, or use cases.
-                        </span>
-
-                    </span>
-
-                </span>
-
+                What This Product Is Not
             </label>
 
+            <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
+                    <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[12px]"></i>
 
-            <input
-                type="text"
-                name="what_product_is_not"
-                {{ $isViewOnly ? 'disabled' : '' }}
-                value="{{ old('what_product_is_not', $product->what_product_is_not ?? '') }}"
-                placeholder="Optional note to prevent confusion..."
-                class="w-full border border-slate-300 rounded p-2 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
-            >
+                    {{-- JUSTIFIED TOOLTIP MEANING --}} <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none" >
+                        Clarifications or boundary notes to prevent confusion regarding closely related products, offerings, or use cases.
+                    </span>
+                </span>
 
+                <input
+                    type="text"
+                    name="what_product_is_not"
+                    {{ $isViewOnly ? 'disabled' : '' }}
+                    value="{{ old('what_product_is_not', $product->what_product_is_not ?? '') }}"
+                    placeholder="Optional note to prevent confusion..."
+                    class="w-full border border-slate-300 rounded p-2 pl-9 outline-none {{ $isViewOnly ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 bg-white' }}"
+                >
+            </div>
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- SAVE / CONTINUE -->
-        <!-- ===================================================== -->
-
+        {{-- SAVE / CONTINUE --}}
         @if(!$isViewOnly)
-
             <div class="flex justify-end pt-4 border-t">
-
                 <button
                     type="submit"
                     class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded text-xs transition shadow-sm cursor-pointer flex items-center space-x-1.5"
                 >
                     <span>Save &amp; Continue to Catalog</span>
-
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                 </button>
-
             </div>
-
         @endif
 
     </form>
@@ -716,7 +539,8 @@
 </div>
 
 
-  {{-- =========================================================
+
+{{-- =========================================================
     STEP 2 — PRODUCT CATALOG
 ========================================================== --}}
 
@@ -725,6 +549,7 @@
     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6 hidden"
 >
 
+    {{-- HEADER --}}
     <div class="border-b border-slate-100 pb-3">
 
         <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -748,166 +573,157 @@
         @method('PUT')
 
 
-        <!-- ===================================================== -->
-        <!-- SCOPE OF PRODUCT -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            SCOPE OF PRODUCT
+        ====================================================== --}}
 
         <div>
 
             <label class="block font-semibold text-slate-700 mb-1 text-xs">
+                Scope of Product <span class="text-red-500">*</span>
+            </label>
 
-                <span class="inline-flex items-center gap-1">
+            <div class="relative group">
 
-                    <span>
-                        Scope of Product
-                    </span>
+                {{-- TOOLTIP ICON INSIDE TEXTAREA --}}
+                <span class="absolute left-3 top-3 z-20 cursor-help">
 
-                    <span class="text-red-500">*</span>
+                    <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
 
-                    <span class="relative inline-flex items-center group cursor-pointer">
-
-                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                        <!-- TOOLTIP OUTSIDE FIELD -->
-
-                        <span
-                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                        >
-                            Defines what the organization agrees to provide as part of this product, including the expected scope, coverage, and standard service boundaries.
-                        </span>
-
+                    {{-- JUSTIFIED TOOLTIP MEANING --}}
+                    <span
+                        class="absolute bottom-full left-0 mb-2 hidden group-hover:block
+                               w-72 max-w-[calc(100vw-2rem)]
+                               bg-slate-900 text-white text-xs p-3 rounded-lg
+                               shadow-xl z-[9999] font-normal leading-relaxed
+                               text-justify break-words pointer-events-none"
+                    >
+                        Defines what the organization agrees to provide as part of this product, including the expected scope, coverage, and standard service boundaries.
                     </span>
 
                 </span>
 
-            </label>
 
+                <textarea
+                    name="scope_of_work"
+                    rows="5"
+                    required
+                    placeholder="Detail what the organization agrees to provide as part of this product..."
+                    class="w-full border border-slate-300 rounded-lg p-3 pl-9 bg-white outline-none focus:border-blue-500 text-xs"
+                >{{ old('scope_of_work', $product->scope_of_work ?? '') }}</textarea>
 
-            <textarea
-                name="scope_of_work"
-                rows="5"
-                required
-                placeholder="Detail what the organization agrees to provide as part of this product..."
-                class="w-full border border-slate-300 rounded-lg p-3 bg-white outline-none focus:border-blue-500 text-xs"
-            >{{ old('scope_of_work', $product->scope_of_work ?? '') }}</textarea>
+            </div>
 
 
             @error('scope_of_work')
-
                 <p class="text-red-500 text-[11px] mt-1">
                     {{ $message }}
                 </p>
-
             @enderror
 
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- DELIVERABLES / CLIENT RESPONSIBILITIES -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            DELIVERABLES / CLIENT RESPONSIBILITIES
+        ====================================================== --}}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
 
-            <!-- DELIVERABLES -->
+            {{-- DELIVERABLES --}}
 
             <div>
 
                 <label class="block font-semibold text-slate-700 mb-1 text-xs">
+                    Deliverables / What You Will Receive
+                    <span class="text-red-500">*</span>
+                </label>
 
-                    <span class="inline-flex items-center gap-1">
+                <div class="relative group">
 
-                        <span>
-                            Deliverables / What You Will Receive
-                        </span>
+                    {{-- TOOLTIP ICON INSIDE TEXTAREA --}}
+                    <span class="absolute left-3 top-3 z-20 cursor-help">
 
-                        <span class="text-red-500">*</span>
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Describes the tangible outputs, components, results, or benefits that the client is expected to receive from this product.
-                            </span>
-
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span
+                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block
+                                   w-72 max-w-[calc(100vw-2rem)]
+                                   bg-slate-900 text-white text-xs p-3 rounded-lg
+                                   shadow-xl z-[9999] font-normal leading-relaxed
+                                   text-justify break-words pointer-events-none"
+                        >
+                            Describes the tangible outputs, components, results, or benefits that the client is expected to receive from this product.
                         </span>
 
                     </span>
 
-                </label>
 
+                    <textarea
+                        name="deliverables"
+                        rows="6"
+                        required
+                        placeholder="Key tangible deliverables, outputs, components, or benefits the client receives..."
+                        class="w-full border border-slate-300 rounded-lg p-3 pl-9 bg-white outline-none focus:border-blue-500 text-xs"
+                    >{{ old('deliverables', $product->deliverables ?? '') }}</textarea>
 
-                <textarea
-                    name="deliverables"
-                    rows="6"
-                    required
-                    placeholder="Key tangible deliverables, outputs, components, or benefits the client receives..."
-                    class="w-full border border-slate-300 rounded-lg p-3 bg-white outline-none focus:border-blue-500 text-xs"
-                >{{ old('deliverables', $product->deliverables ?? '') }}</textarea>
+                </div>
 
 
                 @error('deliverables')
-
                     <p class="text-red-500 text-[11px] mt-1">
                         {{ $message }}
                     </p>
-
                 @enderror
 
             </div>
 
 
-            <!-- CLIENT RESPONSIBILITIES -->
+            {{-- CLIENT RESPONSIBILITIES --}}
 
             <div>
 
                 <label class="block font-semibold text-slate-700 mb-1 text-xs">
+                    Client Responsibilities
+                </label>
 
-                    <span class="inline-flex items-center gap-1">
+                <div class="relative group">
 
-                        <span>
-                            Client Responsibilities
-                        </span>
+                    {{-- TOOLTIP ICON INSIDE TEXTAREA --}}
+                    <span class="absolute left-3 top-3 z-20 cursor-help">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
 
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                            <!-- TOOLTIP OUTSIDE FIELD -->
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Specifies the information, actions, approvals, access, cooperation, or other obligations that must be provided or completed by the client.
-                            </span>
-
+                        {{-- JUSTIFIED TOOLTIP MEANING --}}
+                        <span
+                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block
+                                   w-72 max-w-[calc(100vw-2rem)]
+                                   bg-slate-900 text-white text-xs p-3 rounded-lg
+                                   shadow-xl z-[9999] font-normal leading-relaxed
+                                   text-justify break-words pointer-events-none"
+                        >
+                            Specifies the information, actions, approvals, access, cooperation, or other obligations that must be provided or completed by the client.
                         </span>
 
                     </span>
 
-                </label>
 
+                    <textarea
+                        name="client_responsibilities"
+                        rows="6"
+                        placeholder="Actions, information, approvals, access, or obligations belonging to the client..."
+                        class="w-full border border-slate-300 rounded-lg p-3 pl-9 bg-white outline-none focus:border-blue-500 text-xs"
+                    >{{ old('client_responsibilities', $product->client_responsibilities ?? '') }}</textarea>
 
-                <textarea
-                    name="client_responsibilities"
-                    rows="6"
-                    placeholder="Actions, information, approvals, access, or obligations belonging to the client..."
-                    class="w-full border border-slate-300 rounded-lg p-3 bg-white outline-none focus:border-blue-500 text-xs"
-                >{{ old('client_responsibilities', $product->client_responsibilities ?? '') }}</textarea>
+                </div>
 
 
                 @error('client_responsibilities')
-
                     <p class="text-red-500 text-[11px] mt-1">
                         {{ $message }}
                     </p>
-
                 @enderror
 
             </div>
@@ -915,61 +731,59 @@
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- EXCLUSIONS -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            EXCLUSIONS
+        ====================================================== --}}
 
         <div>
 
             <label class="block font-semibold text-slate-700 mb-1 text-xs">
+                Exclusions / Out of Scope
+            </label>
 
-                <span class="inline-flex items-center gap-1">
+            <div class="relative group">
 
-                    <span>
-                        Exclusions / Out of Scope
-                    </span>
+                {{-- TOOLTIP ICON INSIDE TEXTAREA --}}
+                <span class="absolute left-3 top-3 z-20 cursor-help">
 
-                    <span class="relative inline-flex items-center group cursor-pointer">
+                    <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
 
-                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
-
-                        <!-- TOOLTIP OUTSIDE FIELD -->
-
-                        <span
-                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                        >
-                            Clarifies what is specifically excluded from the standard product scope and would require a separate agreement, product, or additional arrangement.
-                        </span>
-
+                    {{-- JUSTIFIED TOOLTIP MEANING --}}
+                    <span
+                        class="absolute bottom-full left-0 mb-2 hidden group-hover:block
+                               w-72 max-w-[calc(100vw-2rem)]
+                               bg-slate-900 text-white text-xs p-3 rounded-lg
+                               shadow-xl z-[9999] font-normal leading-relaxed
+                               text-justify break-words pointer-events-none"
+                    >
+                        Clarifies what is specifically excluded from the standard product scope and would require a separate agreement, product, or additional arrangement.
                     </span>
 
                 </span>
 
-            </label>
 
+                <textarea
+                    name="exclusions"
+                    rows="5"
+                    placeholder="What is not included unless separately agreed..."
+                    class="w-full border border-slate-300 rounded-lg p-3 pl-9 bg-white outline-none focus:border-blue-500 text-xs"
+                >{{ old('exclusions', $product->exclusions ?? '') }}</textarea>
 
-            <textarea
-                name="exclusions"
-                rows="5"
-                placeholder="What is not included unless separately agreed..."
-                class="w-full border border-slate-300 rounded-lg p-3 bg-white outline-none focus:border-blue-500 text-xs"
-            >{{ old('exclusions', $product->exclusions ?? '') }}</textarea>
+            </div>
 
 
             @error('exclusions')
-
                 <p class="text-red-500 text-[11px] mt-1">
                     {{ $message }}
                 </p>
-
             @enderror
 
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- NAVIGATION -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            NAVIGATION
+        ====================================================== --}}
 
         <div class="flex justify-between items-center pt-4 border-t border-slate-100">
 
@@ -1010,28 +824,20 @@
         : 'bg-white text-slate-700';
 @endphp
 
-
 <div
     id="workspace-panel-3"
     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden"
 >
-
     <form
         action="{{ route('products.inventory.update', $product->id) }}"
         method="POST"
         class="space-y-5"
     >
-
         @csrf
         @method('PUT')
 
-
-        {{-- ===================================================== --}}
         {{-- HIDDEN VALUES FOR NON-INVENTORY --}}
-        {{-- ===================================================== --}}
-
         @if($isNonInventory)
-
             <input type="hidden" name="inventory_type" value="{{ $product->inventory_type }}">
             <input type="hidden" name="unit_measure" value="{{ $product->unit_measure ?? 'Unit' }}">
             <input type="hidden" name="stock_tracking" value="{{ $product->stock_tracking ?? 'None' }}">
@@ -1042,657 +848,342 @@
             <input type="hidden" name="warehouse_location" value="Not Applicable">
             <input type="hidden" name="storage_location" value="">
             <input type="hidden" name="stock_status" value="Not Applicable">
-
         @endif
 
-
-        {{-- ===================================================== --}}
         {{-- HEADER --}}
-        {{-- ===================================================== --}}
-
         <div class="border-b border-slate-100 pb-3">
-
             <h3 class="text-sm font-bold text-slate-900">
                 Product Inventory Specifications
             </h3>
-
             <p class="text-xs text-slate-500 mt-0.5">
                 Configure stock tracking, warehouse allocation, units, and inventory controls.
             </p>
-
         </div>
 
-
-        {{-- ===================================================== --}}
         {{-- INVENTORY CLASSIFICATION --}}
-        {{-- ===================================================== --}}
-
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
 
-
-                {{-- ================================================= --}}
                 {{-- INVENTORY TYPE --}}
-                {{-- ================================================= --}}
-
                 <div>
-
                     <label class="block font-bold text-slate-800 mb-1">
-
-                        <span class="inline-flex items-center gap-1">
-
-                            INVENTORY TYPE *
-
-                            <span class="relative inline-flex items-center group">
-
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                                >
-                                    Defines the classification of the product for inventory management purposes, indicating whether the product is physically stocked, not tracked as inventory, treated as a service, or falls under another applicable classification.
-                                </span>
-
-                            </span>
-
-                        </span>
-
+                        INVENTORY TYPE *
                     </label>
 
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                Defines the classification of the product for inventory management purposes, indicating whether the product is physically stocked, not tracked as inventory, treated as a service, or falls under another applicable classification.
+                            </span>
+                        </span>
 
-                    <select
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-100 text-slate-700 outline-none cursor-not-allowed"
-                        disabled
-                    >
-
-                        <option
-                            value=""
+                        <select
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-slate-100 text-slate-700 outline-none cursor-not-allowed"
                             disabled
-                            {{ empty($product->inventory_type) ? 'selected' : '' }}
                         >
-                            Select Inventory Type
-                        </option>
+                            <option value="" disabled {{ empty($product->inventory_type) ? 'selected' : '' }}>
+                                Select Inventory Type
+                            </option>
+                            <option value="Inventory" {{ ($product->inventory_type ?? '') === 'Inventory' ? 'selected' : '' }}>
+                                Inventory
+                            </option>
+                            <option value="Non-Inventory" {{ $isNonInventory ? 'selected' : '' }}>
+                                Non-Inventory
+                            </option>
+                            <option value="Service" {{ ($product->inventory_type ?? '') === 'Service' ? 'selected' : '' }}>
+                                Service
+                            </option>
+                            <option
+                                value="Other"
+                                {{ !in_array($product->inventory_type ?? '', ['Inventory', 'Non-Inventory', 'Service']) && !empty($product->inventory_type) ? 'selected' : '' }}
+                            >
+                                {{ $product->inventory_type ?? 'Other' }}
+                            </option>
+                        </select>
+                    </div>
 
-                        <option
-                            value="Inventory"
-                            {{ ($product->inventory_type ?? '') === 'Inventory' ? 'selected' : '' }}
-                        >
-                            Inventory
-                        </option>
-
-                        <option
-                            value="Non-Inventory"
-                            {{ $isNonInventory ? 'selected' : '' }}
-                        >
-                            Non-Inventory
-                        </option>
-
-                        <option
-                            value="Service"
-                            {{ ($product->inventory_type ?? '') === 'Service' ? 'selected' : '' }}
-                        >
-                            Service
-                        </option>
-
-                        <option
-                            value="Other"
-                            {{
-                                !in_array(
-                                    $product->inventory_type ?? '',
-                                    ['Inventory', 'Non-Inventory', 'Service']
-                                ) && !empty($product->inventory_type)
-                                    ? 'selected'
-                                    : ''
-                            }}
-                        >
-                            {{ $product->inventory_type ?? 'Other' }}
-                        </option>
-
-                    </select>
-
-
-                    <input
-                        type="hidden"
-                        name="inventory_type"
-                        value="{{ $product->inventory_type ?? '' }}"
-                    >
-
+                    <input type="hidden" name="inventory_type" value="{{ $product->inventory_type ?? '' }}">
                 </div>
 
-
-                {{-- ================================================= --}}
                 {{-- UNIT OF MEASURE --}}
-                {{-- ================================================= --}}
-
                 <div>
-
                     <label class="block font-bold text-slate-800 mb-1">
-
-                        <span class="inline-flex items-center gap-1">
-
-                            UNIT OF MEASURE *
-
-                            <span class="relative inline-flex items-center group">
-
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                                >
-                                    Defines the standard unit used to measure, count, store, sell, or otherwise represent the quantity of the product throughout inventory and operational records.
-                                </span>
-
-                            </span>
-
-                        </span>
-
+                        UNIT OF MEASURE *
                     </label>
 
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                Defines the standard unit used to measure, count, store, sell, or otherwise represent the quantity of the product throughout inventory and operational records.
+                            </span>
+                        </span>
 
-                    <select
-                        name="unit_measure"
-                        required
-                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                        class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                    >
-
-                        <option
-                            value=""
-                            disabled
-                            {{ empty($product->unit_measure) ? 'selected' : '' }}
+                        <select
+                            name="unit_measure"
+                            required
+                            {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
                         >
-                            Select Unit of Measure
-                        </option>
-
-                        <option
-                            value="Unit"
-                            {{ ($product->unit_measure ?? '') === 'Unit' ? 'selected' : '' }}
-                        >
-                            Unit
-                        </option>
-
-                        <option
-                            value="Piece"
-                            {{ ($product->unit_measure ?? '') === 'Piece' ? 'selected' : '' }}
-                        >
-                            Piece
-                        </option>
-
-                        <option
-                            value="Set"
-                            {{ ($product->unit_measure ?? '') === 'Set' ? 'selected' : '' }}
-                        >
-                            Set
-                        </option>
-
-                        <option
-                            value="Box"
-                            {{ ($product->unit_measure ?? '') === 'Box' ? 'selected' : '' }}
-                        >
-                            Box
-                        </option>
-
-                        <option
-                            value="Package"
-                            {{ ($product->unit_measure ?? '') === 'Package' ? 'selected' : '' }}
-                        >
-                            Package
-                        </option>
-
-                        <option
-                            value="Service"
-                            {{ ($product->unit_measure ?? '') === 'Service' ? 'selected' : '' }}
-                        >
-                            Service
-                        </option>
-
-                    </select>
-
+                            <option value="" disabled {{ empty($product->unit_measure) ? 'selected' : '' }}>
+                                Select Unit of Measure
+                            </option>
+                            <option value="Unit" {{ ($product->unit_measure ?? '') === 'Unit' ? 'selected' : '' }}>Unit</option>
+                            <option value="Piece" {{ ($product->unit_measure ?? '') === 'Piece' ? 'selected' : '' }}>Piece</option>
+                            <option value="Set" {{ ($product->unit_measure ?? '') === 'Set' ? 'selected' : '' }}>Set</option>
+                            <option value="Box" {{ ($product->unit_measure ?? '') === 'Box' ? 'selected' : '' }}>Box</option>
+                            <option value="Package" {{ ($product->unit_measure ?? '') === 'Package' ? 'selected' : '' }}>Package</option>
+                            <option value="Service" {{ ($product->unit_measure ?? '') === 'Service' ? 'selected' : '' }}>Service</option>
+                        </select>
+                    </div>
                 </div>
 
-
-                {{-- ================================================= --}}
                 {{-- STOCK TRACKING --}}
-                {{-- ================================================= --}}
-
                 <div>
-
                     <label class="block font-bold text-slate-800 mb-1">
-
-                        <span class="inline-flex items-center gap-1">
-
-                            STOCK TRACKING *
-
-                            <span class="relative inline-flex items-center group">
-
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                                >
-                                    Defines how inventory quantities or individual items are monitored and identified, such as by total quantity, serial number, batch or lot, or not tracked at all.
-                                </span>
-
-                            </span>
-
-                        </span>
-
+                        STOCK TRACKING *
                     </label>
 
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                Defines how inventory quantities or individual items are monitored and identified, such as by total quantity, serial number, batch or lot, or not tracked at all.
+                            </span>
+                        </span>
 
-                    <select
-                        name="stock_tracking"
-                        required
-                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                        class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                    >
-
-                        <option
-                            value=""
-                            disabled
-                            {{ empty($product->stock_tracking) ? 'selected' : '' }}
+                        <select
+                            name="stock_tracking"
+                            required
+                            {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
                         >
-                            Select Stock Tracking
-                        </option>
-
-                        <option
-                            value="Quantity"
-                            {{ ($product->stock_tracking ?? '') === 'Quantity' ? 'selected' : '' }}
-                        >
-                            Quantity
-                        </option>
-
-                        <option
-                            value="Serial Number"
-                            {{ ($product->stock_tracking ?? '') === 'Serial Number' ? 'selected' : '' }}
-                        >
-                            Serial Number
-                        </option>
-
-                        <option
-                            value="Batch"
-                            {{ ($product->stock_tracking ?? '') === 'Batch' ? 'selected' : '' }}
-                        >
-                            Batch / Lot
-                        </option>
-
-                        <option
-                            value="None"
-                            {{ ($product->stock_tracking ?? '') === 'None' ? 'selected' : '' }}
-                        >
-                            Not Tracked
-                        </option>
-
-                    </select>
-
+                            <option value="" disabled {{ empty($product->stock_tracking) ? 'selected' : '' }}>
+                                Select Stock Tracking
+                            </option>
+                            <option value="Quantity" {{ ($product->stock_tracking ?? '') === 'Quantity' ? 'selected' : '' }}>Quantity</option>
+                            <option value="Serial Number" {{ ($product->stock_tracking ?? '') === 'Serial Number' ? 'selected' : '' }}>Serial Number</option>
+                            <option value="Batch" {{ ($product->stock_tracking ?? '') === 'Batch' ? 'selected' : '' }}>Batch / Lot</option>
+                            <option value="None" {{ ($product->stock_tracking ?? '') === 'None' ? 'selected' : '' }}>Not Tracked</option>
+                        </select>
+                    </div>
                 </div>
 
             </div>
-
         </div>
 
-
-        {{-- ===================================================== --}}
         {{-- STOCK LEVELS --}}
-        {{-- ===================================================== --}}
-
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
 
-
             {{-- CURRENT STOCK --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Current Stock *
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Shows the current quantity of this product available in inventory.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Current Stock *
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Shows the current quantity of this product available in inventory.
+                        </span>
+                    </span>
 
-                <input
-                    type="number"
-                    name="inventory_stock"
-                    min="0"
-                    value="{{ $product->inventory_stock ?? 0 }}"
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} font-bold outline-none focus:border-blue-500 workspace-input"
-                >
-
+                    <input
+                        type="number"
+                        name="inventory_stock"
+                        min="0"
+                        value="{{ $product->inventory_stock ?? 0 }}"
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} font-bold outline-none focus:border-blue-500 workspace-input"
+                    >
+                </div>
             </div>
-
 
             {{-- REORDER LEVEL --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Reorder Level
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Defines the stock quantity at which the organization should consider replenishing or purchasing additional units to avoid reaching insufficient inventory levels.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Reorder Level
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Defines the stock quantity at which the organization should consider replenishing or purchasing additional units to avoid reaching insufficient inventory levels.
+                        </span>
+                    </span>
 
-                <input
-                    type="number"
-                    name="reorder_level"
-                    min="0"
-                    value="{{ $product->reorder_level ?? 0 }}"
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
+                    <input
+                        type="number"
+                        name="reorder_level"
+                        min="0"
+                        value="{{ $product->reorder_level ?? 0 }}"
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
+                    >
+                </div>
             </div>
-
 
             {{-- MINIMUM STOCK --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Minimum Stock
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Defines the lowest desired quantity of stock that should normally be maintained to support operational continuity and reduce the risk of stock shortages.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Minimum Stock
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Defines the lowest desired quantity of stock that should normally be maintained to support operational continuity and reduce the risk of stock shortages.
+                        </span>
+                    </span>
 
-                <input
-                    type="number"
-                    name="minimum_stock"
-                    min="0"
-                    value="{{ $product->minimum_stock ?? 0 }}"
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
+                    <input
+                        type="number"
+                        name="minimum_stock"
+                        min="0"
+                        value="{{ $product->minimum_stock ?? 0 }}"
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
+                    >
+                </div>
             </div>
-
 
             {{-- MAXIMUM STOCK --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Maximum Stock
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Defines the highest quantity of stock that should normally be maintained to prevent unnecessary overstocking, storage pressure, or excess inventory.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Maximum Stock
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Defines the highest quantity of stock that should normally be maintained to prevent unnecessary overstocking, storage pressure, or excess inventory.
+                        </span>
+                    </span>
 
-                <input
-                    type="number"
-                    name="maximum_stock"
-                    min="0"
-                    value="{{ $product->maximum_stock ?? 0 }}"
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
+                    <input
+                        type="number"
+                        name="maximum_stock"
+                        min="0"
+                        value="{{ $product->maximum_stock ?? 0 }}"
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
+                    >
+                </div>
             </div>
 
         </div>
 
-
-        {{-- ===================================================== --}}
         {{-- STORAGE & LOCATION --}}
-        {{-- ===================================================== --}}
-
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
 
-
             {{-- WAREHOUSE LOCATION --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Warehouse Location *
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Identifies the primary warehouse, stock area, or inventory classification where this product's available stock is assigned or maintained.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Warehouse Location *
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Identifies the primary warehouse, stock area, or inventory classification where this product's available stock is assigned or maintained.
+                        </span>
+                    </span>
 
-                <select
-                    name="warehouse_location"
-                    required
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
-                    <option
-                        value=""
-                        disabled
-                        {{ empty($product->warehouse_location) ? 'selected' : '' }}
+                    <select
+                        name="warehouse_location"
+                        required
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
                     >
-                        Select Warehouse Location
-                    </option>
-
-                    <option
-                        value="Main Warehouse"
-                        {{ ($product->warehouse_location ?? '') === 'Main Warehouse' ? 'selected' : '' }}
-                    >
-                        Main Warehouse
-                    </option>
-
-                    <option
-                        value="Branch Office Stock"
-                        {{ ($product->warehouse_location ?? '') === 'Branch Office Stock' ? 'selected' : '' }}
-                    >
-                        Branch Office Stock
-                    </option>
-
-                    <option
-                        value="Reserved Stock"
-                        {{ ($product->warehouse_location ?? '') === 'Reserved Stock' ? 'selected' : '' }}
-                    >
-                        Reserved Stock
-                    </option>
-
-                </select>
-
+                        <option value="" disabled {{ empty($product->warehouse_location) ? 'selected' : '' }}>
+                            Select Warehouse Location
+                        </option>
+                        <option value="Main Warehouse" {{ ($product->warehouse_location ?? '') === 'Main Warehouse' ? 'selected' : '' }}>
+                            Main Warehouse
+                        </option>
+                        <option value="Branch Office Stock" {{ ($product->warehouse_location ?? '') === 'Branch Office Stock' ? 'selected' : '' }}>
+                            Branch Office Stock
+                        </option>
+                        <option value="Reserved Stock" {{ ($product->warehouse_location ?? '') === 'Reserved Stock' ? 'selected' : '' }}>
+                            Reserved Stock
+                        </option>
+                    </select>
+                </div>
             </div>
-
 
             {{-- STORAGE LOCATION --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Storage Location
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Specifies the more precise physical storage position of the product within the selected warehouse or stock area, such as a rack, shelf, bin, aisle, or designated storage section.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Storage Location
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Specifies the more precise physical storage position of the product within the selected warehouse or stock area, such as a rack, shelf, bin, aisle, or designated storage section.
+                        </span>
+                    </span>
 
-                <input
-                    type="text"
-                    name="storage_location"
-                    value="{{ $product->storage_location ?? '' }}"
-                    placeholder="e.g. Rack A-12"
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
+                    <input
+                        type="text"
+                        name="storage_location"
+                        value="{{ $product->storage_location ?? '' }}"
+                        placeholder="e.g. Rack A-12"
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
+                    >
+                </div>
             </div>
 
-
             {{-- STOCK STATUS --}}
-
             <div>
-
                 <label class="block font-semibold text-slate-700 mb-1">
-
-                    <span class="inline-flex items-center gap-1">
-
-                        Stock Status *
-
-                        <span class="relative inline-flex items-center group">
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"></i>
-
-                            <span
-                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Indicates the current inventory condition of the product based on its available stock, such as adequately stocked, approaching shortage, completely unavailable, or not applicable for inventory tracking.
-                            </span>
-
-                        </span>
-
-                    </span>
-
+                    Stock Status *
                 </label>
 
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                        <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                            Indicates the current inventory condition of the product based on its available stock, such as adequately stocked, approaching shortage, completely unavailable, or not applicable for inventory tracking.
+                        </span>
+                    </span>
 
-                <select
-                    name="stock_status"
-                    required
-                    {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
-                    class="w-full border border-slate-300 rounded-lg p-2.5 {{ $readOnlyState }} outline-none focus:border-blue-500"
-                >
-
-                    <option
-                        value=""
-                        disabled
-                        {{ empty($product->stock_status) ? 'selected' : '' }}
+                    <select
+                        name="stock_status"
+                        required
+                        {{ ($isViewOnly || $isNonInventory) ? 'disabled' : '' }}
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 {{ $readOnlyState }} outline-none focus:border-blue-500"
                     >
-                        Select Stock Status
-                    </option>
-
-                    <option
-                        value="In Stock"
-                        {{ ($product->stock_status ?? '') === 'In Stock' ? 'selected' : '' }}
-                    >
-                        In Stock
-                    </option>
-
-                    <option
-                        value="Low Stock"
-                        {{ ($product->stock_status ?? '') === 'Low Stock' ? 'selected' : '' }}
-                    >
-                        Low Stock
-                    </option>
-
-                    <option
-                        value="Out of Stock"
-                        {{ ($product->stock_status ?? '') === 'Out of Stock' ? 'selected' : '' }}
-                    >
-                        Out of Stock
-                    </option>
-
-                    <option
-                        value="Not Applicable"
-                        {{ ($product->stock_status ?? '') === 'Not Applicable' ? 'selected' : '' }}
-                    >
-                        Not Applicable
-                    </option>
-
-                </select>
-
+                        <option value="" disabled {{ empty($product->stock_status) ? 'selected' : '' }}>
+                            Select Stock Status
+                        </option>
+                        <option value="In Stock" {{ ($product->stock_status ?? '') === 'In Stock' ? 'selected' : '' }}>
+                            In Stock
+                        </option>
+                        <option value="Low Stock" {{ ($product->stock_status ?? '') === 'Low Stock' ? 'selected' : '' }}>
+                            Low Stock
+                        </option>
+                        <option value="Out of Stock" {{ ($product->stock_status ?? '') === 'Out of Stock' ? 'selected' : '' }}>
+                            Out of Stock
+                        </option>
+                        <option value="Not Applicable" {{ ($product->stock_status ?? '') === 'Not Applicable' ? 'selected' : '' }}>
+                            Not Applicable
+                        </option>
+                    </select>
+                </div>
             </div>
 
         </div>
 
-
-        {{-- ===================================================== --}}
         {{-- NAVIGATION --}}
-        {{-- ===================================================== --}}
-
         <div class="flex justify-between items-center pt-4 border-t border-slate-100">
 
             <button
@@ -1703,21 +1194,19 @@
                 ← Back to Requirements (o Catalog)
             </button>
 
-
             <button
                 type="submit"
                 class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer"
             >
                 Save &amp; Continue to Requirements
-
                 <i class="fa-solid fa-arrow-right ml-1"></i>
             </button>
 
         </div>
 
     </form>
-
 </div>
+
 
   {{-- =========================================================
     STEP 4 — REQUIREMENTS
@@ -5721,327 +5210,170 @@ function checkEditClientTypeOther(select) {
     STEP 6 — COMMERCIALS
 ========================================================== --}}
 
-<div id="workspace-panel-6"
-     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden">
+<div
+    id="workspace-panel-6"
+    class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden"
+>
 
-    <form action="{{ route('products.commercials.update', $product->id) }}" method="POST">
-
+    <form action="{{ route('products.commercials.update', $product->id) }}" method="POST" class="space-y-5">
         @csrf
         @method('PUT')
 
-
-        <!-- ===================================================== -->
-        <!-- HEADER -->
-        <!-- ===================================================== -->
-
+        {{-- HEADER --}}
         <div class="border-b border-slate-100 pb-3">
-
             <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">
                 Product Commercials, Pricing and Costing
             </h3>
-
             <p class="text-xs text-slate-500 mt-0.5">
                 Define product pricing models, tax treatment, cost basis, margins, and payment terms.
             </p>
-
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- PRICING MODELS -->
-        <!-- ===================================================== -->
-
+        {{-- PRICING MODELS --}}
         <div class="border border-slate-200 rounded-xl p-4 space-y-4">
 
             <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-800">
-
                 <i class="fa-solid fa-tags text-blue-600 mr-1"></i>
-
                 Pricing Models &amp; Core Commercial Fields
-
             </h4>
 
-
-            <!-- PRICING MODEL / CURRENCY / STANDARD PRICE -->
-
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
 
-
-                <!-- PRICING MODEL -->
-
+                {{-- PRICING MODEL --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Pricing Model *
+                    </label>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Pricing Model *
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 Defines how the product price is determined and charged, such as fixed, variable, tiered, subscription, or cost-plus pricing.
                             </span>
-
                         </span>
 
-                    </label>
-
-
-                    <select
-                        name="pricing_model"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
-                        <option value="Fixed Price" {{ ($product->pricing_model ?? 'Fixed Price') === 'Fixed Price' ? 'selected' : '' }}>
-                            Fixed Price
-                        </option>
-
-                        <option value="Variable Price" {{ ($product->pricing_model ?? '') === 'Variable Price' ? 'selected' : '' }}>
-                            Variable Price
-                        </option>
-
-                        <option value="Tiered Price" {{ ($product->pricing_model ?? '') === 'Tiered Price' ? 'selected' : '' }}>
-                            Tiered Price
-                        </option>
-
-                        <option value="Subscription" {{ ($product->pricing_model ?? '') === 'Subscription' ? 'selected' : '' }}>
-                            Subscription
-                        </option>
-
-                        <option value="Cost Plus" {{ ($product->pricing_model ?? '') === 'Cost Plus' ? 'selected' : '' }}>
-                            Cost Plus
-                        </option>
-
-                    </select>
-
+                        <select name="pricing_model" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                            <option value="Fixed Price" {{ ($product->pricing_model ?? 'Fixed Price') === 'Fixed Price' ? 'selected' : '' }}>Fixed Price</option>
+                            <option value="Variable Price" {{ ($product->pricing_model ?? '') === 'Variable Price' ? 'selected' : '' }}>Variable Price</option>
+                            <option value="Tiered Price" {{ ($product->pricing_model ?? '') === 'Tiered Price' ? 'selected' : '' }}>Tiered Price</option>
+                            <option value="Subscription" {{ ($product->pricing_model ?? '') === 'Subscription' ? 'selected' : '' }}>Subscription</option>
+                            <option value="Cost Plus" {{ ($product->pricing_model ?? '') === 'Cost Plus' ? 'selected' : '' }}>Cost Plus</option>
+                        </select>
+                    </div>
                 </div>
 
-
-                <!-- CURRENCY -->
-
+                {{-- CURRENCY --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Currency *
+                    </label>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Currency *
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The currency used to express the product price, costs, margins, and other monetary commercial values.
                             </span>
-
                         </span>
 
-                    </label>
-
-
-                    <select
-                        name="currency"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
-                        <option value="PHP" {{ ($product->currency ?? 'PHP') === 'PHP' ? 'selected' : '' }}>
-                            PHP (₱)
-                        </option>
-
-                        <option value="USD" {{ ($product->currency ?? '') === 'USD' ? 'selected' : '' }}>
-                            USD ($)
-                        </option>
-
-                        <option value="EUR" {{ ($product->currency ?? '') === 'EUR' ? 'selected' : '' }}>
-                            EUR (€)
-                        </option>
-
-                    </select>
-
+                        <select name="currency" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                            <option value="PHP" {{ ($product->currency ?? 'PHP') === 'PHP' ? 'selected' : '' }}>PHP (₱)</option>
+                            <option value="USD" {{ ($product->currency ?? '') === 'USD' ? 'selected' : '' }}>USD ($)</option>
+                            <option value="EUR" {{ ($product->currency ?? '') === 'EUR' ? 'selected' : '' }}>EUR (€)</option>
+                        </select>
+                    </div>
                 </div>
 
-
-                <!-- STANDARD PRICE -->
-
+                {{-- STANDARD PRICE --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Standard Price *
+                    </label>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Standard Price *
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The standard or default selling price of the product before applicable discounts, adjustments, or special pricing rules.
                             </span>
-
                         </span>
 
-                    </label>
-
-
-                    <input
-                        type="number"
-                        name="price"
-                        step="0.01"
-                        value="{{ $product->price ?? '0' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
+                        <input type="number" name="price" step="0.01" value="{{ $product->price ?? '0' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
             </div>
 
-
-            <!-- TAX / MINIMUM / MAXIMUM -->
-
+            {{-- TAX / MINIMUM / MAXIMUM --}}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
 
-
-                <!-- TAX TREATMENT -->
-
+                {{-- TAX TREATMENT --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Tax Treatment *
+                    </label>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Tax Treatment *
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 Specifies how applicable taxes are treated in the product price, including whether tax is included, excluded, or not applicable.
                             </span>
-
                         </span>
 
-                    </label>
+                        <select class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-slate-100 text-slate-700 outline-none cursor-not-allowed" disabled>
+                            <option value="VAT Exclusive" {{ ($product->tax_treatment ?? '') === 'VAT Exclusive' ? 'selected' : '' }}>VAT Exclusive</option>
+                            <option value="VAT Inclusive" {{ ($product->tax_treatment ?? '') === 'VAT Inclusive' ? 'selected' : '' }}>VAT Inclusive</option>
+                            <option value="No Tax" {{ ($product->tax_treatment ?? '') === 'No Tax' ? 'selected' : '' }}>No Tax</option>
+                            <option value="Percentage Tax" {{ ($product->tax_treatment ?? '') === 'Percentage Tax' ? 'selected' : '' }}>Percentage Tax</option>
+                            <option value="Other">{{ $product->tax_treatment ?? 'Other' }}</option>
+                        </select>
+                    </div>
 
-
-                    <select
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-slate-100 text-slate-700 outline-none cursor-not-allowed"
-                        disabled
-                    >
-
-                        <option value="VAT Exclusive" {{ ($product->tax_treatment ?? '') === 'VAT Exclusive' ? 'selected' : '' }}>
-                            VAT Exclusive
-                        </option>
-
-                        <option value="VAT Inclusive" {{ ($product->tax_treatment ?? '') === 'VAT Inclusive' ? 'selected' : '' }}>
-                            VAT Inclusive
-                        </option>
-
-                        <option value="No Tax" {{ ($product->tax_treatment ?? '') === 'No Tax' ? 'selected' : '' }}>
-                            No Tax
-                        </option>
-
-                        <option value="Percentage Tax" {{ ($product->tax_treatment ?? '') === 'Percentage Tax' ? 'selected' : '' }}>
-                            Percentage Tax
-                        </option>
-
-                        <option value="Other">
-                            {{ $product->tax_treatment ?? 'Other' }}
-                        </option>
-
-                    </select>
-
-
-                    <input
-                        type="hidden"
-                        name="tax_treatment"
-                        value="{{ $product->tax_treatment ?? '' }}"
-                    >
-
+                    <input type="hidden" name="tax_treatment" value="{{ $product->tax_treatment ?? '' }}">
                 </div>
 
-
-                <!-- MINIMUM PRICE -->
-
+                {{-- MINIMUM PRICE --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Minimum Price
+                    </label>
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Minimum Price
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The lowest acceptable selling price for the product before an additional approval, exception, or special commercial arrangement is required.
                             </span>
-
                         </span>
 
-                    </label>
-
-
-                    <input
-                        type="number"
-                        name="minimum_price"
-                        step="0.01"
-                        value="{{ $product->minimum_price ?? '0.00' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
+                        <input type="number" name="minimum_price" step="0.01" value="{{ $product->minimum_price ?? '0.00' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
-
-                <!-- MAXIMUM PRICE -->
-
+                {{-- MAXIMUM PRICE --}}
                 <div>
-
                     <label class="block font-semibold text-slate-700 mb-1">
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Maximum Price
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                The highest standard selling price allowed for the product under normal commercial rules.
-                            </span>
-
-                        </span>
-
+                        Maximum Price
                     </label>
 
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                The highest standard selling price allowed for the product under normal commercial rules.
+                            </span>
+                        </span>
 
-                    <input
-                        type="number"
-                        name="maximum_price"
-                        step="0.01"
-                        value="{{ $product->maximum_price ?? '0.00' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
+                        <input type="number" name="maximum_price" step="0.01" value="{{ $product->maximum_price ?? '0.00' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
             </div>
-
         </div>
 
-
-       <!-- ===================================================== -->
-        <!-- PRODUCT ECONOMICS -->
-        <!-- ===================================================== -->
-
+        {{-- PRODUCT ECONOMICS --}}
         <div class="border border-slate-200 rounded-xl p-4 space-y-4">
 
             <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-800">
@@ -6050,257 +5382,172 @@ function checkEditClientTypeOther(select) {
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
 
-                <!-- DISCOUNT ALLOWED -->
+                {{-- DISCOUNT ALLOWED --}}
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">
-                        <span class="relative inline-flex items-center group cursor-pointer">
-                            Discount Allowed *
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                        Discount Allowed *
+                    </label>
+
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 Defines whether discounts may be applied to the product and whether approval is required before granting one.
                             </span>
                         </span>
-                    </label>
 
-                    <select
-                        name="discount_allowed"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-                        <option value="Not Allowed" {{ ($product->discount_allowed ?? 'Not Allowed') === 'Not Allowed' ? 'selected' : '' }}>
-                            Not Allowed
-                        </option>
-                        <option value="Allowed" {{ ($product->discount_allowed ?? '') === 'Allowed' ? 'selected' : '' }}>
-                            Allowed
-                        </option>
-                        <option value="Approval Required" {{ ($product->discount_allowed ?? '') === 'Approval Required' ? 'selected' : '' }}>
-                            Approval Required
-                        </option>
-                    </select>
+                        <select name="discount_allowed" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                            <option value="Not Allowed" {{ ($product->discount_allowed ?? 'Not Allowed') === 'Not Allowed' ? 'selected' : '' }}>Not Allowed</option>
+                            <option value="Allowed" {{ ($product->discount_allowed ?? '') === 'Allowed' ? 'selected' : '' }}>Allowed</option>
+                            <option value="Approval Required" {{ ($product->discount_allowed ?? '') === 'Approval Required' ? 'selected' : '' }}>Approval Required</option>
+                        </select>
+                    </div>
                 </div>
 
-                <!-- MAX DISCOUNT W/O APPROVAL (%) - Katabi ng Discount Allowed -->
+                {{-- MAX DISCOUNT WITHOUT APPROVAL --}}
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">
-                        <span class="relative inline-flex items-center group cursor-pointer">
-                            Max Discount W/o Approval (%)
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                        Max Discount W/o Approval (%)
+                    </label>
+
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The maximum percentage discount that can be granted without requiring formal managerial approval.
                             </span>
                         </span>
-                    </label>
 
-                    <input
-                        type="number"
-                        name="max_discount_without_approval"
-                        step="0.01"
-                        value="{{ $product->max_discount_without_approval ?? '0' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                        <input type="number" name="max_discount_without_approval" step="0.01" value="{{ $product->max_discount_without_approval ?? '0' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
-                <!-- EXPECTED MARGIN -->
+                {{-- EXPECTED MARGIN --}}
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">
-                        <span class="relative inline-flex items-center group cursor-pointer">
-                            Expected Margin (%)
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                        Expected Margin (%)
+                    </label>
+
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The target percentage of revenue expected to remain after accounting for applicable costs.
                             </span>
                         </span>
-                    </label>
 
-                    <input
-                        type="number"
-                        name="expected_margin"
-                        step="0.01"
-                        value="{{ $product->expected_margin ?? '0' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                        <input type="number" name="expected_margin" step="0.01" value="{{ $product->expected_margin ?? '0' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
-                <!-- EXPECTED HOURS -->
+                {{-- EXPECTED HOURS --}}
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">
-                        <span class="relative inline-flex items-center group cursor-pointer">
-                            Expected Hours
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
+                        Expected Hours
+                    </label>
+
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
                                 The estimated labor or service hours needed to complete one unit or instance of the product.
                             </span>
                         </span>
-                    </label>
 
-                    <input
-                        type="number"
-                        name="expected_hours"
-                        step="0.5"
-                        value="{{ $product->expected_hours ?? '0' }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                        <input type="number" name="expected_hours" step="0.5" value="{{ $product->expected_hours ?? '0' }}" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                    </div>
                 </div>
 
             </div>
-
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- PAYMENT TERMS -->
-        <!-- ===================================================== -->
-
+        {{-- PAYMENT TERMS --}}
         <div class="border border-slate-200 rounded-xl p-4 space-y-4">
 
             <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-800">
                 PAYMENT TERMS
             </h4>
 
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
 
-
-                <!-- STANDARD PAYMENT STRUCTURE -->
-
+                {{-- STANDARD PAYMENT STRUCTURE --}}
                 <div class="space-y-2">
-
                     <label class="block font-semibold text-slate-700">
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Standard Payment Structure *
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Defines the standard timing and arrangement for collecting payment from the client for this product.
-                            </span>
-
-                        </span>
-
+                        Standard Payment Structure *
                     </label>
 
-
-                    <select
-                        id="standardPaymentSelect"
-                        name="payment_structure"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
-                        <option value="">-- Select Payment Structure --</option>
-
-                        <option value="Full Advance" {{ ($product->payment_structure ?? '') === 'Full Advance' ? 'selected' : '' }}>
-                            Full Advance
-                        </option>
-
-                        <option value="50% Deposit, 50% Balance" {{ ($product->payment_structure ?? '') === '50% Deposit, 50% Balance' ? 'selected' : '' }}>
-                            50% Deposit, 50% Balance
-                        </option>
-
-                        <option value="Milestone-based" {{ ($product->payment_structure ?? '') === 'Milestone-based' ? 'selected' : '' }}>
-                            Milestone-based
-                        </option>
-
-                        <option value="Post-delivery / Arrears" {{ ($product->payment_structure ?? '') === 'Post-delivery / Arrears' ? 'selected' : '' }}>
-                            Post-delivery / Arrears
-                        </option>
-
-                        <option value="Custom" {{ ($product->payment_structure ?? '') === 'Custom' ? 'selected' : '' }}>
-                            Custom
-                        </option>
-
-                    </select>
-
-
-                    <!-- CUSTOM PAYMENT -->
-
-                    <div id="customPaymentWrapper" class="hidden pt-1">
-
-                        <label class="block font-semibold text-slate-700 mb-1">
-
-                            <span class="relative inline-flex items-center group cursor-pointer">
-
-                                Custom Payment Terms
-
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                                <span
-                                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                                >
-                                    Allows a custom payment arrangement to be specified when the standard payment structures do not apply.
-                                </span>
-
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                Defines the standard timing and arrangement for collecting payment from the client for this product.
                             </span>
+                        </span>
 
+                        <select id="standardPaymentSelect" name="payment_structure" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+                            <option value="">-- Select Payment Structure --</option>
+                            <option value="Full Advance" {{ ($product->payment_structure ?? '') === 'Full Advance' ? 'selected' : '' }}>Full Advance</option>
+                            <option value="50% Deposit, 50% Balance" {{ ($product->payment_structure ?? '') === '50% Deposit, 50% Balance' ? 'selected' : '' }}>50% Deposit, 50% Balance</option>
+                            <option value="Milestone-based" {{ ($product->payment_structure ?? '') === 'Milestone-based' ? 'selected' : '' }}>Milestone-based</option>
+                            <option value="Post-delivery / Arrears" {{ ($product->payment_structure ?? '') === 'Post-delivery / Arrears' ? 'selected' : '' }}>Post-delivery / Arrears</option>
+                            <option value="Custom" {{ ($product->payment_structure ?? '') === 'Custom' ? 'selected' : '' }}>Custom</option>
+                        </select>
+                    </div>
+
+                    {{-- CUSTOM PAYMENT --}}
+                    <div id="customPaymentWrapper" class="hidden pt-1">
+                        <label class="block font-semibold text-slate-700 mb-1">
+                            Custom Payment Terms
                         </label>
 
+                        <div class="relative group">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                                <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                    Allows a custom payment arrangement to be specified when the standard payment structures do not apply.
+                                </span>
+                            </span>
+
+                            <input
+                                type="text"
+                                id="customPaymentField"
+                                name="payment_structure_custom"
+                                value="{{ $product->payment_structure_custom ?? '' }}"
+                                placeholder="Specify custom payment terms..."
+                                class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500 text-xs"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                {{-- PAYMENT NOTES --}}
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Payment &amp; Execution Notes
+                    </label>
+
+                    <div class="relative group">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                                Additional instructions or operational notes regarding payment handling, release conditions, approvals, or execution requirements.
+                            </span>
+                        </span>
 
                         <input
                             type="text"
-                            id="customPaymentField"
-                            name="payment_structure_custom"
-                            value="{{ $product->payment_structure_custom ?? '' }}"
-                            placeholder="Specify custom payment terms..."
-                            class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500 text-xs"
+                            name="payment_notes"
+                            value="{{ $product->payment_notes ?? '' }}"
+                            placeholder="e.g. Full payment required before release..."
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500"
                         >
-
                     </div>
-
-                </div>
-
-
-                <!-- PAYMENT NOTES -->
-
-                <div>
-
-                    <label class="block font-semibold text-slate-700 mb-1">
-
-                        <span class="relative inline-flex items-center group cursor-pointer">
-
-                            Payment &amp; Execution Notes
-
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px] ml-1"></i>
-
-                            <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
-                            >
-                                Additional instructions or operational notes regarding payment handling, release conditions, approvals, or execution requirements.
-                            </span>
-
-                        </span>
-
-                    </label>
-
-
-                    <input
-                        type="text"
-                        name="payment_notes"
-                        value="{{ $product->payment_notes ?? '' }}"
-                        placeholder="e.g. Full payment required before release..."
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
-
                 </div>
 
             </div>
-
         </div>
 
-
-        <!-- ===================================================== -->
-        <!-- NAVIGATION -->
-        <!-- ===================================================== -->
-
+        {{-- NAVIGATION --}}
         <div class="flex justify-between items-center pt-4 border-t border-slate-100">
 
             <button
@@ -6311,27 +5558,23 @@ function checkEditClientTypeOther(select) {
                 ← Back to Workflow
             </button>
 
-
             <button
                 type="submit"
                 class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition"
             >
                 Save &amp; Continue to Engagement
-
                 <i class="fa-solid fa-arrow-right ml-1"></i>
-
             </button>
 
         </div>
 
     </form>
-
 </div>
 
 
 {{-- =========================================================
-        STEP 7 — ENGAGEMENT
-    ========================================================== --}}
+    STEP 7 — ENGAGEMENT
+========================================================== --}}
 
 @php
 
@@ -6398,12 +5641,6 @@ function checkEditClientTypeOther(select) {
     |--------------------------------------------------------------------------
     */
 
-    $paymentCustomVisible = in_array(
-        $paymentStructure,
-        ['Quarterly', 'Custom', 'Others'],
-        true
-    );
-
     $recurrenceCustomVisible = in_array(
         $recurrenceFrequency,
         ['Quarterly', 'Custom', 'Others'],
@@ -6425,8 +5662,10 @@ function checkEditClientTypeOther(select) {
 @endphp
 
 
-<div id="workspace-panel-7"
-     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden">
+<div
+    id="workspace-panel-7"
+    class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden"
+>
 
     <form
         action="{{ route('products.updateEngagement', $product->id) }}"
@@ -6438,9 +5677,9 @@ function checkEditClientTypeOther(select) {
         @method('PUT')
 
 
-        <!-- ===================================================== -->
-        <!-- HEADER -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            HEADER
+        ====================================================== --}}
 
         <div class="border-b border-slate-100 pb-3">
 
@@ -6455,9 +5694,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- CONFIGURED ENGAGEMENT SETTINGS -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            CONFIGURED ENGAGEMENT SETTINGS
+        ====================================================== --}}
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs">
 
@@ -6465,99 +5704,96 @@ function checkEditClientTypeOther(select) {
                 CONFIGURED ENGAGEMENT SETTINGS
             </h4>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
 
-                <!-- ================================================= -->
-                <!-- ENGAGEMENT DELIVERY BEHAVIOR -->
-                <!-- ================================================= -->
+                {{-- ENGAGEMENT DELIVERY BEHAVIOR --}}
 
                 <div>
 
-                    <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Engagement Delivery Behavior
+                    </label>
 
-                        <span>
-                            Engagement Delivery Behavior
-                        </span>
+                    <div class="relative">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                             <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                             <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
                             >
                                 Defines the standard delivery behavior used when this product is instantiated as an engagement.
                             </span>
 
                         </span>
 
-                    </label>
+                        <input
+                            type="text"
+                            value="Project (Retainer / Recurring)"
+                            readonly
+                            class="w-full border border-slate-200 bg-slate-100 rounded-lg p-2.5 pl-9 text-slate-600 font-medium cursor-not-allowed outline-none"
+                        >
 
-                    <input
-                        type="text"
-                        value="Project (Retainer / Recurring)"
-                        readonly
-                        class="w-full border border-slate-200 bg-slate-100 rounded-lg p-2.5 text-slate-600 font-medium cursor-not-allowed outline-none"
-                    >
+                    </div>
 
                 </div>
 
 
-
-                <!-- ================================================= -->
-                <!-- INSTANTIATION EXECUTION MODE -->
-                <!-- ================================================= -->
+                {{-- INSTANTIATION EXECUTION MODE --}}
 
                 <div>
 
-                    <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Instantiation Execution Mode
+                    </label>
 
-                        <span>
-                            Instantiation Execution Mode
-                        </span>
+                    <div class="relative">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                             <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                             <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
                             >
                                 Defines whether engagement instances are automatically created, reviewed manually, or triggered on demand.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="instantiation_execution_mode"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option
-                            value="Automatic System Instantiation (JIT)"
-                            {{ $instantiationExecutionMode === 'Automatic System Instantiation (JIT)' ? 'selected' : '' }}
+                        <select
+                            name="instantiation_execution_mode"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Automatic System Instantiation (JIT)
-                        </option>
 
-                        <option
-                            value="Manual Review"
-                            {{ $instantiationExecutionMode === 'Manual Review' ? 'selected' : '' }}
-                        >
-                            Manual Review
-                        </option>
+                            <option
+                                value="Automatic System Instantiation (JIT)"
+                                {{ $instantiationExecutionMode === 'Automatic System Instantiation (JIT)' ? 'selected' : '' }}
+                            >
+                                Automatic System Instantiation (JIT)
+                            </option>
 
-                        <option
-                            value="On-Demand"
-                            {{ $instantiationExecutionMode === 'On-Demand' ? 'selected' : '' }}
-                        >
-                            On-Demand
-                        </option>
+                            <option
+                                value="Manual Review"
+                                {{ $instantiationExecutionMode === 'Manual Review' ? 'selected' : '' }}
+                            >
+                                Manual Review
+                            </option>
 
-                    </select>
+                            <option
+                                value="On-Demand"
+                                {{ $instantiationExecutionMode === 'On-Demand' ? 'selected' : '' }}
+                            >
+                                On-Demand
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
@@ -6566,9 +5802,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- RECURRENCE CADENCES & RULES -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            RECURRENCE CADENCES & RULES
+        ====================================================== --}}
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs">
 
@@ -6579,383 +5815,383 @@ function checkEditClientTypeOther(select) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
 
-                <!-- ================================================= -->
-                <!-- RECURRENCE FREQUENCY -->
-                <!-- ================================================= -->
+                {{-- RECURRENCE FREQUENCY --}}
 
                 <div>
 
-                    <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Recurrence Frequency *
+                    </label>
 
-                        <span>
-                            Recurrence Frequency *
-                        </span>
+                    <div class="relative">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                             <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                             <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
                             >
                                 Defines how frequently the engagement work is repeated or renewed.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="recurrence_frequency"
-                        id="recurrence_frequency_select"
-                        onchange="toggleCustomInput(this, 'recurrence_custom_wrapper')"
-                        required
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            -- Select Recurrence Frequency --
-                        </option>
-
-                        <option
-                            value="Monthly"
-                            {{ $recurrenceFrequency === 'Monthly' ? 'selected' : '' }}
+                        <select
+                            name="recurrence_frequency"
+                            id="recurrence_frequency_select"
+                            onchange="toggleCustomInput(this, 'recurrence_custom_wrapper')"
+                            required
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Monthly
-                        </option>
 
-                        <option
-                            value="Bi-Weekly / Semi-Monthly"
-                            {{ $recurrenceFrequency === 'Bi-Weekly / Semi-Monthly' ? 'selected' : '' }}
-                        >
-                            Bi-Weekly / Semi-Monthly
-                        </option>
+                            <option value="">
+                                -- Select Recurrence Frequency --
+                            </option>
 
-                        <option
-                            value="Quarterly"
-                            {{ $recurrenceFrequency === 'Quarterly' ? 'selected' : '' }}
-                        >
-                            Quarterly
-                        </option>
+                            <option
+                                value="Monthly"
+                                {{ $recurrenceFrequency === 'Monthly' ? 'selected' : '' }}
+                            >
+                                Monthly
+                            </option>
 
-                        <option
-                            value="Semi-Annual"
-                            {{ $recurrenceFrequency === 'Semi-Annual' ? 'selected' : '' }}
-                        >
-                            Semi-Annual (Every 6 Months)
-                        </option>
+                            <option
+                                value="Bi-Weekly / Semi-Monthly"
+                                {{ $recurrenceFrequency === 'Bi-Weekly / Semi-Monthly' ? 'selected' : '' }}
+                            >
+                                Bi-Weekly / Semi-Monthly
+                            </option>
 
-                        <option
-                            value="Annual"
-                            {{ $recurrenceFrequency === 'Annual' ? 'selected' : '' }}
-                        >
-                            Annual / Yearly
-                        </option>
+                            <option
+                                value="Quarterly"
+                                {{ $recurrenceFrequency === 'Quarterly' ? 'selected' : '' }}
+                            >
+                                Quarterly
+                            </option>
 
-                        <option
-                            value="Custom"
-                            {{ $recurrenceFrequency === 'Custom' ? 'selected' : '' }}
-                        >
-                            Custom Cadence
-                        </option>
+                            <option
+                                value="Semi-Annual"
+                                {{ $recurrenceFrequency === 'Semi-Annual' ? 'selected' : '' }}
+                            >
+                                Semi-Annual (Every 6 Months)
+                            </option>
 
-                        <option
-                            value="Others"
-                            {{ $recurrenceFrequency === 'Others' ? 'selected' : '' }}
-                        >
-                            Others
-                        </option>
+                            <option
+                                value="Annual"
+                                {{ $recurrenceFrequency === 'Annual' ? 'selected' : '' }}
+                            >
+                                Annual / Yearly
+                            </option>
 
-                    </select>
+                            <option
+                                value="Custom"
+                                {{ $recurrenceFrequency === 'Custom' ? 'selected' : '' }}
+                            >
+                                Custom Cadence
+                            </option>
+
+                            <option
+                                value="Others"
+                                {{ $recurrenceFrequency === 'Others' ? 'selected' : '' }}
+                            >
+                                Others
+                            </option>
+
+                        </select>
+
+                    </div>
 
 
-                    <!-- Custom Input -->
+                    {{-- CUSTOM RECURRENCE INPUT --}}
 
                     <div
                         class="mt-2 {{ $recurrenceCustomVisible ? '' : 'hidden' }}"
                         id="recurrence_custom_wrapper"
                     >
 
-                        <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                        <label class="block font-semibold text-slate-700 mb-1">
+                            Custom Recurrence Detail
+                        </label>
 
-                            <span>
-                                Custom Recurrence Detail
-                            </span>
+                        <div class="relative">
 
-                            <span class="relative inline-flex items-center group cursor-pointer">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                                 <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                                 <span
-                                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                    style="text-align: justify;"
                                 >
                                     Specify the custom recurrence schedule or cadence for the engagement.
                                 </span>
 
                             </span>
 
-                        </label>
+                            <input
+                                type="text"
+                                name="recurrence_frequency_custom"
+                                value="{{ $recurrenceFrequencyCustom }}"
+                                placeholder="Specify custom recurrence detail..."
+                                class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none text-slate-800 focus:border-blue-500"
+                            >
 
-                        <input
-                            type="text"
-                            name="recurrence_frequency_custom"
-                            value="{{ $recurrenceFrequencyCustom }}"
-                            placeholder="Specify custom recurrence detail..."
-                            class="w-full border border-slate-300 rounded-lg p-2.5 outline-none text-slate-800 focus:border-blue-500"
-                        >
+                        </div>
 
                     </div>
 
                 </div>
 
 
-                <!-- ================================================= -->
-                <!-- BILLING FREQUENCY -->
-                <!-- ================================================= -->
+                {{-- BILLING FREQUENCY --}}
 
                 <div>
 
-                    <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Billing Frequency *
+                    </label>
 
-                        <span>
-                            Billing Frequency *
-                        </span>
+                    <div class="relative">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                             <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                             <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
                             >
                                 Defines how frequently billing is processed or charged for the engagement.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="billing_frequency"
-                        id="billing_frequency_select"
-                        onchange="toggleCustomInput(this, 'billing_custom_wrapper')"
-                        required
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            -- Select Billing Frequency --
-                        </option>
-
-                        <option
-                            value="Monthly"
-                            {{ $billingFrequency === 'Monthly' ? 'selected' : '' }}
+                        <select
+                            name="billing_frequency"
+                            id="billing_frequency_select"
+                            onchange="toggleCustomInput(this, 'billing_custom_wrapper')"
+                            required
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Monthly
-                        </option>
 
-                        <option
-                            value="Quarterly"
-                            {{ $billingFrequency === 'Quarterly' ? 'selected' : '' }}
-                        >
-                            Quarterly
-                        </option>
+                            <option value="">
+                                -- Select Billing Frequency --
+                            </option>
 
-                        <option
-                            value="Semi-Annual"
-                            {{ $billingFrequency === 'Semi-Annual' ? 'selected' : '' }}
-                        >
-                            Semi-Annual
-                        </option>
+                            <option
+                                value="Monthly"
+                                {{ $billingFrequency === 'Monthly' ? 'selected' : '' }}
+                            >
+                                Monthly
+                            </option>
 
-                        <option
-                            value="Annual"
-                            {{ $billingFrequency === 'Annual' ? 'selected' : '' }}
-                        >
-                            Annual
-                        </option>
+                            <option
+                                value="Quarterly"
+                                {{ $billingFrequency === 'Quarterly' ? 'selected' : '' }}
+                            >
+                                Quarterly
+                            </option>
 
-                        <option
-                            value="Upon Completion"
-                            {{ $billingFrequency === 'Upon Completion' ? 'selected' : '' }}
-                        >
-                            Upon Completion
-                        </option>
+                            <option
+                                value="Semi-Annual"
+                                {{ $billingFrequency === 'Semi-Annual' ? 'selected' : '' }}
+                            >
+                                Semi-Annual
+                            </option>
 
-                        <option
-                            value="Custom"
-                            {{ $billingFrequency === 'Custom' ? 'selected' : '' }}
-                        >
-                            Custom
-                        </option>
+                            <option
+                                value="Annual"
+                                {{ $billingFrequency === 'Annual' ? 'selected' : '' }}
+                            >
+                                Annual
+                            </option>
 
-                        <option
-                            value="Others"
-                            {{ $billingFrequency === 'Others' ? 'selected' : '' }}
-                        >
-                            Others
-                        </option>
+                            <option
+                                value="Upon Completion"
+                                {{ $billingFrequency === 'Upon Completion' ? 'selected' : '' }}
+                            >
+                                Upon Completion
+                            </option>
 
-                    </select>
+                            <option
+                                value="Custom"
+                                {{ $billingFrequency === 'Custom' ? 'selected' : '' }}
+                            >
+                                Custom
+                            </option>
+
+                            <option
+                                value="Others"
+                                {{ $billingFrequency === 'Others' ? 'selected' : '' }}
+                            >
+                                Others
+                            </option>
+
+                        </select>
+
+                    </div>
 
 
-                    <!-- Custom Input -->
+                    {{-- CUSTOM BILLING INPUT --}}
 
                     <div
                         class="mt-2 {{ $billingCustomVisible ? '' : 'hidden' }}"
                         id="billing_custom_wrapper"
                     >
 
-                        <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                        <label class="block font-semibold text-slate-700 mb-1">
+                            Custom Billing Detail
+                        </label>
 
-                            <span>
-                                Custom Billing Detail
-                            </span>
+                        <div class="relative">
 
-                            <span class="relative inline-flex items-center group cursor-pointer">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                                 <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                                 <span
-                                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                    style="text-align: justify;"
                                 >
                                     Specify the custom billing schedule or billing instructions.
                                 </span>
 
                             </span>
 
-                        </label>
+                            <input
+                                type="text"
+                                name="billing_frequency_custom"
+                                value="{{ $billingFrequencyCustom }}"
+                                placeholder="Specify custom billing detail..."
+                                class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none text-slate-800 focus:border-blue-500"
+                            >
 
-                        <input
-                            type="text"
-                            name="billing_frequency_custom"
-                            value="{{ $billingFrequencyCustom }}"
-                            placeholder="Specify custom billing detail..."
-                            class="w-full border border-slate-300 rounded-lg p-2.5 outline-none text-slate-800 focus:border-blue-500"
-                        >
+                        </div>
 
                     </div>
 
                 </div>
 
 
-                <!-- ================================================= -->
-                <!-- REPORTING FREQUENCY -->
-                <!-- ================================================= -->
+                {{-- REPORTING FREQUENCY --}}
 
                 <div>
 
-                    <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Reporting Frequency *
+                    </label>
 
-                        <span>
-                            Reporting Frequency *
-                        </span>
+                    <div class="relative">
 
-                        <span class="relative inline-flex items-center group cursor-pointer">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                             <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                             <span
-                                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
                             >
                                 Defines how frequently engagement reports are prepared or delivered.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="reporting_frequency"
-                        id="reporting_frequency_select"
-                        onchange="toggleCustomInput(this, 'reporting_custom_wrapper')"
-                        required
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            -- Select Reporting Frequency --
-                        </option>
-
-                        <option
-                            value="Monthly"
-                            {{ $reportingFrequency === 'Monthly' ? 'selected' : '' }}
+                        <select
+                            name="reporting_frequency"
+                            id="reporting_frequency_select"
+                            onchange="toggleCustomInput(this, 'reporting_custom_wrapper')"
+                            required
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Monthly
-                        </option>
 
-                        <option
-                            value="Quarterly"
-                            {{ $reportingFrequency === 'Quarterly' ? 'selected' : '' }}
-                        >
-                            Quarterly
-                        </option>
+                            <option value="">
+                                -- Select Reporting Frequency --
+                            </option>
 
-                        <option
-                            value="Semi-Annual"
-                            {{ $reportingFrequency === 'Semi-Annual' ? 'selected' : '' }}
-                        >
-                            Semi-Annual
-                        </option>
+                            <option
+                                value="Monthly"
+                                {{ $reportingFrequency === 'Monthly' ? 'selected' : '' }}
+                            >
+                                Monthly
+                            </option>
 
-                        <option
-                            value="Annual"
-                            {{ $reportingFrequency === 'Annual' ? 'selected' : '' }}
-                        >
-                            Annual
-                        </option>
+                            <option
+                                value="Quarterly"
+                                {{ $reportingFrequency === 'Quarterly' ? 'selected' : '' }}
+                            >
+                                Quarterly
+                            </option>
 
-                        <option
-                            value="Custom"
-                            {{ $reportingFrequency === 'Custom' ? 'selected' : '' }}
-                        >
-                            Custom
-                        </option>
+                            <option
+                                value="Semi-Annual"
+                                {{ $reportingFrequency === 'Semi-Annual' ? 'selected' : '' }}
+                            >
+                                Semi-Annual
+                            </option>
 
-                        <option
-                            value="Others"
-                            {{ $reportingFrequency === 'Others' ? 'selected' : '' }}
-                        >
-                            Others
-                        </option>
+                            <option
+                                value="Annual"
+                                {{ $reportingFrequency === 'Annual' ? 'selected' : '' }}
+                            >
+                                Annual
+                            </option>
 
-                    </select>
+                            <option
+                                value="Custom"
+                                {{ $reportingFrequency === 'Custom' ? 'selected' : '' }}
+                            >
+                                Custom
+                            </option>
+
+                            <option
+                                value="Others"
+                                {{ $reportingFrequency === 'Others' ? 'selected' : '' }}
+                            >
+                                Others
+                            </option>
+
+                        </select>
+
+                    </div>
 
 
-                    <!-- Custom Input -->
+                    {{-- CUSTOM REPORTING INPUT --}}
 
                     <div
                         class="mt-2 {{ $reportingCustomVisible ? '' : 'hidden' }}"
                         id="reporting_custom_wrapper"
                     >
 
-                        <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                        <label class="block font-semibold text-slate-700 mb-1">
+                            Custom Reporting Detail
+                        </label>
 
-                            <span>
-                                Custom Reporting Detail
-                            </span>
+                        <div class="relative">
 
-                            <span class="relative inline-flex items-center group cursor-pointer">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                                 <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                                 <span
-                                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                                    class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                    style="text-align: justify;"
                                 >
                                     Specify the custom reporting schedule or reporting instructions.
                                 </span>
 
                             </span>
 
-                        </label>
+                            <input
+                                type="text"
+                                name="reporting_frequency_custom"
+                                value="{{ $reportingFrequencyCustom }}"
+                                placeholder="Specify custom reporting detail..."
+                                class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none text-slate-800 focus:border-blue-500"
+                            >
 
-                        <input
-                            type="text"
-                            name="reporting_frequency_custom"
-                            value="{{ $reportingFrequencyCustom }}"
-                            placeholder="Specify custom reporting detail..."
-                            class="w-full border border-slate-300 rounded-lg p-2.5 outline-none text-slate-800 focus:border-blue-500"
-                        >
+                        </div>
 
                     </div>
 
@@ -6964,9 +6200,9 @@ function checkEditClientTypeOther(select) {
             </div>
 
 
-            <!-- ================================================= -->
-            <!-- AUTO CARRYOVER -->
-            <!-- ================================================= -->
+            {{-- =================================================
+                AUTO CARRYOVER
+            ================================================== --}}
 
             <div class="pt-2">
 
@@ -6984,12 +6220,13 @@ function checkEditClientTypeOther(select) {
                         Auto-carryover incomplete tasks to the next recurring period
                     </span>
 
-                    <span class="relative inline-flex items-center group cursor-pointer">
+                    <span class="relative inline-flex items-center group cursor-help">
 
                         <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                         <span
-                            class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                            style="text-align: justify;"
                         >
                             When enabled, incomplete tasks are automatically carried over to the next recurring period.
                         </span>
@@ -7003,9 +6240,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- VALIDATION ERRORS -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            VALIDATION ERRORS
+        ====================================================== --}}
 
         @if ($errors->any())
 
@@ -7032,9 +6269,9 @@ function checkEditClientTypeOther(select) {
         @endif
 
 
-        <!-- ===================================================== -->
-        <!-- NAVIGATION -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            NAVIGATION
+        ====================================================== --}}
 
         <div class="flex justify-between items-center pt-4 border-t border-slate-100">
 
@@ -7046,7 +6283,6 @@ function checkEditClientTypeOther(select) {
             >
                 ← Back to Commercials
             </button>
-
 
             <button
                 type="submit"
@@ -7064,12 +6300,11 @@ function checkEditClientTypeOther(select) {
 </div>
 
 
-<!-- ===================================================== -->
-<!-- CUSTOM INPUT TOGGLE -->
-<!-- ===================================================== -->
+{{-- =========================================================
+    CUSTOM INPUT TOGGLE
+========================================================== --}}
 
 <script>
-
     function toggleCustomInput(selectElement, wrapperId) {
 
         const wrapper = document.getElementById(wrapperId);
@@ -7101,8 +6336,9 @@ function checkEditClientTypeOther(select) {
         }
 
     }
-
 </script>
+
+
 
 {{-- =========================================================
     STEP 8 — REPORTING
@@ -7138,8 +6374,10 @@ function checkEditClientTypeOther(select) {
 @endphp
 
 
-<div id="workspace-panel-8"
-     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden">
+<div
+    id="workspace-panel-8"
+    class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden"
+>
 
     <form
         action="{{ route('products.updateReporting', $product->id) }}"
@@ -7179,61 +6417,62 @@ function checkEditClientTypeOther(select) {
 
             <div>
 
-                <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Reporting Frequency *
+                </label>
 
-                    <span>
-                        Reporting Frequency *
-                    </span>
+                <div class="relative">
 
-                    <span class="relative inline-flex items-center group cursor-pointer">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                         <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                         <span
-                            class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                            style="text-align: justify;"
                         >
                             Defines how frequently reporting is generated or delivered for the product, such as upon completion, monthly, quarterly, or annually.
                         </span>
 
                     </span>
 
-                </label>
-
-                <select
-                    name="reporting_frequency"
-                    required
-                    class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                >
-
-                    <option
-                        value="Upon Completion"
-                        {{ $reportingFrequency === 'Upon Completion' ? 'selected' : '' }}
+                    <select
+                        name="reporting_frequency"
+                        required
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                     >
-                        Upon Completion
-                    </option>
 
-                    <option
-                        value="Monthly"
-                        {{ $reportingFrequency === 'Monthly' ? 'selected' : '' }}
-                    >
-                        Monthly
-                    </option>
+                        <option
+                            value="Upon Completion"
+                            {{ $reportingFrequency === 'Upon Completion' ? 'selected' : '' }}
+                        >
+                            Upon Completion
+                        </option>
 
-                    <option
-                        value="Quarterly"
-                        {{ $reportingFrequency === 'Quarterly' ? 'selected' : '' }}
-                    >
-                        Quarterly
-                    </option>
+                        <option
+                            value="Monthly"
+                            {{ $reportingFrequency === 'Monthly' ? 'selected' : '' }}
+                        >
+                            Monthly
+                        </option>
 
-                    <option
-                        value="Annual"
-                        {{ $reportingFrequency === 'Annual' ? 'selected' : '' }}
-                    >
-                        Annual
-                    </option>
+                        <option
+                            value="Quarterly"
+                            {{ $reportingFrequency === 'Quarterly' ? 'selected' : '' }}
+                        >
+                            Quarterly
+                        </option>
 
-                </select>
+                        <option
+                            value="Annual"
+                            {{ $reportingFrequency === 'Annual' ? 'selected' : '' }}
+                        >
+                            Annual
+                        </option>
+
+                    </select>
+
+                </div>
 
             </div>
 
@@ -7242,47 +6481,48 @@ function checkEditClientTypeOther(select) {
 
             <div>
 
-                <label class="flex items-center gap-1 font-semibold text-slate-700 mb-1">
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Project Reporting Type *
+                </label>
 
-                    <span>
-                        Project Reporting Type *
-                    </span>
+                <div class="relative">
 
-                    <span class="relative inline-flex items-center group cursor-pointer">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
                         <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                         <span
-                            class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none"
+                            class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                            style="text-align: justify;"
                         >
                             Defines the type of project report produced, such as a final report or an ongoing progress report.
                         </span>
 
                     </span>
 
-                </label>
-
-                <select
-                    name="project_reporting_type"
-                    required
-                    class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                >
-
-                    <option
-                        value="Final"
-                        {{ $projectReportingType === 'Final' ? 'selected' : '' }}
+                    <select
+                        name="project_reporting_type"
+                        required
+                        class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                     >
-                        Final
-                    </option>
 
-                    <option
-                        value="Progress"
-                        {{ $projectReportingType === 'Progress' ? 'selected' : '' }}
-                    >
-                        Progress
-                    </option>
+                        <option
+                            value="Final"
+                            {{ $projectReportingType === 'Final' ? 'selected' : '' }}
+                        >
+                            Final
+                        </option>
 
-                </select>
+                        <option
+                            value="Progress"
+                            {{ $projectReportingType === 'Progress' ? 'selected' : '' }}
+                        >
+                            Progress
+                        </option>
+
+                    </select>
+
+                </div>
 
             </div>
 
@@ -7293,7 +6533,7 @@ function checkEditClientTypeOther(select) {
             REPORTING INFORMATION
         ====================================================== --}}
 
-        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600">
+        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 text-justify">
 
             Period-based reporting while preserving lifetime engagement history.
             Enables continuous tracking across recurring billing and activity cadences.
@@ -7307,18 +6547,19 @@ function checkEditClientTypeOther(select) {
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs">
 
-            <h4 class="flex items-center gap-1 font-bold text-slate-800 uppercase text-[11px] tracking-wider">
+            <h4 class="flex items-center gap-2 font-bold text-slate-800 uppercase text-[11px] tracking-wider">
 
                 <span>
                     REPORT CONTENT SCOPE
                 </span>
 
-                <span class="relative inline-flex items-center group cursor-pointer">
+                <span class="relative inline-flex items-center group cursor-help">
 
                     <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[11px]"></i>
 
                     <span
-                        class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-center font-normal leading-relaxed pointer-events-none normal-case tracking-normal font-normal"
+                        class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none normal-case tracking-normal"
+                        style="text-align: justify;"
                     >
                         Select the information, work activity, financial data, and outcomes that should be included in generated product reports.
                     </span>
@@ -7559,12 +6800,15 @@ function checkEditClientTypeOther(select) {
 
 </div>
 
+
 {{-- =========================================================
     STEP 9 — AUTOMATION
 ========================================================== --}}
 
-<div id="workspace-panel-9"
-     class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden">
+<div
+    id="workspace-panel-9"
+    class="workspace-panel bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 hidden"
+>
 
     @php
         $baseReferenceDate = old(
@@ -7628,9 +6872,9 @@ function checkEditClientTypeOther(select) {
         @method('PUT')
 
 
-        <!-- ===================================================== -->
-        <!-- HEADER -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            HEADER
+        ====================================================== --}}
 
         <div class="border-b border-slate-100 pb-3 flex justify-between items-center">
 
@@ -7657,9 +6901,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- TASK & PERIOD INSTANTIATION ENGINE -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            TASK & PERIOD INSTANTIATION ENGINE
+        ====================================================== --}}
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs mt-4">
 
@@ -7675,99 +6919,97 @@ function checkEditClientTypeOther(select) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
 
-                <!-- BASE REFERENCE DATE -->
+                {{-- BASE REFERENCE DATE --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Base Reference Date
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Base Reference Date
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed pointer-events-none"
-                                >
-                                    Determines which date the system will use as the starting reference when generating scheduled activities and recurring periods.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Determines which date the system will use as the starting reference when generating scheduled activities and recurring periods.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="base_reference_date"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Base Reference Date--
-                        </option>
-
-                        <option
-                            value="period_start"
-                            {{ $baseReferenceDate === 'period_start' ? 'selected' : '' }}
+                        <select
+                            name="base_reference_date"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Period Start Date
-                        </option>
 
-                        <option
-                            value="engagement_start"
-                            {{ $baseReferenceDate === 'engagement_start' ? 'selected' : '' }}
-                        >
-                            Engagement Start Date
-                        </option>
+                            <option value="">
+                                --Select Base Reference Date--
+                            </option>
 
-                        <option
-                            value="contract_signing"
-                            {{ $baseReferenceDate === 'contract_signing' ? 'selected' : '' }}
-                        >
-                            Contract Signing Date
-                        </option>
+                            <option
+                                value="period_start"
+                                {{ $baseReferenceDate === 'period_start' ? 'selected' : '' }}
+                            >
+                                Period Start Date
+                            </option>
 
-                    </select>
+                            <option
+                                value="engagement_start"
+                                {{ $baseReferenceDate === 'engagement_start' ? 'selected' : '' }}
+                            >
+                                Engagement Start Date
+                            </option>
+
+                            <option
+                                value="contract_signing"
+                                {{ $baseReferenceDate === 'contract_signing' ? 'selected' : '' }}
+                            >
+                                Contract Signing Date
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
 
-                <!-- LEAD TIME GENERATION -->
+                {{-- LEAD TIME GENERATION --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Lead Time Generation (Days)
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Lead Time Generation (Days)
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Defines how many days before the reference date the system should generate scheduled activities or tasks.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Defines how many days before the reference date the system should generate scheduled activities or tasks.
                             </span>
 
                         </span>
 
-                    </label>
+                        <input
+                            type="number"
+                            name="lead_time_generation"
+                            value="{{ $leadTimeGeneration }}"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500"
+                        >
 
-                    <input
-                        type="number"
-                        name="lead_time_generation"
-                        value="{{ $leadTimeGeneration }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                    </div>
 
                 </div>
 
@@ -7777,68 +7019,67 @@ function checkEditClientTypeOther(select) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
 
 
-                <!-- DEFAULT AUTO ASSIGNMENT -->
+                {{-- DEFAULT AUTO ASSIGNMENT --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Default Auto-Assignment Rule
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Default Auto-Assignment Rule
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Determines who will automatically receive newly generated activities or tasks.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Determines who will automatically receive newly generated activities or tasks.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="default_auto_assignment_rule"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Assignment Rule--
-                        </option>
-
-                        <option
-                            value="engagement_lead"
-                            {{ $defaultAutoAssignmentRule === 'engagement_lead' ? 'selected' : '' }}
+                        <select
+                            name="default_auto_assignment_rule"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Assign to Primary Engagement Lead
-                        </option>
 
-                        <option
-                            value="service_area_pool"
-                            {{ $defaultAutoAssignmentRule === 'service_area_pool' ? 'selected' : '' }}
-                        >
-                            Unassigned (Service Area Pool)
-                        </option>
+                            <option value="">
+                                --Select Assignment Rule--
+                            </option>
 
-                        <option
-                            value="previous_assignee"
-                            {{ $defaultAutoAssignmentRule === 'previous_assignee' ? 'selected' : '' }}
-                        >
-                            Inherit Previous Period Assignee
-                        </option>
+                            <option
+                                value="engagement_lead"
+                                {{ $defaultAutoAssignmentRule === 'engagement_lead' ? 'selected' : '' }}
+                            >
+                                Assign to Primary Engagement Lead
+                            </option>
 
-                    </select>
+                            <option
+                                value="service_area_pool"
+                                {{ $defaultAutoAssignmentRule === 'service_area_pool' ? 'selected' : '' }}
+                            >
+                                Unassigned (Service Area Pool)
+                            </option>
+
+                            <option
+                                value="previous_assignee"
+                                {{ $defaultAutoAssignmentRule === 'previous_assignee' ? 'selected' : '' }}
+                            >
+                                Inherit Previous Period Assignee
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
 
-                <!-- AUTO CARRYOVER -->
+                {{-- AUTO CARRYOVER --}}
 
                 <div class="flex items-center pt-5">
 
@@ -7852,25 +7093,24 @@ function checkEditClientTypeOther(select) {
                             class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         >
 
-                        <span class="font-semibold text-slate-700 inline-flex items-center gap-1">
-
+                        <span class="font-semibold text-slate-700">
                             Auto-carryover incomplete tasks to next recurring period
-
-                            <span class="relative inline-flex items-center group">
-
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Automatically moves unfinished tasks into the next recurring period instead of leaving them behind.
-                                </span>
-
-                            </span>
-
                         </span>
 
                     </label>
+
+                    <span class="relative inline-flex items-center group cursor-help ml-1">
+
+                        <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
+
+                        <span
+                            class="absolute bottom-full right-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                            style="text-align: justify;"
+                        >
+                            Automatically moves unfinished tasks into the next recurring period instead of leaving them behind.
+                        </span>
+
+                    </span>
 
                 </div>
 
@@ -7879,9 +7119,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- NOTIFICATION & REMINDER CADENCE MATRIX -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            NOTIFICATION & REMINDER CADENCE MATRIX
+        ====================================================== --}}
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs mt-4">
 
@@ -7897,167 +7137,164 @@ function checkEditClientTypeOther(select) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
 
-                <!-- INTERNAL REMINDER -->
+                {{-- INTERNAL REMINDER --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Internal Reminder Trigger
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Internal Reminder Trigger
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Specifies how many days before the applicable event the system should send an internal reminder.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Specifies how many days before the applicable event the system should send an internal reminder.
                             </span>
 
                         </span>
 
-                    </label>
+                        <input
+                            type="number"
+                            name="internal_reminder_trigger"
+                            value="{{ $internalReminderTrigger }}"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500"
+                        >
 
-                    <input
-                        type="number"
-                        name="internal_reminder_trigger"
-                        value="{{ $internalReminderTrigger }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                    </div>
 
                 </div>
 
 
-                <!-- CLIENT FOLLOW-UP -->
+                {{-- CLIENT FOLLOW-UP --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Client Follow-up Cadence
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Client Follow-up Cadence
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Controls how frequently the system sends automated follow-up reminders to the client.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Controls how frequently the system sends automated follow-up reminders to the client.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="client_followup_cadence"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Client Reminder--
-                        </option>
-
-                        <option
-                            value="daily"
-                            {{ $clientFollowupCadence === 'daily' ? 'selected' : '' }}
+                        <select
+                            name="client_followup_cadence"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Daily Automated Email
-                        </option>
 
-                        <option
-                            value="every_3_days"
-                            {{ $clientFollowupCadence === 'every_3_days' ? 'selected' : '' }}
-                        >
-                            Every 3 Days
-                        </option>
+                            <option value="">
+                                --Select Client Reminder--
+                            </option>
 
-                        <option
-                            value="weekly"
-                            {{ $clientFollowupCadence === 'weekly' ? 'selected' : '' }}
-                        >
-                            Weekly Summary
-                        </option>
+                            <option
+                                value="daily"
+                                {{ $clientFollowupCadence === 'daily' ? 'selected' : '' }}
+                            >
+                                Daily Automated Email
+                            </option>
 
-                        <option
-                            value="disabled"
-                            {{ $clientFollowupCadence === 'disabled' ? 'selected' : '' }}
-                        >
-                            Disabled / Manual Only
-                        </option>
+                            <option
+                                value="every_3_days"
+                                {{ $clientFollowupCadence === 'every_3_days' ? 'selected' : '' }}
+                            >
+                                Every 3 Days
+                            </option>
 
-                    </select>
+                            <option
+                                value="weekly"
+                                {{ $clientFollowupCadence === 'weekly' ? 'selected' : '' }}
+                            >
+                                Weekly Summary
+                            </option>
+
+                            <option
+                                value="disabled"
+                                {{ $clientFollowupCadence === 'disabled' ? 'selected' : '' }}
+                            >
+                                Disabled / Manual Only
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
 
-                <!-- NOTIFICATION CHANNEL -->
+                {{-- NOTIFICATION CHANNEL --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Notification Channel
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Notification Channel
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Determines where automated system notifications and reminders will be delivered.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Determines where automated system notifications and reminders will be delivered.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="notification_channel"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Notification Channel--
-                        </option>
-
-                        <option
-                            value="email_and_app"
-                            {{ $notificationChannel == 'email_and_app' ? 'selected' : '' }}
+                        <select
+                            name="notification_channel"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Email &amp; In-App Dashboard Notification
-                        </option>
 
-                        <option
-                            value="app_only"
-                            {{ $notificationChannel == 'app_only' ? 'selected' : '' }}
-                        >
-                            In-App Dashboard Only
-                        </option>
+                            <option value="">
+                                --Select Notification Channel--
+                            </option>
 
-                        <option
-                            value="email_only"
-                            {{ $notificationChannel == 'email_only' ? 'selected' : '' }}
-                        >
-                            Email Only
-                        </option>
+                            <option
+                                value="email_and_app"
+                                {{ $notificationChannel == 'email_and_app' ? 'selected' : '' }}
+                            >
+                                Email &amp; In-App Dashboard Notification
+                            </option>
 
-                    </select>
+                            <option
+                                value="app_only"
+                                {{ $notificationChannel == 'app_only' ? 'selected' : '' }}
+                            >
+                                In-App Dashboard Only
+                            </option>
+
+                            <option
+                                value="email_only"
+                                {{ $notificationChannel == 'email_only' ? 'selected' : '' }}
+                            >
+                                Email Only
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
@@ -8066,9 +7303,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- ESCALATION & REQUIREMENT DEPENDENCY CONTROLS -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            ESCALATION & REQUIREMENT DEPENDENCY CONTROLS
+        ====================================================== --}}
 
         <div class="border border-slate-200 rounded-xl p-4 space-y-4 text-xs mt-4">
 
@@ -8084,160 +7321,157 @@ function checkEditClientTypeOther(select) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
 
-                <!-- OVERDUE ESCALATION -->
+                {{-- OVERDUE ESCALATION --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Overdue Escalation Threshold (Days)
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Overdue Escalation Threshold (Days)
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Defines how many days an activity may remain overdue before the system triggers an escalation.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Defines how many days an activity may remain overdue before the system triggers an escalation.
                             </span>
 
                         </span>
 
-                    </label>
+                        <input
+                            type="number"
+                            name="overdue_escalation_threshold"
+                            value="{{ $overdueEscalationThreshold }}"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500"
+                        >
 
-                    <input
-                        type="number"
-                        name="overdue_escalation_threshold"
-                        value="{{ $overdueEscalationThreshold }}"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 bg-white outline-none focus:border-blue-500"
-                    >
+                    </div>
 
                 </div>
 
 
-                <!-- ESCALATION RECIPIENT -->
+                {{-- ESCALATION RECIPIENT --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Escalation Recipient Role
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Escalation Recipient Role
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Identifies the organizational role that should receive escalated notifications for overdue activities.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Identifies the organizational role that should receive escalated notifications for overdue activities.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="escalation_recipient_role"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Escalation--
-                        </option>
-
-                        <option
-                            value="engagement_manager"
-                            {{ $escalationRecipientRole == 'engagement_manager' ? 'selected' : '' }}
+                        <select
+                            name="escalation_recipient_role"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Engagement Manager
-                        </option>
 
-                        <option
-                            value="service_area_head"
-                            {{ $escalationRecipientRole == 'service_area_head' ? 'selected' : '' }}
-                        >
-                            Service Area Head
-                        </option>
+                            <option value="">
+                                --Select Escalation--
+                            </option>
 
-                        <option
-                            value="quality_reviewer"
-                            {{ $escalationRecipientRole == 'quality_reviewer' ? 'selected' : '' }}
-                        >
-                            Quality Reviewer
-                        </option>
+                            <option
+                                value="engagement_manager"
+                                {{ $escalationRecipientRole == 'engagement_manager' ? 'selected' : '' }}
+                            >
+                                Engagement Manager
+                            </option>
 
-                    </select>
+                            <option
+                                value="service_area_head"
+                                {{ $escalationRecipientRole == 'service_area_head' ? 'selected' : '' }}
+                            >
+                                Service Area Head
+                            </option>
+
+                            <option
+                                value="quality_reviewer"
+                                {{ $escalationRecipientRole == 'quality_reviewer' ? 'selected' : '' }}
+                            >
+                                Quality Reviewer
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
 
-                <!-- REQUIREMENT GATE -->
+                {{-- REQUIREMENT GATE --}}
 
                 <div>
 
                     <label class="block font-semibold text-slate-700 mb-1">
+                        Missing Requirements Gate Rule
+                    </label>
 
-                        <span class="inline-flex items-center gap-1">
+                    <div class="relative">
 
-                            Missing Requirements Gate Rule
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 group cursor-help">
 
-                            <span class="relative inline-flex items-center group">
+                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px]"></i>
 
-                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"></i>
-
-                                <span
-                                    class="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover:block w-80 bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-50 text-center font-normal leading-relaxed"
-                                >
-                                    Determines whether execution should be blocked or allowed when mandatory client requirements are still missing.
-                                </span>
-
+                            <span
+                                class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-80 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-[11px] px-3 py-2.5 rounded-lg shadow-xl z-[9999] text-justify font-normal leading-relaxed pointer-events-none"
+                                style="text-align: justify;"
+                            >
+                                Determines whether execution should be blocked or allowed when mandatory client requirements are still missing.
                             </span>
 
                         </span>
 
-                    </label>
-
-                    <select
-                        name="missing_requirements_gate_rule"
-                        class="w-full border border-slate-300 rounded-lg p-2.5 outline-none bg-white text-slate-800 focus:border-blue-500"
-                    >
-
-                        <option value="">
-                            --Select Requirement Gate Rule--
-                        </option>
-
-                        <option
-                            value="block_execution"
-                            {{ $missingRequirementsGateRule == 'block_execution' ? 'selected' : '' }}
+                        <select
+                            name="missing_requirements_gate_rule"
+                            class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 outline-none bg-white text-slate-800 focus:border-blue-500"
                         >
-                            Strict Gate: Block Execution until Mandatory Uploaded
-                        </option>
 
-                        <option
-                            value="warn_only"
-                            {{ $missingRequirementsGateRule == 'warn_only' ? 'selected' : '' }}
-                        >
-                            Warning Only: Allow Execution with System Alert
-                        </option>
+                            <option value="">
+                                --Select Requirement Gate Rule--
+                            </option>
 
-                        <option
-                            value="none"
-                            {{ $missingRequirementsGateRule == 'none' ? 'selected' : '' }}
-                        >
-                            No Restriction
-                        </option>
+                            <option
+                                value="block_execution"
+                                {{ $missingRequirementsGateRule == 'block_execution' ? 'selected' : '' }}
+                            >
+                                Strict Gate: Block Execution until Mandatory Uploaded
+                            </option>
 
-                    </select>
+                            <option
+                                value="warn_only"
+                                {{ $missingRequirementsGateRule == 'warn_only' ? 'selected' : '' }}
+                            >
+                                Warning Only: Allow Execution with System Alert
+                            </option>
+
+                            <option
+                                value="none"
+                                {{ $missingRequirementsGateRule == 'none' ? 'selected' : '' }}
+                            >
+                                No Restriction
+                            </option>
+
+                        </select>
+
+                    </div>
 
                 </div>
 
@@ -8246,9 +7480,9 @@ function checkEditClientTypeOther(select) {
         </div>
 
 
-        <!-- ===================================================== -->
-        <!-- NAVIGATION -->
-        <!-- ===================================================== -->
+        {{-- =====================================================
+            NAVIGATION
+        ====================================================== --}}
 
         <div class="flex justify-between items-center pt-4 border-t border-slate-100 mt-4">
 
@@ -8277,6 +7511,8 @@ function checkEditClientTypeOther(select) {
     </form>
 
 </div>
+
+
 
 {{-- =========================================================
     STEP 10 — PRODUCT TERMS & AGREEMENTS TAB CONTENT

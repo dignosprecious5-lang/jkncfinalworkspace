@@ -11,13 +11,24 @@ return new class extends Migration
         if (!Schema::hasTable('task_reminders')) {
             Schema::create('task_reminders', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('operational_task_id')->constrained('operational_tasks')->onDelete('cascade');
-                $table->string('reminder_type'); // e.g., 'internal'
+
+                $table->foreignId('operational_task_id')
+                    ->constrained('operational_tasks')
+                    ->cascadeOnDelete();
+
+                $table->string('reminder_type');
                 $table->date('target_due_date');
+
                 $table->timestamps();
 
-                // Unique constraint para maiwasan ang duplicate reminders
-                $table->unique(['operational_task_id', 'reminder_type', 'target_due_date'], 'task_reminder_unique_idx');
+                $table->unique(
+                    [
+                        'operational_task_id',
+                        'reminder_type',
+                        'target_due_date',
+                    ],
+                    'task_reminder_unique_idx'
+                );
             });
         }
     }

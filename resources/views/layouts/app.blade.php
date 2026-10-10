@@ -102,134 +102,109 @@
                             @endif
                         </button>
 
-                        <!-- NOTIFICATION DROPDOWN -->
-                        <div
-                            id="headerNotificationDropdown"
-                            class="hidden origin-top-right absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-xl z-50 text-xs text-slate-700 divide-y divide-slate-100"
-                        >
-                            <div class="p-3 font-bold text-slate-800 flex justify-between items-center bg-slate-50 rounded-t-lg">
-                                <span>Notifications</span>
+                      
+<!-- NOTIFICATION DROPDOWN -->
+<div
+    id="headerNotificationDropdown"
+    class="hidden origin-top-right absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-xl z-50 text-xs text-slate-700 divide-y divide-slate-100"
+>
+    <div class="p-3 font-bold text-slate-800 flex justify-between items-center bg-slate-50 rounded-t-lg">
+        <span>Notifications</span>
 
-                                <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
-                                    {{ $headerUnreadCount }} Unread
-                                </span>
-                            </div>
+        <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+            {{ $headerUnreadCount }} unread
+        </span>
+    </div>
 
-                            <div class="max-h-80 overflow-y-auto divide-y divide-slate-100">
+    <div class="max-h-80 overflow-y-auto divide-y divide-slate-100">
+        @forelse ($headerNotifications as $notification)
+            @php
+                $notificationData = $notification->data ?? [];
 
-                                @forelse ($headerNotifications as $notification)
-                                    @php
-                                        $notificationData = $notification->data ?? [];
+                $notificationTitle = data_get(
+                    $notificationData,
+                    'title',
+                    data_get(
+                        $notificationData,
+                        'service_name',
+                        data_get(
+                            $notificationData,
+                            'product_name',
+                            class_basename($notification->type)
+                        )
+                    )
+                );
 
-                                        $notificationTitle = data_get(
-                                            $notificationData,
-                                            'title',
-                                            data_get(
-                                                $notificationData,
-                                                'service_name',
-                                                data_get(
-                                                    $notificationData,
-                                                    'product_name',
-                                                    class_basename($notification->type)
-                                                )
-                                            )
-                                        );
+                $notificationMessage = data_get(
+                    $notificationData,
+                    'message',
+                    data_get($notificationData, 'description', '')
+                );
 
-                                        $notificationMessage = data_get(
-                                            $notificationData,
-                                            'message',
-                                            data_get(
-                                                $notificationData,
-                                                'description',
-                                                ''
-                                            )
-                                        );
+                $notificationUrl = data_get($notificationData, 'url');
 
-                                        $notificationUrl = data_get(
-                                            $notificationData,
-                                            'url'
-                                        );
-                                    @endphp
+                $notificationUrl = is_string($notificationUrl)
+                    && str_starts_with($notificationUrl, '/')
+                    && !str_starts_with($notificationUrl, '//')
+                    ? $notificationUrl
+                    : null;
+            @endphp
 
-                                    <div
-                                        class="p-3 hover:bg-blue-50/50 transition {{ $notification->read_at ? 'opacity-70' : '' }}"
-                                        data-notification-row="{{ $notification->id }}"
-                                    >
-                                        <div class="font-semibold text-slate-800 flex items-center justify-between gap-2">
-                                            <span>
-                                                {{ $notificationTitle }}
-                                            </span>
+            <button
+                type="button"
+                class="block w-full text-left p-3 transition hover:bg-blue-50 focus:bg-blue-50 focus:outline-none {{ $notification->read_at ? 'opacity-70' : 'bg-blue-50/30' }}"
+                data-notification-row="{{ $notification->id }}"
+                onclick="openHeaderNotification(event, '{{ $notification->id }}', @js($notificationUrl))"
+            >
+                <div class="flex items-start justify-between gap-2">
+                    <span class="font-semibold text-slate-800">
+                        {{ $notificationTitle }}
+                    </span>
 
-                                            @if (!$notification->read_at)
-                                                <span
-                                                    class="h-2 w-2 rounded-full bg-blue-600 shrink-0"
-                                                    title="Unread"
-                                                ></span>
-                                            @endif
-                                        </div>
+                    @if (!$notification->read_at)
+                        <span
+                            class="h-2 w-2 rounded-full bg-blue-600 shrink-0 mt-1"
+                            aria-label="Unread"
+                        ></span>
+                    @endif
+                </div>
 
-                                        @if ($notificationMessage !== '')
-                                            <div class="text-[11px] text-slate-500 mt-0.5">
-                                                {{ $notificationMessage }}
-                                            </div>
-                                        @endif
-
-                                        <div class="flex justify-between items-center mt-2 gap-2">
-                                            <span class="text-[10px] text-slate-400">
-                                                {{ $notification->created_at?->diffForHumans() }}
-                                            </span>
-
-                                            <div class="flex items-center gap-3">
-                                                @if (!$notification->read_at)
-                                                    <button
-                                                        type="button"
-                                                        onclick="markHeaderNotificationRead(event, '{{ $notification->id }}')"
-                                                        class="text-[10px] font-semibold text-blue-600 hover:underline"
-                                                    >
-                                                        Mark read
-                                                    </button>
-                                                @endif
-
-                                                @if (is_string($notificationUrl) && $notificationUrl !== '')
-                                                    <a
-                                                        href="{{ $notificationUrl }}"
-                                                        class="text-[10px] font-semibold text-slate-600 hover:text-blue-600 hover:underline"
-                                                    >
-                                                        View
-                                                    </a>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                @empty
-                                    <div class="p-6 text-center text-slate-400">
-                                        <i class="fa-regular fa-bell-slash text-xl mb-2"></i>
-                                        <p>No notifications yet.</p>
-                                    </div>
-                                @endforelse
-
-                            </div>
-
-                            <div class="p-2 text-center bg-slate-50 rounded-b-lg">
-                                @if ($headerUnreadCount > 0)
-                                    <button
-                                        type="button"
-                                        onclick="markAllHeaderNotificationsRead(event)"
-                                        class="text-blue-600 hover:underline text-[11px] font-semibold block w-full py-1"
-                                    >
-                                        Mark All as Read
-                                    </button>
-                                @else
-                                    <span class="text-[11px] text-slate-400 block py-1">
-                                        You're all caught up
-                                    </span>
-                                @endif
-                            </div>
-                        </div>
+                @if ($notificationMessage !== '')
+                    <div class="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        {{ $notificationMessage }}
                     </div>
-                @endauth
+                @endif
 
+                <div class="text-[10px] text-slate-400 mt-2">
+                    {{ $notification->created_at?->diffForHumans() }}
+                </div>
+            </button>
+        @empty
+            <div class="p-6 text-center text-slate-400">
+                <i class="fa-regular fa-bell-slash text-xl mb-2"></i>
+                <p>No notifications yet.</p>
+            </div>
+        @endforelse
+    </div>
+
+    <div class="p-2 text-center bg-slate-50 rounded-b-lg">
+        @if ($headerUnreadCount > 0)
+            <button
+                type="button"
+                onclick="markAllHeaderNotificationsRead(event)"
+                class="text-blue-600 hover:underline text-[11px] font-semibold block w-full py-1"
+            >
+                Mark all read
+            </button>
+        @else
+            <span class="text-[11px] text-slate-400 block py-1">
+                You're all caught up
+            </span>
+        @endif
+    </div>
+</div>
+
+@endauth
                 <!-- USER PROFILE -->
                 <div class="relative inline-block text-left">
 
@@ -492,87 +467,151 @@
             }
         }
 
-        async function markHeaderNotificationRead(event, notificationId) {
-            if (event) event.stopPropagation();
-
-            try {
-                const response = await fetch(
-                    `/notifications/${encodeURIComponent(notificationId)}/mark-read`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        credentials: 'same-origin'
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error('Failed to mark notification as read.');
-                }
-
-                window.location.reload();
-            } catch (error) {
-                console.error(error);
-                alert('Unable to update the notification. Please try again.');
-            }
+    /**
+     * Mark one notification as read.
+     */
+    async function markHeaderNotificationRead(event, notificationId) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
         }
 
-        async function markAllHeaderNotificationsRead(event) {
-            if (event) event.stopPropagation();
-
-            try {
-                const response = await fetch('/notifications/mark-all-read', {
+        try {
+            const response = await fetch(
+                `/notifications/${encodeURIComponent(notificationId)}/mark-read`,
+                {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                        'X-CSRF-TOKEN':
+                            document.querySelector('meta[name="csrf-token"]')?.content ?? '',
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin'
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to mark notifications as read.');
                 }
+            );
 
-                window.location.reload();
-            } catch (error) {
-                console.error(error);
-                alert('Unable to update notifications. Please try again.');
+            if (!response.ok) {
+                throw new Error('Failed to mark notification as read.');
             }
+
+            window.location.reload();
+        } catch (error) {
+            console.error(error);
+            alert('Unable to update the notification. Please try again.');
+        }
+    }
+
+    /**
+     * Open a notification by clicking its entire card.
+     * Marks it as read before navigating to its own destination.
+     */
+    async function openHeaderNotification(event, notificationId, notificationUrl) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
         }
 
-        document.addEventListener('click', function (event) {
-            const notifMenu = document.getElementById('headerNotificationDropdown');
-            const notifButton = document.getElementById('notifBellButton');
+        try {
+            const response = await fetch(
+                `/notifications/${encodeURIComponent(notificationId)}/mark-read`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN':
+                            document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                }
+            );
 
-            if (
-                notifMenu &&
-                !notifMenu.contains(event.target) &&
-                notifButton &&
-                !notifButton.contains(event.target)
-            ) {
-                notifMenu.classList.add('hidden');
-                notifButton.setAttribute('aria-expanded', 'false');
+            if (!response.ok) {
+                throw new Error('Failed to update notification status.');
             }
 
-            const userMenu = document.getElementById('userProfileDropdown');
-            const userButton = document.getElementById('userAvatarButton');
-
             if (
-                userMenu &&
-                !userMenu.contains(event.target) &&
-                userButton &&
-                !userButton.contains(event.target)
+                typeof notificationUrl === 'string' &&
+                notificationUrl.startsWith('/') &&
+                !notificationUrl.startsWith('//')
             ) {
-                userMenu.classList.add('hidden');
-                userButton.setAttribute('aria-expanded', 'false');
+                window.location.assign(notificationUrl);
+            } else {
+                // Walang valid destination URL: update read status and refresh.
+                window.location.reload();
             }
-        });
-    </script>
+        } catch (error) {
+            console.error(error);
+            alert('Unable to open this notification. Please try again.');
+        }
+    }
+
+    /**
+     * Mark all of the current user's notifications as read.
+     */
+    async function markAllHeaderNotificationsRead(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        try {
+            const response = await fetch('/notifications/mark-all-read', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN':
+                        document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to mark notifications as read.');
+            }
+
+            window.location.reload();
+        } catch (error) {
+            console.error(error);
+            alert('Unable to update notifications. Please try again.');
+        }
+    }
+
+    /**
+     * Close the notification and profile dropdowns
+     * when the user clicks outside them.
+     */
+    document.addEventListener('click', function (event) {
+        const notifMenu = document.getElementById('headerNotificationDropdown');
+        const notifButton = document.getElementById('notifBellButton');
+
+        if (
+            notifMenu &&
+            !notifMenu.contains(event.target) &&
+            notifButton &&
+            !notifButton.contains(event.target)
+        ) {
+            notifMenu.classList.add('hidden');
+            notifButton.setAttribute('aria-expanded', 'false');
+        }
+
+        const userMenu = document.getElementById('userProfileDropdown');
+        const userButton = document.getElementById('userAvatarButton');
+
+        if (
+            userMenu &&
+            !userMenu.contains(event.target) &&
+            userButton &&
+            !userButton.contains(event.target)
+        ) {
+            userMenu.classList.add('hidden');
+            userButton.setAttribute('aria-expanded', 'false');
+        }
+    });
+</script>
+
 
 </body>
 </html>

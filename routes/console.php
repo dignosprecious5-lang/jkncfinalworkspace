@@ -28,6 +28,7 @@ Schedule::call(function () {
 
 // Overdue Escalation Schedule (Direktang nakaturo sa ating EscalateOverdueTasks command class)
 Schedule::command('services:escalate-overdue')->daily();
+Schedule::command('services:send-reminders')->daily();
 
 // Report Preparation Schedule
 Schedule::command('services:prepare-reports')->daily();
