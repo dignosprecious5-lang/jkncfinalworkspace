@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\ProductTerm;
+use App\Models\ProductCustomField;
 
 class Product extends Model
 {
@@ -179,7 +180,14 @@ class Product extends Model
         return $this->hasMany(ProductRequirement::class)
             ->orderBy('sequence');
     }
+ // =========================================================
+    // CUSTOM FIELD
+    // =========================================================
 
+public function customFields(): \Illuminate\Database\Eloquent\Relations\HasMany
+{
+    return $this->hasMany(ProductCustomField::class);
+}
     // =========================================================
     // PRODUCT VERSIONS / HISTORY
     // =========================================================

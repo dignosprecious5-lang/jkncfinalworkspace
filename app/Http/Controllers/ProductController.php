@@ -308,6 +308,9 @@ return redirect()
             ->get();
 
             $termsTemplates = \App\Models\TermsTemplate::where('status', 'active')->get();
+
+
+            
         /*
         |--------------------------------------------------------------------------
         | STEP 1
@@ -683,10 +686,14 @@ foreach ($validated as $field => $newValue) {
         );
 }
     /*
+```php
 /*
 |--------------------------------------------------------------------------
 | STEP 4 — STORE REQUIREMENT
-|--------------------------------------------------------------------------
+|--------
+
+
+------------------------------------------------------------------
 */
 
 public function storeRequirement(Request $request, $id)
@@ -744,6 +751,73 @@ public function storeRequirement(Request $request, $id)
             $validated['name'] .
             '" saved successfully.'
         );
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| STEP 4A — STORE CUSTOM FIELD
+|--------------------------------------------------------------------------
+*/
+
+public function storeCustomField(Request $request, $id)
+{
+    $product = Product::findOrFail($id);
+
+    $validated = $request->validate([
+        'field_name' => ['required', 'string', 'max:255'],
+        'field_api_name' => ['nullable', 'string', 'max:255'],
+        'field_type' => [
+            'required',
+            'string',
+            'in:Single Line Text,Multi Line Text,Number,Currency,Picklist,Checkbox,Date,Lookup',
+        ],
+        'options' => ['nullable', 'string'],
+        'is_required' => ['nullable', 'boolean'],
+    ]);
+
+    $fieldName = trim($validated['field_name']);
+
+    $apiName = trim($validated['field_api_name'] ?? '');
+
+    $apiName = \Illuminate\Support\Str::snake(
+        $apiName !== '' ? $apiName : $fieldName
+    );
+
+    $baseApiName = $apiName;
+    $counter = 2;
+
+    while (
+        $product->customFields()
+            ->where('field_api_name', $apiName)
+            ->exists()
+    ) {
+        $apiName = $baseApiName . '_' . $counter;
+        $counter++;
+    }
+
+    $options = collect(
+        preg_split('/\r\n|\r|\n/', $validated['options'] ?? '')
+    )
+        ->map(fn ($option) => trim($option))
+        ->filter()
+        ->values()
+        ->all();
+
+    $product->customFields()->create([
+        'field_name' => $fieldName,
+        'field_api_name' => $apiName,
+        'field_type' => $validated['field_type'],
+        'options' => in_array(
+            $validated['field_type'],
+            ['Picklist', 'Lookup']
+        ) ? $options : null,
+        'is_required' => $request->boolean('is_required'),
+    ]);
+
+    return redirect()
+        ->back()
+        ->with('success', 'Custom field saved successfully.');
 }
 
 

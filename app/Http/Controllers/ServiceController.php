@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Models\ServiceCustomField;
 
 class ServiceController extends Controller
 {
@@ -252,6 +253,11 @@ class ServiceController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+
+
+
+
+            
         // ======================================================================
         // DYNAMIC DASHBOARD INSIGHTS / METRICS CARDS
         // ======================================================================
@@ -2022,5 +2028,72 @@ public function destroyGlobalRequirement($id)
         return back()->with('success', 'Template removed successfully.');
     }
 
-    
+
+    /*
+    |--------------------------------------------------------------------------
+    | STORE SERVICE CUSTOM FIELD
+    |--------------------------------------------------------------------------
+    */
+    public function storeCustomField(Request $request, $id)
+    {
+        $service = Service::findOrFail($id);
+
+        $validated = $request->validate([
+            'field_label' => ['required', 'string', 'max:255'],
+            'field_api_name' => ['nullable', 'string', 'max:255'],
+            'field_type' => [
+                'required',
+                'string',
+                'in:Single Line Text,Multi Line Text,Number,Currency,Picklist,Checkbox,Date,Lookup',
+            ],
+            'options' => ['nullable', 'string'],
+            'is_required' => ['nullable', 'boolean'],
+        ]);
+
+        $label = trim($validated['field_label']);
+
+        $apiName = trim($validated['field_api_name'] ?? '');
+
+        $apiName = \Illuminate\Support\Str::snake(
+            $apiName !== '' ? $apiName : $label
+        );
+
+        $baseApiName = $apiName;
+        $counter = 2;
+
+        while (
+            $service->customFields()
+                ->where('field_api_name', $apiName)
+                ->exists()
+        ) {
+            $apiName = $baseApiName . '_' . $counter;
+            $counter++;
+        }
+
+        $options = collect(
+            preg_split('/\r\n|\r|\n/', $validated['options'] ?? '')
+        )
+            ->map(fn ($option) => trim($option))
+            ->filter()
+            ->values()
+            ->all();
+
+        $service->customFields()->create([
+            'field_label' => $label,
+            'field_api_name' => $apiName,
+            'field_type' => $validated['field_type'],
+            'options' => in_array(
+                $validated['field_type'],
+                ['Picklist', 'Lookup']
+            ) ? $options : null,
+            'is_required' => $request->boolean('is_required'),
+            'is_active' => true,
+        ]);
+
+        return back()->with(
+            'success',
+            'Service custom field saved successfully.'
+        );
+    }
+
 }

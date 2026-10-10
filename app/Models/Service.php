@@ -63,4 +63,10 @@ class Service extends Model
     | }
     |
     */
+
+public function customFields(): \Illuminate\Database\Eloquent\Relations\HasMany
+{
+    return $this->hasMany(ServiceCustomField::class);
+}
+
 }

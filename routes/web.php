@@ -2094,9 +2094,21 @@ Route::patch(
 )->name('product-versions.status');
 
 
+// =========================================================
+// costum field
+// =========================================================
 
 
+Route::post(
+    '/products/{id}/custom-fields',
+    [ProductController::class, 'storeCustomField']
+)->name('products.custom-fields.store');
 
+
+Route::post(
+    '/services/{id}/custom-fields',
+    [ServiceController::class, 'storeCustomField']
+)->name('services.custom-fields.store');
 
 // =========================================================
 // submit for approval

@@ -163,37 +163,62 @@
     @endforeach
 </div>
 
-{{-- 6. Dashboard Filters Bar --}}
+{{-- =========================================================
+    ROW 1: DASHBOARD FILTERS + DATE RANGE
+========================================================== --}}
 <form
     method="GET"
     action="{{ route('products.index') }}"
     class="bg-white border border-slate-200 rounded-lg p-4 mb-4 shadow-sm space-y-4"
 >
-    {{-- UNANG ROW: Date range & Search/Status/Category/Product Type/Inventory Type --}}
+
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+
         <div class="flex items-center space-x-3">
-            <span class="font-bold text-slate-800 text-sm">Dashboard Filters</span>
-            <span class="text-slate-500 text-sm font-medium">From</span>
+
+            <span class="font-bold text-slate-800 text-sm">
+                Dashboard Filters
+            </span>
+
+            <span class="text-slate-500 text-sm font-medium">
+                From
+            </span>
+
             <input
                 type="date"
                 name="from_date"
                 value="{{ request('from_date', '') }}"
                 class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white"
             >
-            <span class="text-slate-500 text-sm font-medium">To</span>
+
+            <span class="text-slate-500 text-sm font-medium">
+                To
+            </span>
+
             <input
                 type="date"
                 name="to_date"
                 value="{{ request('to_date', '') }}"
                 class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white"
             >
+
         </div>
+
     </div>
 
+
+    {{-- =========================================================
+        ROW 2: SEARCH + FILTERS + RESET + APPLY
+    ========================================================== --}}
+
     <div class="flex flex-wrap items-center justify-between gap-3">
+
         <div class="flex flex-wrap items-center gap-3 flex-1">
-            <!-- Search Input -->
+
+            {{-- SEARCH --}}
+
             <div class="relative flex-1 min-w-[200px] max-w-sm">
+
                 <input
                     type="text"
                     name="search"
@@ -201,140 +226,628 @@
                     placeholder="Search code or product name..."
                     class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
                 >
+
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+
             </div>
 
-            <!-- Status Filter -->
+
+            {{-- STATUS --}}
+
             <select
                 name="status"
                 class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
             >
-                <option value="">All Status</option>
-                <option value="incomplete" {{ request('status') === 'incomplete' ? 'selected' : '' }}>Incomplete</option>
-                <option value="draft" {{ request('status') === 'draft' ? 'selected' : '' }}>Draft</option>
-                <option value="for_approval" {{ request('status') === 'for_approval' ? 'selected' : '' }}>For Approval</option>
-                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                <option value="archived" {{ request('status') === 'archived' ? 'selected' : '' }}>Archived</option>
+
+                <option value="">
+                    All Status
+                </option>
+
+                <option
+                    value="incomplete"
+                    {{ request('status') === 'incomplete' ? 'selected' : '' }}
+                >
+                    Incomplete
+                </option>
+
+                <option
+                    value="draft"
+                    {{ request('status') === 'draft' ? 'selected' : '' }}
+                >
+                    Draft
+                </option>
+
+                <option
+                    value="for_approval"
+                    {{ request('status') === 'for_approval' ? 'selected' : '' }}
+                >
+                    For Approval
+                </option>
+
+                <option
+                    value="active"
+                    {{ request('status') === 'active' ? 'selected' : '' }}
+                >
+                    Active
+                </option>
+
+                <option
+                    value="archived"
+                    {{ request('status') === 'archived' ? 'selected' : '' }}
+                >
+                    Archived
+                </option>
+
             </select>
 
-            <!-- Category Filter with Alpine.js for 'Other' -->
-            <div x-data="{ selectedCategory: '{{ request('category', '') }}' }" class="flex items-center space-x-2">
+
+            {{-- CATEGORY --}}
+
+            <div
+                x-data="{ selectedCategory: '{{ request('category', '') }}' }"
+                class="flex items-center space-x-2"
+            >
+
                 <select
                     name="category"
                     x-model="selectedCategory"
                     class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
                 >
-                    <option value="">Category: All</option>
-                    <option value="Professional Fees">Professional Fees</option>
-                    <option value="Consulting Revenue">Consulting Revenue</option>
-                    <option value="Accounting Services">Accounting Services</option>
-                    <option value="Tax Services">Tax Services</option>
-                    <option value="Corporate Services">Corporate Services</option>
-                    <option value="HR Services">HR Services</option>
-                    <option value="Training & Development">Training & Development</option>
-                    <option value="Other Income">Other Income</option>
-                    <option value="Other">Other</option>
+
+                    <option value="">
+                        Category: All
+                    </option>
+
+                    <option value="Professional Fees">
+                        Professional Fees
+                    </option>
+
+                    <option value="Consulting Revenue">
+                        Consulting Revenue
+                    </option>
+
+                    <option value="Accounting Services">
+                        Accounting Services
+                    </option>
+
+                    <option value="Tax Services">
+                        Tax Services
+                    </option>
+
+                    <option value="Corporate Services">
+                        Corporate Services
+                    </option>
+
+                    <option value="HR Services">
+                        HR Services
+                    </option>
+
+                    <option value="Training & Development">
+                        Training & Development
+                    </option>
+
+                    <option value="Other Income">
+                        Other Income
+                    </option>
+
+                    <option value="Other">
+                        Other
+                    </option>
+
                 </select>
 
+
                 <template x-if="selectedCategory === 'Other'">
-                    <input 
-                        type="text" 
-                        name="other_category" 
+
+                    <input
+                        type="text"
+                        name="other_category"
                         value="{{ request('other_category') }}"
-                        placeholder="Enter new category..." 
+                        placeholder="Enter new category..."
                         class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
                     >
+
                 </template>
+
             </div>
 
-            <!-- Product Type Filter with Alpine.js for 'Other' -->
-            <div x-data="{ selectedProductType: '{{ request('product_type', '') }}' }" class="flex items-center space-x-2">
+
+            {{-- PRODUCT TYPE --}}
+
+            <div
+                x-data="{ selectedProductType: '{{ request('product_type', '') }}' }"
+                class="flex items-center space-x-2"
+            >
+
                 <select
                     name="product_type"
                     x-model="selectedProductType"
                     class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
                 >
-                    <option value="">Product Type: All</option>
-                    <option value="Service">Service</option>
-                    <option value="Bundle">Bundle</option>
-                    <option value="Package">Package</option>
-                    <option value="Physical Product">Physical Product</option>
-                    <option value="Digital Product">Digital Product</option>
-                    <option value="Other">Other</option>
+
+                    <option value="">
+                        Product Type: All
+                    </option>
+
+                    <option value="Service">
+                        Service
+                    </option>
+
+                    <option value="Bundle">
+                        Bundle
+                    </option>
+
+                    <option value="Package">
+                        Package
+                    </option>
+
+                    <option value="Physical Product">
+                        Physical Product
+                    </option>
+
+                    <option value="Digital Product">
+                        Digital Product
+                    </option>
+
+                    <option value="Other">
+                        Other
+                    </option>
+
                 </select>
 
+
                 <template x-if="selectedProductType === 'Other'">
-                    <input 
-                        type="text" 
-                        name="other_product_type" 
+
+                    <input
+                        type="text"
+                        name="other_product_type"
                         value="{{ request('other_product_type') }}"
-                        placeholder="Enter new product type..." 
+                        placeholder="Enter new product type..."
                         class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
                     >
+
                 </template>
+
             </div>
 
-            <!-- Inventory Type Filter -->
+
+            {{-- INVENTORY TYPE --}}
+
             <select
                 name="inventory_type"
                 class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
             >
-                <option value="">Inventory: All</option>
-                <option value="Inventory" {{ request('inventory_type') === 'Inventory' ? 'selected' : '' }}>Inventory</option>
-                <option value="Non-Inventory" {{ request('inventory_type') === 'Non-Inventory' ? 'selected' : '' }}>Non-Inventory</option>
-                <option value="Service" {{ request('inventory_type') === 'Service' ? 'selected' : '' }}>Service</option>
-                 <option value="Other" {{ request('inventory_type') === 'Other' ? 'selected' : '' }}>Other</option>
-            </select>
-        </div>
-    </div>
 
-    {{-- PANGALAWANG ROW: Service Area (Nasa Baba) kasama ang Reset & Apply Filters --}}
-    <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
-        <div x-data="{ selectedServiceArea: '{{ request('service_area', '') }}' }" class="flex items-center space-x-2 w-full md:w-auto">
-            <select
-                name="service_area"
-                x-model="selectedServiceArea"
-                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white w-full md:w-72"
-            >
-                <option value="">Service Area: All</option>
-                <option value="Corporate & Regulatory Advisory">Corporate & Regulatory Advisory</option>
-                <option value="Governance & Policy Advisory">Governance & Policy Advisory</option>
-                <option value="People & Talent Solutions">People & Talent Solutions</option>
-                <option value="Strategic Situations Advisory">Strategic Situations Advisory</option>
-                <option value="Accounting & Compliance Advisory">Accounting & Compliance Advisory</option>
-                <option value="Business Strategy & Process Advisory">Business Strategy & Process Advisory</option>
-                <option value="Learning & Capability Development">Learning & Capability Development</option>
-                <option value="Others">Others</option>
-            </select>
+                <option value="">
+                    Inventory: All
+                </option>
 
-            <template x-if="selectedServiceArea === 'Others'">
-                <input 
-                    type="text" 
-                    name="other_service_area" 
-                    value="{{ request('other_service_area') }}"
-                    placeholder="Enter new service area..." 
-                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                <option
+                    value="Inventory"
+                    {{ request('inventory_type') === 'Inventory' ? 'selected' : '' }}
                 >
-            </template>
+                    Inventory
+                </option>
+
+                <option
+                    value="Non-Inventory"
+                    {{ request('inventory_type') === 'Non-Inventory' ? 'selected' : '' }}
+                >
+                    Non-Inventory
+                </option>
+
+                <option
+                    value="Service"
+                    {{ request('inventory_type') === 'Service' ? 'selected' : '' }}
+                >
+                    Service
+                </option>
+
+                <option
+                    value="Other"
+                    {{ request('inventory_type') === 'Other' ? 'selected' : '' }}
+                >
+                    Other
+                </option>
+
+            </select>
+
         </div>
 
-        <!-- Action Buttons -->
+
+        {{-- RESET + APPLY --}}
+
         <div class="flex items-center space-x-3 ml-auto">
+
             <a
                 href="{{ route('products.index') }}"
                 class="px-4 py-2 border border-slate-300 text-slate-700 font-medium text-xs rounded-lg hover:bg-slate-50 transition"
             >
                 Reset
             </a>
+
             <button
                 type="submit"
                 class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition cursor-pointer"
             >
                 Apply Filters
             </button>
+
         </div>
+
     </div>
+
+
+    {{-- =========================================================
+        ROW 3: SERVICE AREA + CREATE FIELD
+    ========================================================== --}}
+
+    <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
+
+        {{-- SERVICE AREA --}}
+
+        <div
+            x-data="{ selectedServiceArea: '{{ request('service_area', '') }}' }"
+            class="flex items-center space-x-2 w-full md:w-auto"
+        >
+
+            <span class="text-xs font-semibold text-slate-700">
+                Service Area:
+            </span>
+
+            <select
+                name="service_area"
+                x-model="selectedServiceArea"
+                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white w-full md:w-72"
+            >
+
+                <option value="">
+                    All Service Areas
+                </option>
+
+                <option value="Corporate & Regulatory Advisory">
+                    Corporate & Regulatory Advisory
+                </option>
+
+                <option value="Governance & Policy Advisory">
+                    Governance & Policy Advisory
+                </option>
+
+                <option value="People & Talent Solutions">
+                    People & Talent Solutions
+                </option>
+
+                <option value="Strategic Situations Advisory">
+                    Strategic Situations Advisory
+                </option>
+
+                <option value="Accounting & Compliance Advisory">
+                    Accounting & Compliance Advisory
+                </option>
+
+                <option value="Business Strategy & Process Advisory">
+                    Business Strategy & Process Advisory
+                </option>
+
+                <option value="Learning & Capability Development">
+                    Learning & Capability Development
+                </option>
+
+                <option value="Others">
+                    Others
+                </option>
+
+            </select>
+
+
+            <template x-if="selectedServiceArea === 'Others'">
+
+                <input
+                    type="text"
+                    name="other_service_area"
+                    value="{{ request('other_service_area') }}"
+                    placeholder="Enter new service area..."
+                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                >
+
+            </template>
+
+        </div>
+
+
+        {{-- CREATE FIELD --}}
+
+        <div class="relative inline-block text-left">
+
+            <button
+                type="button"
+                onclick="document.getElementById('createFieldMenu').classList.toggle('hidden')"
+                class="text-blue-600 hover:text-blue-800 font-bold text-sm flex items-center space-x-1.5 transition cursor-pointer py-1.5 px-3 rounded-lg hover:bg-blue-50"
+            >
+
+                <span>
+                    + Create Field
+                </span>
+
+                <i class="fa-solid fa-chevron-down text-[9px]"></i>
+
+            </button>
+
+
+            {{-- CREATE FIELD MENU --}}
+
+            <div
+                id="createFieldMenu"
+                class="hidden absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-[9999] text-sm font-medium text-slate-700 max-h-64 overflow-y-auto"
+            >
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Single Line Text')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-font text-slate-400 w-4 text-center"></i>
+                    <span>Single Line Text</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Multi Line Text')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-align-left text-slate-400 w-4 text-center"></i>
+                    <span>Multi Line Text</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Number')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-hashtag text-slate-400 w-4 text-center"></i>
+                    <span>Number</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Currency')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-money-bill-wave text-slate-400 w-4 text-center"></i>
+                    <span>Currency</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Picklist')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-list-check text-slate-400 w-4 text-center"></i>
+                    <span>Picklist</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Checkbox')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-regular fa-square-check text-slate-400 w-4 text-center"></i>
+                    <span>Checkbox</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Date')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-regular fa-calendar text-slate-400 w-4 text-center"></i>
+                    <span>Date</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Lookup')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-link text-slate-400 w-4 text-center"></i>
+                    <span>Lookup</span>
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </form>
+
+{{-- DYNAMIC FIELD CREATION MODAL (BLUE THEME) --}}
+
+<div
+    id="createFieldModal"
+    class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]"
+>
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-xs space-y-4 relative">
+
+        {{-- HEADER --}}
+        <div class="flex justify-between items-center border-b pb-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">
+                    Create Custom Field
+                </h3>
+
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                    Type:
+                    <span
+                        id="modalFieldTypeName"
+                        class="font-bold text-blue-600"
+                    >
+                        Single Line Text
+                    </span>
+                </p>
+            </div>
+
+            <button
+                type="button"
+                onclick="closeFieldModal()"
+                class="text-slate-400 hover:text-blue-600 text-lg cursor-pointer transition"
+            >
+                &times;
+            </button>
+        </div>
+
+
+        {{-- FORM --}}
+        <form
+            id="createCustomFieldForm"
+            action="#"
+            method="POST"
+            onsubmit="submitCustomField(event)"
+            class="space-y-3"
+        >
+            @csrf
+
+            <input
+                type="hidden"
+                id="customFieldProductId"
+                name="product_id"
+                value=""
+            >
+
+            {{-- FIELD TYPE --}}
+            <input
+                type="hidden"
+                name="field_type"
+                id="modalFieldType"
+                value="Single Line Text"
+            >
+
+
+            {{-- FIELD LABEL / NAME --}}
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Field Label *
+                </label>
+
+                <input
+                    type="text"
+                    name="field_name"
+                    required
+                    placeholder="e.g. Tax Registration ID"
+                    class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+            </div>
+
+
+            {{-- API NAME --}}
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Field API Name
+                </label>
+
+                <input
+                    type="text"
+                    name="field_api_name"
+                    placeholder="e.g. tax_registration_id"
+                    class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50"
+                >
+            </div>
+
+
+            {{-- PICKLIST OPTIONS --}}
+            <div
+                id="picklistOptionsContainer"
+                class="hidden"
+            >
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Options (One per line)
+                </label>
+
+                <textarea
+                    name="options"
+                    rows="3"
+                    placeholder="Option 1&#10;Option 2&#10;Option 3"
+                    class="w-full border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                ></textarea>
+            </div>
+
+
+            {{-- REQUIRED --}}
+            <div class="flex items-center space-x-2 pt-1">
+                <input
+                    type="hidden"
+                    name="is_required"
+                    value="0"
+                >
+
+                <input
+                    type="checkbox"
+                    id="isRequired"
+                    name="is_required"
+                    value="1"
+                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                >
+
+                <label
+                    for="isRequired"
+                    class="text-xs text-slate-700 font-medium cursor-pointer"
+                >
+                    Mark as Required Field
+                </label>
+            </div>
+
+
+            {{-- ACTIONS --}}
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+
+                <button
+                    type="button"
+                    onclick="closeFieldModal()"
+                    class="px-3.5 py-1.5 border border-slate-300 text-slate-700 font-medium rounded hover:bg-slate-50 transition cursor-pointer"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow-sm transition cursor-pointer"
+                >
+                    Create Field
+                </button>
+
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<script>
+function openFieldModal(fieldType) {
+    document.getElementById('createFieldMenu')?.classList.add('hidden');
+    document.getElementById('modalFieldTypeName').innerText = fieldType;
+    document.getElementById('modalFieldType').value = fieldType;
+    
+    const picklistContainer = document.getElementById('picklistOptionsContainer');
+    if (fieldType === 'Picklist') {
+        picklistContainer.classList.remove('hidden');
+    } else {
+        picklistContainer.classList.add('hidden');
+    }
+
+    document.getElementById('createFieldModal').classList.remove('hidden');
+}
+
+function closeFieldModal() {
+    document.getElementById('createFieldModal').classList.add('hidden');
+}
+</script>
 
 {{-- 7. Products Data Table --}}
 <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-4">
@@ -905,6 +1418,8 @@
         </form>
     </div>
 </div>
+
+
 <script>
 function toggleBulkActionsMenu(event) {
     event.stopPropagation();
@@ -988,5 +1503,53 @@ document.addEventListener('click', function(e) {
         });
     }
 });
+
+function openFieldModal(fieldType) {
+    document.getElementById('createFieldMenu').classList.add('hidden');
+
+    document.getElementById('modalFieldTypeName').innerText = fieldType;
+    document.getElementById('modalFieldType').value = fieldType;
+
+    const picklistContainer = document.getElementById('picklistOptionsContainer');
+
+    if (fieldType === 'Picklist') {
+        picklistContainer.classList.remove('hidden');
+    } else {
+        picklistContainer.classList.add('hidden');
+    }
+
+    // Get the selected product from the product checkbox.
+    const selectedProduct = document.querySelector('.product-checkbox:checked');
+
+    const productId = selectedProduct
+        ? selectedProduct.value
+        : '';
+
+    document.getElementById('customFieldProductId').value = productId;
+
+    document.getElementById('createFieldModal').classList.remove('hidden');
+}
+
+function closeFieldModal() {
+    document.getElementById('createFieldModal').classList.add('hidden');
+}
+
+function submitCustomField(event) {
+    event.preventDefault();
+
+    const form = document.getElementById('createCustomFieldForm');
+    const productId = document.getElementById('customFieldProductId').value;
+
+    if (!productId) {
+        alert('Please select a product first.');
+        return;
+    }
+
+    form.action = `/products/${encodeURIComponent(productId)}/custom-fields`;
+
+    form.submit();
+}
+
+
 </script>
 @endsection
