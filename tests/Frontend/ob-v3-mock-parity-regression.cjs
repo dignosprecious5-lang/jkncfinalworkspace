@@ -61,7 +61,7 @@ assert.match(preview, /form\.classification === 'social'/);
 assert.match(preview, /detailTripLabel\(row\)/);
 assert.match(preview, /transportationDescription\(row\.transportation/);
 assert.match(preview, /form\.remarks/);
-assert.match(form, /<label class="label">Related Engagement \*<\/label><select :value="clientEngagementValue\(\)"/);
+assert.match(form, /<label class="label">Related Engagement \/ No Engagement \(required to submit\)<\/label><select :value="clientEngagementValue\(\)"/);
 assert.doesNotMatch(form, /Related Regular Engagement|Related Project/);
 assert.match(form, /@change="selectDetailEngagement\(\$event\.target\.value, \$event\.target\.selectedOptions\[0\]\?\.textContent\)"/);
 assert.match(form, /:value="String\(engagement\.id\)"/);

@@ -201,7 +201,7 @@
                 <button type="button" @click="closePanel()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
             </div>
 
-            <div class="obv3-create-layout flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[58%_42%] gap-0 bg-gray-50">
+            <div class="obv3-create-layout flex-1 min-h-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[40%_60%] gap-0 bg-gray-50">
                 {{-- LEFT LIVE PREVIEW --}}
                 <div class="obv3-create-preview-panel min-h-0 flex flex-col border-r bg-gray-100">
                     <div class="shrink-0 flex items-center justify-between border-b border-gray-200 bg-gray-100 px-5 py-4">
@@ -218,7 +218,7 @@
                             <div class="obv3-preview-brand">John Kelly<br><span>&amp;</span> Company</div>
                             <p class="obv3-preview-company"><strong>JK&amp;C INC.</strong><br>{{ $companyHeader['company_address'] }}</p>
                         </div>
-
+                        <div class="obv3-preview-rule"></div>
 
                         <div class="obf-title obv3-preview-title">OFFICIAL BUSINESS TRAVEL FORM</div>
 
@@ -2178,6 +2178,8 @@ function obfPage() {
         personnelNatureOptions: ['Field Work', 'Client Assistance', 'Operations Support', 'Site Inspection', 'Audit', 'Delivery / Pickup', 'Training / Seminar', 'Other'],
         transportationModes: ['Company Vehicle', 'Private Vehicle', 'Ride-Hailing', 'Taxi', 'Public Transportation', 'Rental Vehicle', 'Air', 'Sea/Ferry', 'Walking', 'Other'],
         teamDraft: {employee_id: '', nature_of_travel: ''},
+        primaryNatureOther: false,
+        teamNatureOther: false,
         detailModalOpen: false,
         detailModalIndex: null,
         detailDraft: {},
@@ -2334,6 +2336,10 @@ function obfPage() {
             this.teamModalIndex = index;
             const member = index === null ? null : this.form.team_rows[index];
             this.teamDraft = member ? {employee_id: member.employee_id, nature_of_travel: member.nature_of_travel || ''} : {employee_id: '', nature_of_travel: ''};
+            this.teamNatureOther = Boolean(
+                this.teamDraft.nature_of_travel &&
+                !this.personnelNatureOptions.includes(this.teamDraft.nature_of_travel)
+            );
             this.teamModalOpen = true;
         },
         clientEngagementValue() {
@@ -2490,7 +2496,9 @@ function obfPage() {
             const params = new URLSearchParams({type});
             params.set(companyId ? 'company_id' : 'contact_id', companyId || contactId);
             const response = await fetch("{{ route('human-capital.obf.engagements') }}?" + params, {headers: {'Accept': 'application/json'}});
-            if (!isCurrent() || !response.ok) return;
+            if (!isCurrent() || !response.ok) {
+                return;
+            }
             const data = await response.json();
             if (!isCurrent()) return;
             this.engagements = data.items || [];
@@ -2787,6 +2795,10 @@ function obfPage() {
             this.isView = false;
             this.isEdit = false;
             this.form = this.blankForm();
+            this.primaryNatureOther = false;
+            this.teamNatureOther = false;
+            this.form.classification = 'client';
+            this.form.is_client_travel = '1';
             this.form.ob_reference_no = this.generatePreviewReference();
             this.preview = this.blankPreview();
             if (this.currentEmployeeId) {
@@ -2807,6 +2819,11 @@ function obfPage() {
             this.isView = true;
             this.isEdit = false;
             this.form = this.hydrateTrip(trip);
+            this.primaryNatureOther = Boolean(
+                this.form.nature_of_travel &&
+                !this.personnelNatureOptions.includes(this.form.nature_of_travel)
+            );
+            this.teamNatureOther = false;
             this.hydrateClientRouteMap(trip);
             this.setPreviewFromTrip(trip);
             this.showPanel = true;
@@ -2819,6 +2836,11 @@ function obfPage() {
             this.isView = false;
             this.isEdit = true;
             this.form = this.hydrateTrip(trip);
+            this.primaryNatureOther = Boolean(
+                this.form.nature_of_travel &&
+                !this.personnelNatureOptions.includes(this.form.nature_of_travel)
+            );
+            this.teamNatureOther = false;
             this.hydrateClientRouteMap(trip);
 
             this.setPreviewFromTrip(trip);
@@ -3727,7 +3749,7 @@ function obfPage() {
     border-left: 0; box-shadow: 0 4px 18px rgb(15 23 42 / 0.10);
     color: #1f2937; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35;
 }
-.obv3-preview-letterhead { border: 0; margin: 0; padding: 0; color: #0b1b3f; text-align: center; }
+.obv3-preview-letterhead { border: 0 !important; border-bottom: 0 !important; margin: 0; padding: 0; color: #0b1b3f; text-align: center; }
 .obv3-preview-brand { margin-top: 4px; color: #111827; font-family: Georgia, 'Times New Roman', serif; font-size: 34px; line-height: 0.9; }
 .obv3-preview-brand span { color: #2860e3; }
 .obv3-preview-company { margin: 8px 0 0 !important; color: #111827; font-size: 11px; line-height: 1.4; }
@@ -3919,7 +3941,7 @@ function obfPage() {
     visibility: visible !important;
     opacity: 1 !important;
     position: absolute !important;
-    top: 50% !important;
+    top: 35% !important;
     right: 0.55rem !important;
     left: auto !important;
     transform: translateY(-50%) !important;

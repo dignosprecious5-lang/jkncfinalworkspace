@@ -16,7 +16,7 @@
                 </button>
 
                 <button type="button"
-                    class="obv3-classification-info"
+                    class="obv3-classification-info !bg-black !text-white !border-black !z-0"
                     :aria-label="`About ${classificationLabel(option)}`"
                     @click.stop
                     @mouseenter="$el.nextElementSibling.classList.add('show')"
@@ -48,7 +48,31 @@
                 <tr class="border-b">
                     <td class="p-2"><span x-text="preview.full_name || form.employee_name || '-' "></span><span class="block text-blue-700 font-semibold">Primary Traveler</span><template x-if="canManageObf && !isView"><select x-model="form.employee_id" @change="selectEmployee(); removePrimaryFromTeam()" class="input mt-1"><template x-for="employee in employees" :key="employee.id"><option :value="employee.id" x-text="employee.full_name"></option></template></select></template></td>
                     <td class="p-2" x-text="preview.employee_code || form.employee_code || '-' "></td><td class="p-2" x-text="preview.position || '-' "></td><td class="p-2" x-text="preview.department || '-' "></td>
-                    <td class="p-2"><select x-model="form.nature_of_travel" :disabled="isView" class="input"><option value="">Select</option><template x-for="nature in personnelNatureOptions" :key="nature"><option :value="nature" x-text="nature"></option></template></select></td>
+                    <td class="p-2">
+    <template x-if="!primaryNatureOther">
+        <select x-model="form.nature_of_travel"
+                @change="if ($event.target.value === 'Other') { primaryNatureOther = true; form.nature_of_travel = ''; $nextTick(() => $refs.primaryNatureInput?.focus()); }"
+                :disabled="isView" class="input">
+            <option value="">Select</option>
+            <template x-for="nature in personnelNatureOptions" :key="nature">
+                <option :value="nature" x-text="nature"></option>
+            </template>
+        </select>
+    </template>
+    <template x-if="primaryNatureOther">
+        <div class="flex items-center gap-1">
+            <input x-ref="primaryNatureInput" x-model="form.nature_of_travel"
+                   :readonly="isView" maxlength="255"
+                   placeholder="Specify nature of travel"
+                   class="input min-w-0 flex-1">
+            <button type="button" x-show="!isView"
+                    @click="primaryNatureOther = false; form.nature_of_travel = ''"
+                    class="text-xs text-blue-700 whitespace-nowrap">
+                Change
+            </button>
+        </div>
+    </template>
+</td>
                     <td class="p-2" x-text="form.immediate_superior || '-' "></td><td class="p-2 text-gray-400">&mdash;</td>
                 </tr>
                 <template x-for="(member, index) in form.team_rows || []" :key="member.employee_id"><tr class="border-b">
@@ -117,7 +141,29 @@
 <div x-show="teamModalOpen" x-cloak class="obv3-modal-backdrop" @click.self="teamModalOpen = false; teamModalIndex = null"><div class="obv3-modal max-w-2xl"><div class="obv3-modal-head"><h3 class="form-title" x-text="teamModalIndex === null ? 'Add Team Member' : 'Edit Team Member'">Add Team Member</h3><button type="button" @click="teamModalOpen = false; teamModalIndex = null" class="text-2xl text-gray-500">&times;</button></div><div class="obv3-modal-body space-y-3">
     <label class="label">Employee *</label><select x-model="teamDraft.employee_id" class="input"><option value="">Select active employee</option><template x-for="employee in personnelEmployees" :key="employee.id"><option :value="employee.id" :disabled="String(employee.id) === String(form.employee_id) || (form.team_rows || []).some(row => String(row.employee_id) === String(employee.id))" x-text="employee.full_name"></option></template></select>
     <div class="grid grid-cols-2 gap-2 text-xs"><div>Employee ID: <span x-text="selectedTeamEmployee()?.employee_code || '-' "></span></div><div>Position: <span x-text="selectedTeamEmployee()?.position || '-' "></span></div><div>Department / Unit: <span x-text="selectedTeamEmployee()?.department || '-' "></span></div><div>Immediate Supervisor: <span x-text="selectedTeamEmployee()?.immediate_superior || '-' "></span></div></div>
-    <label class="label">Nature of Travel *</label><select x-model="teamDraft.nature_of_travel" class="input"><option value="">Select nature</option><template x-for="nature in personnelNatureOptions" :key="nature"><option :value="nature" x-text="nature"></option></template></select>
+    <label class="label">Nature of Travel *</label>
+<template x-if="!teamNatureOther">
+    <select x-model="teamDraft.nature_of_travel"
+            @change="if ($event.target.value === 'Other') { teamNatureOther = true; teamDraft.nature_of_travel = ''; $nextTick(() => $refs.teamNatureInput?.focus()); }"
+            class="input">
+        <option value="">Select nature</option>
+        <template x-for="nature in personnelNatureOptions" :key="nature">
+            <option :value="nature" x-text="nature"></option>
+        </template>
+    </select>
+</template>
+<template x-if="teamNatureOther">
+    <div class="flex items-center gap-2">
+        <input x-ref="teamNatureInput" x-model="teamDraft.nature_of_travel"
+               maxlength="255" placeholder="Specify nature of travel"
+               class="input min-w-0 flex-1">
+        <button type="button"
+                @click="teamNatureOther = false; teamDraft.nature_of_travel = ''"
+                class="text-xs text-blue-700">
+            Change
+        </button>
+    </div>
+</template>
 </div><div class="obv3-modal-foot"><button type="button" @click="teamModalOpen = false; teamModalIndex = null" class="px-3 py-2 border rounded-lg">Cancel</button><button type="button" @click="addTeamMember()" class="px-3 py-2 bg-blue-600 text-white rounded-lg" x-text="teamModalIndex === null ? 'Add Team Member' : 'Save Changes'">Add Team Member</button></div></div></div>
 
 <div x-show="detailModalOpen" x-cloak class="obv3-modal-backdrop" @click.self="detailModalOpen = false"><div class="obv3-modal max-w-2xl"><div class="obv3-modal-head"><h3 class="form-title" x-text="detailModalIndex === null ? detailAddLabel() : 'Edit O.B. Detail'"></h3><button type="button" @click="detailModalOpen = false" class="text-2xl text-gray-500">&times;</button></div><div class="obv3-modal-body space-y-3">
@@ -130,6 +176,7 @@
         x-text="`This ${detailDraft.company_id ? 'company' : 'contact'} does not have a ${detailDraft.engagement_type} engagement`">
     </option>
 </template>
+
 <template x-for="engagement in engagements" :key="engagement.id"><option :value="String(engagement.id)" :selected="String(engagement.id) === String(clientEngagementValue())" x-text="engagement.name"></option></template></select></div><div class="col-span-2"><label class="label">Travel Credit Balance</label><input :value="detailDraft.travel_credit_balance ?? '-'" readonly class="input bg-gray-100"></div></div>
     <div x-show="form.classification === 'internal'" class="grid grid-cols-2 gap-3 obv3-modal-grid"><div><label class="label">Internal Activity Type *</label><select x-model="detailDraft.internal_activity_type" class="input"><option value="">Select type</option><template x-for="type in internalActivityTypes" :key="type"><option :value="type" x-text="type"></option></template></select></div><div><label class="label">Related Department / Office *</label><select x-model="detailDraft.department_id" class="input"><option value="">Select department</option><template x-for="department in departments" :key="department.id"><option :value="department.id" x-text="department.department_name"></option></template></select></div><div class="col-span-2"><label class="label">Related Internal Record</label><input x-model="detailDraft.related_internal_type" placeholder="Optional task, meeting, record, compliance reference..." class="input"></div></div>
     <div x-show="form.classification === 'social'" class="grid grid-cols-2 gap-3 obv3-modal-grid"><div><label class="label">Activity Type *</label><select x-model="detailDraft.social_activity_type" class="input"><option value="">Select type</option><template x-for="type in socialActivityTypes" :key="type"><option :value="type" x-text="type"></option></template></select></div><div><label class="label">Organization / Host</label><input x-model="detailDraft.organization_host" class="input"></div><div class="col-span-2"><label class="label">Related Contact</label><select x-model="detailDraft.contact_id" class="input"><option value="">Select contact</option><template x-for="contact in contacts" :key="contact.id"><option :value="contact.id" x-text="contact.label"></option></template></select><input x-model="detailDraft.related_contact_text" placeholder="Or enter contact" class="input mt-2"></div></div>
