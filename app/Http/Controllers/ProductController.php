@@ -2346,21 +2346,24 @@ private function notifyAdminsOfProductUpdate(Product $product): void
     $actor = auth()->user();
     $updatedBy = $actor?->name ?? 'A user';
 
-    $admins = User::query()
-        ->where(function ($query) {
-            $query->where('role', 'admin')
-                ->orWhere('email', 'manager@example.com');
-        })
+    // Kunin ang mga admin/manager
+    $recipients = User::query()
+        ->whereIn('role', ['admin', 'manager'])
         ->get();
+
+    // Kung nakalog-in ang user at wala pa siya sa listahan ng mga recipients, idagdag natin siya
+    if ($actor && !$recipients->contains('id', $actor->id)) {
+        $recipients->push($actor);
+    }
 
     \Log::info('Product workspace notification attempt', [
         'product_id' => $product->id,
-        'recipient_count' => $admins->count(),
+        'recipient_count' => $recipients->count(),
     ]);
 
-    foreach ($admins as $admin) {
+    foreach ($recipients as $recipient) {
         try {
-            $admin->notify(
+            $recipient->notify(
                 new WorkspaceUpdatedNotification(
                     'Product',
                     $product->id,
@@ -2368,27 +2371,23 @@ private function notifyAdminsOfProductUpdate(Product $product): void
                         ?? $product->short_name
                         ?? 'Product #' . $product->id,
                     $updatedBy,
-                    route('products.workspace', [
-                        'id' => $product->id,
-                        'mode' => 'view',
-                    ])
+                    route('dashboard')
                 )
             );
 
             \Log::info('Product workspace notification sent', [
                 'product_id' => $product->id,
-                'recipient_id' => $admin->id,
+                'recipient_id' => $recipient->id,
             ]);
         } catch (\Throwable $e) {
             \Log::error('Product workspace notification failed', [
                 'product_id' => $product->id,
-                'recipient_id' => $admin->id,
+                'recipient_id' => $recipient->id,
                 'error' => $e->getMessage(),
             ]);
         }
     }
 }
-
 
 
  /*

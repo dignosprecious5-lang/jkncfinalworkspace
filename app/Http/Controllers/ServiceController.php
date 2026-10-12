@@ -1104,164 +1104,281 @@ class ServiceController extends Controller
         );
     }
 
-    public function updateVersion(
-        Request $request,
-        Service $service
-    ) {
-        $currentTab =
-            $request->input(
-                'tab',
-                'overview'
-            );
+  
+public function updateVersion(
+    Request $request,
+    Service $service
+) {
+    $currentTab = $request->input('tab', 'overview');
+    $nextTab = $request->input('next_tab', 'overview');
 
-        $nextTab =
-            $request->input(
-                'next_tab',
-                'overview'
-            );
+    /*
+    |--------------------------------------------------------------------------
+    | FIND ACTIVE VERSION
+    |--------------------------------------------------------------------------
+    */
 
-        $activeVersion = null;
+    $activeVersion = null;
 
-        if (!empty($service->active_version_id)) {
-            $activeVersion = ServiceVersion::query()
-                ->where(
-                    'id',
-                    $service->active_version_id
-                )
-                ->where(
-                    'service_id',
-                    $service->id
-                )
-                ->first();
-        }
+    if (!empty($service->active_version_id)) {
+        $activeVersion = ServiceVersion::query()
+            ->where('id', $service->active_version_id)
+            ->where('service_id', $service->id)
+            ->first();
+    }
 
-        if (!$activeVersion) {
-            $activeVersion = ServiceVersion::query()
-                ->where(
-                    'service_id',
-                    $service->id
-                )
-                ->latest('created_at')
-                ->latest('id')
-                ->first();
-        }
+    if (!$activeVersion) {
+        $activeVersion = ServiceVersion::query()
+            ->where('service_id', $service->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+    }
 
-        if (!$activeVersion) {
-            $activeVersion = ServiceVersion::create([
-                'service_id'     => $service->id,
-                'version_number' => 'V1.0',
-                'status'         => 'draft',
-                'is_active'      => true,
-            ]);
+    if (!$activeVersion) {
+        $activeVersion = ServiceVersion::create([
+            'service_id' => $service->id,
+            'version_number' => 'V1.0',
+            'status' => 'draft',
+            'is_active' => true,
+        ]);
 
-            $service->update([
-                'active_version_id' => $activeVersion->id,
-            ]);
-        }
+        $service->update([
+            'active_version_id' => $activeVersion->id,
+        ]);
+    }
 
-        $possibleVersionFields = [
-            'short_name',
-            'expected_turnaround', // <--- Idagdag din ito kung wala pa
-            'effective_date',
-            'internal_description',
-            'client_description',
-            'about_service',
-            'purpose',
-            'when_to_use',
-            'what_it_is_not',
-            'scope_of_work',
-            'deliverables',
-            'client_responsibilities',
-            'exclusions',
-            'pricing_model',
-            'payment_structure',
-            'payment_notes',
-            'currency',
-            'standard_price',
-            'unit_rate',
-            'expected_hours',
-            'tax_treatment',
-            'min_price',
-            'min_cap',
-            'discount_allowed',
-            'max_discount',
-            'cost_of_service',
-            'instantiation_mode',
-            'recurrence_frequency',
-            'billing_frequency',
-            'instantiation_lead_days',
-            'auto_carryover',
-            'reporting_frequency',
-            'project_reporting',
-            'project_reporting_type',
-            'report_content',
-            'base_reference_date',
-            'default_assignment_rule',
-            'internal_reminder_days',
-            'client_reminder_cadence',
-            'notification_channel',
-            'escalation_threshold_days',
-            'escalation_target_role',
-            'requirement_gate_rule',
-        ];
+    /*
+    |--------------------------------------------------------------------------
+    | ALLOWED VERSION FIELDS
+    |--------------------------------------------------------------------------
+    */
 
-        $versionData = [];
+    $possibleVersionFields = [
+        'short_name',
+        'expected_turnaround',
+        'effective_date',
+        'internal_description',
+        'client_description',
+        'about_service',
+        'purpose',
+        'when_to_use',
+        'what_it_is_not',
+        'scope_of_work',
+        'deliverables',
+        'client_responsibilities',
+        'exclusions',
+        'pricing_model',
+        'payment_structure',
+        'payment_notes',
+        'currency',
+        'standard_price',
+        'unit_rate',
+        'expected_hours',
+        'tax_treatment',
+        'min_price',
+        'min_cap',
+        'discount_allowed',
+        'max_discount',
+        'cost_of_service',
+        'instantiation_mode',
+        'recurrence_frequency',
+        'billing_frequency',
+        'instantiation_lead_days',
+        'auto_carryover',
+        'reporting_frequency',
+        'project_reporting',
+        'project_reporting_type',
+        'report_content',
+        'base_reference_date',
+        'default_assignment_rule',
+        'internal_reminder_days',
+        'client_reminder_cadence',
+        'notification_channel',
+        'escalation_threshold_days',
+        'escalation_target_role',
+        'requirement_gate_rule',
+    ];
 
-        foreach (
-            $possibleVersionFields as $field
+    $fieldLabels = [
+        'short_name' => 'Service Name',
+        'expected_turnaround' => 'Expected Turnaround',
+        'effective_date' => 'Effective Date',
+        'internal_description' => 'Internal Description',
+        'client_description' => 'Client Description',
+        'about_service' => 'About Service',
+        'purpose' => 'Purpose',
+        'when_to_use' => 'When to Use',
+        'what_it_is_not' => 'What Service Is Not',
+        'scope_of_work' => 'Scope of Work',
+        'deliverables' => 'Deliverables',
+        'client_responsibilities' => 'Client Responsibilities',
+        'exclusions' => 'Exclusions',
+        'pricing_model' => 'Pricing Model',
+        'payment_structure' => 'Payment Structure',
+        'payment_notes' => 'Payment Notes',
+        'currency' => 'Currency',
+        'standard_price' => 'Standard Price',
+        'unit_rate' => 'Unit Rate',
+        'expected_hours' => 'Expected Hours',
+        'tax_treatment' => 'Tax Treatment',
+        'min_price' => 'Minimum Price',
+        'min_cap' => 'Minimum Cap',
+        'discount_allowed' => 'Discount Allowed',
+        'max_discount' => 'Maximum Discount',
+        'cost_of_service' => 'Cost of Service',
+        'instantiation_mode' => 'Instantiation Mode',
+        'recurrence_frequency' => 'Recurrence Frequency',
+        'billing_frequency' => 'Billing Frequency',
+        'instantiation_lead_days' => 'Instantiation Lead Days',
+        'auto_carryover' => 'Auto Carryover',
+        'reporting_frequency' => 'Reporting Frequency',
+        'project_reporting' => 'Project Reporting',
+        'project_reporting_type' => 'Project Reporting Type',
+        'report_content' => 'Report Content',
+        'base_reference_date' => 'Base Reference Date',
+        'default_assignment_rule' => 'Default Assignment Rule',
+        'internal_reminder_days' => 'Internal Reminder Days',
+        'client_reminder_cadence' => 'Client Reminder Cadence',
+        'notification_channel' => 'Notification Channel',
+        'escalation_threshold_days' => 'Escalation Threshold Days',
+        'escalation_target_role' => 'Escalation Target Role',
+        'requirement_gate_rule' => 'Requirement Gate Rule',
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | COLLECT SUBMITTED FIELDS
+    |--------------------------------------------------------------------------
+    */
+
+    $versionData = [];
+
+    foreach ($possibleVersionFields as $field) {
+        if (
+            $request->exists($field)
+            && Schema::hasColumn('service_versions', $field)
         ) {
-            if (
-                $request->has($field)
-                &&
-                Schema::hasColumn(
-                    'service_versions',
-                    $field
-                )
-            ) {
-                $versionData[$field] =
-                    $request->input($field);
+            $versionData[$field] = $request->input($field);
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CAPTURE OLD VALUES BEFORE SAVING
+    |--------------------------------------------------------------------------
+    */
+
+    $oldValues = [];
+
+    foreach ($versionData as $field => $newValue) {
+        $oldValues[$field] = $activeVersion->getAttribute($field);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SAVE VERSION
+    |--------------------------------------------------------------------------
+    */
+
+    if (!empty($versionData)) {
+        $activeVersion->forceFill($versionData);
+        $activeVersion->save();
+        
+    }
+
+   // Dito natin i-trigger ang notification papunta sa dashboard para sa services
+    if (
+        isset($versionData['notification_channel']) && 
+        $versionData['notification_channel'] === 'app_only' &&
+        isset($versionData['client_reminder_cadence'])
+    ) {
+        $cadenceValue = $versionData['client_reminder_cadence'];
+        $cadenceFormatted = ucwords(str_replace(['_', '-'], ' ', $cadenceValue));
+        
+        $actor = auth()->user();
+
+        if ($actor && Schema::hasTable('notifications')) {
+            DB::table('notifications')->insert([
+                'id'              => (string) Str::uuid(),
+                'type'            => 'App\Notifications\SystemNotification',
+                'notifiable_type' => get_class($actor),
+                'notifiable_id'   => $actor->id,
+                'data'            => json_encode([
+                    'title'   => 'Task Reminder',
+                    'message' => 'Service "' . ($activeVersion->short_name ?? $service->name) . '" reminder frequency: ' . $cadenceFormatted . '.',
+                    'url'     => route('dashboard'), // Nakaturo na rin sa dashboard
+                ]),
+                'read_at'         => null,
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ]);
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG EACH CHANGED FIELD
+    |--------------------------------------------------------------------------
+    */
+
+    foreach ($versionData as $field => $newValue) {
+        $oldValue = $oldValues[$field] ?? null;
+
+        $normalize = function ($value) {
+            if ($value === null || $value === '') {
+                return '';
             }
+
+            if (is_bool($value)) {
+                return $value ? '1' : '0';
+            }
+
+            if (is_array($value)) {
+                return json_encode($value);
+            }
+
+            return trim((string) $value);
+        };
+
+        if ($normalize($oldValue) === $normalize($newValue)) {
+            continue;
         }
 
-        if (!empty($versionData)) {
-            $activeVersion->forceFill(
-                $versionData
-            );
+        $label = $fieldLabels[$field]
+            ?? ucwords(str_replace('_', ' ', $field));
 
-            $activeVersion->save();
-        }
+        $oldText = ($oldValue === null || $oldValue === '')
+            ? 'Empty'
+            : (string) $oldValue;
+
+        $newText = ($newValue === null || $newValue === '')
+            ? 'Empty'
+            : (string) $newValue;
 
         $this->logAudit(
             $service->id,
-            'Workspace Saved',
-            'Saved changes for tab: ' .
-            ucfirst(
-                str_replace(
-                    '_',
-                    ' ',
-                    $currentTab
-                )
-            )
+            $label . ' updated',
+            "Changed from: {$oldText}\nTo: {$newText}"
         );
-
-        return redirect()
-            ->route(
-                'services.workspace',
-                [
-                    'service' => $service->id,
-                    'mode' =>
-                        $request->input(
-                            'mode',
-                            'edit'
-                        ),
-                    'tab' => $nextTab,
-                ]
-            )
-            ->with(
-                'success',
-                'Changes saved successfully!'
-            );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG WORKSPACE SAVE
+    |--------------------------------------------------------------------------
+    */
+
+    
+    return redirect()
+        ->route('services.workspace', [
+            'service' => $service->id,
+            'mode' => $request->input('mode', 'edit'),
+            'tab' => $nextTab,
+        ])
+        ->with('success', 'Changes saved successfully!');
+}
+
 
     public function submitForApproval(
         Request $request,
