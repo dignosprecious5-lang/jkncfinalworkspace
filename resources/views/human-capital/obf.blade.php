@@ -1072,14 +1072,14 @@
 
 </div>
                         </div>
-<div class="section-title">Attachments</div>
+<div x-show="!form.classification && (isView || isEdit)" x-cloak><div class="section-title">Attachments</div>
                         <table class="preview-table">
                             <tr>
                                 <td><b>Attachment Types:</b> <span x-text="attachmentText() || '-'"></span></td>
                                 <td><b>If Others, specify:</b> <span x-text="form.attachment_other || '-'"></span></td>
                             </tr>
 
-                        </table>
+                        </table></div>
 
                         <div class="grid grid-cols-3 gap-8 mt-10 text-center">
                             <div>
