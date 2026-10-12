@@ -175,10 +175,12 @@ private function logAudit($productId, $action, $details = null)
     |--------------------------------------------------------------------------
     */
 
-    public function store(Request $request)
+   public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'product_type' => 'required|string|max:255',
+            'custom_product_type' => 'nullable|string|max:255',
             'service_area' => 'required|string|max:255',
             'category' => 'required|string|max:255',
             'pricing_type' => 'required|string|max:255',
@@ -188,34 +190,40 @@ private function logAudit($productId, $action, $details = null)
             'description' => 'nullable|string',
         ]);
 
+        // Kung 'Other' ang pinili sa Product Type, gamitin ang value ng custom input
+        if ($request->product_type === 'Other' && $request->filled('custom_product_type')) {
+            $validated['product_type'] = $request->custom_product_type;
+        }
+
         $nextNumber = Product::count() + 1;
 
-$validated['sku'] = 'PRD-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        $validated['sku'] = 'PRD-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
         $validated['status'] = 'Draft';
 
         $product = Product::create($validated);
-ProductVersion::create([
-    'product_id' => $product->id,
+        
+        ProductVersion::create([
+            'product_id' => $product->id,
 
-    // Basic Product Information
-    'name' => $product->name,
-    'sku' => $product->sku,
-    'service_area' => $product->service_area,
-    'category' => $product->category,
-    'pricing_type' => $product->pricing_type,
-    'tax_treatment' => $product->tax_treatment,
+            // Basic Product Information
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'product_type' => $product->product_type, // Isinama na rin dito
+            'service_area' => $product->service_area,
+            'category' => $product->category,
+            'pricing_type' => $product->pricing_type,
+            'tax_treatment' => $product->tax_treatment,
 
-    // Version Control
-    'version_number' => 'V1.0',
-    'is_active' => true,
-    'status' => 'draft',
-    'created_by' => auth()->id(),
-]);
+            // Version Control
+            'version_number' => 'V1.0',
+            'is_active' => true,
+            'status' => 'draft',
+            'created_by' => auth()->id(),
+        ]);
 
-return redirect()
-    ->route('products.workspace', $product->id)
-    ->with('success', 'Product created successfully.');
-
+        return redirect()
+            ->route('products.workspace', $product->id)
+            ->with('success', 'Product created successfully.');
     }
  /*
     |--------------------------------------------------------------------------
@@ -1971,7 +1979,7 @@ public function updateCommercials(Request $request, $id)
 
     
     $validated = $request->validate([
-        'pricing_model' => 'nullable|string|max:255',
+        'pricing_type' => 'nullable|string|max:255',
         'currency' => 'nullable|string|max:10',
         'price' => 'nullable|numeric|min:0',
         'minimum_price' => 'nullable|numeric|min:0',

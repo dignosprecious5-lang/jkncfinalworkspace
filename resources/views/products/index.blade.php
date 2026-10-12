@@ -84,6 +84,7 @@
                 </div>
             </div>
         </div>
+        
         {{-- QUICK ADD BUTTON --}}
         <button
             type="button"
@@ -1111,8 +1112,8 @@ function closeFieldModal() {
     id="quickAddModal"
     class="fixed inset-0 w-screen h-screen bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-6 z-[9999]"
 >
-    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-8 text-sm space-y-5 relative z-[10000] max-h-[92vh] overflow-y-auto">
-        <div class="flex justify-between items-center border-b pb-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-8 text-sm relative z-[10000] max-h-[92vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
             <div>
                 <h3 class="text-lg font-bold text-slate-900">Quick Add Product</h3>
                 <p class="text-xs text-slate-500 mt-1">Create a draft product shell to configure in workspace.</p>
@@ -1128,7 +1129,7 @@ function closeFieldModal() {
         <form
             action="{{ route('products.store') }}"
             method="POST"
-            class="space-y-5"
+            class="space-y-4"
         >
             @csrf
             <div>
@@ -1349,6 +1350,7 @@ function closeFieldModal() {
 </div>
 
 {{-- JavaScript para umandar ang pag-hide/show ng custom input kapag pinili ang 'Other' --}}
+
 <script>
     function handleProductTypeChange(select) {
         const container = document.getElementById('customProductTypeContainer');

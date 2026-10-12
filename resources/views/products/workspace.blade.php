@@ -5229,39 +5229,41 @@ function checkEditClientTypeOther(select) {
             </p>
         </div>
 
-        {{-- PRICING MODELS --}}
+        {{-- PRICING TYPE --}}
         <div class="border border-slate-200 rounded-xl p-4 space-y-4">
 
             <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-800">
                 <i class="fa-solid fa-tags text-blue-600 mr-1"></i>
-                Pricing Models &amp; Core Commercial Fields
+                Pricing Type &amp; Core Commercial Fields
             </h4>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
 
-                {{-- PRICING MODEL --}}
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">
-                        Pricing Model *
-                    </label>
+               {{-- PRICING TYPE --}}
+<div>
+    <label class="block font-semibold text-slate-700 mb-1">
+        Pricing Type *
+    </label>
 
-                    <div class="relative group">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
-                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
-                                Defines how the product price is determined and charged, such as fixed, variable, tiered, subscription, or cost-plus pricing.
-                            </span>
-                        </span>
+    <div class="relative">
+        <!-- Ang info icon ay hiwalay at may pointer-events-none para hindi makaharang sa click -->
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none group">
+            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px] pointer-events-auto"></i>
+            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                Defines how the product price is determined and charged, such as fixed, variable, tiered, subscription, or cost-plus pricing.
+            </span>
+        </span>
 
-                        <select name="pricing_model" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
-                            <option value="Fixed Price" {{ ($product->pricing_model ?? 'Fixed Price') === 'Fixed Price' ? 'selected' : '' }}>Fixed Price</option>
-                            <option value="Variable Price" {{ ($product->pricing_model ?? '') === 'Variable Price' ? 'selected' : '' }}>Variable Price</option>
-                            <option value="Tiered Price" {{ ($product->pricing_model ?? '') === 'Tiered Price' ? 'selected' : '' }}>Tiered Price</option>
-                            <option value="Subscription" {{ ($product->pricing_model ?? '') === 'Subscription' ? 'selected' : '' }}>Subscription</option>
-                            <option value="Cost Plus" {{ ($product->pricing_model ?? '') === 'Cost Plus' ? 'selected' : '' }}>Cost Plus</option>
-                        </select>
-                    </div>
-                </div>
+      <select name="pricing_type" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+<option value="" disabled {{ empty($product->pricing_type) ? 'selected' : '' }}>-- Select Pricing Type --</option>
+    <option value="Fixed Price" {{ old('pricing_type', $product->pricing_type ?? '') === 'Fixed Price' ? 'selected' : '' }}>Fixed Price</option>
+    <option value="Variable Price" {{ old('pricing_type', $product->pricing_type ?? '') === 'Variable Price' ? 'selected' : '' }}>Variable Price</option>
+    <option value="Tiered Price" {{ old('pricing_type', $product->pricing_type ?? '') === 'Tiered Price' ? 'selected' : '' }}>Tiered Price</option>
+    <option value="Subscription" {{ old('pricing_type', $product->pricing_type ?? '') === 'Subscription' ? 'selected' : '' }}>Subscription</option>
+    <option value="Cost Plus" {{ old('pricing_type', $product->pricing_type ?? '') === 'Cost Plus' ? 'selected' : '' }}>Cost Plus</option>
+</select>
+    </div>
+</div>
 
                 {{-- CURRENCY --}}
                 <div>
@@ -5389,20 +5391,20 @@ function checkEditClientTypeOther(select) {
                     </label>
 
                     <div class="relative group">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
-                            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
-                            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
-                                Defines whether discounts may be applied to the product and whether approval is required before granting one.
-                            </span>
-                        </span>
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 z-20 cursor-help">
+            <i class="fa-solid fa-circle-info text-slate-400 hover:text-blue-600 text-[11px]"></i>
+            <span class="absolute bottom-full left-0 mb-2 hidden group-hover:block w-72 max-w-[calc(100vw-2rem)] bg-slate-900 text-white text-xs p-3 rounded-lg shadow-xl z-[9999] font-normal leading-relaxed text-justify break-words pointer-events-none">
+                Defines whether discounts are permitted for this product.
+            </span>
+        </span>
 
-                        <select name="discount_allowed" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
-                            <option value="Not Allowed" {{ ($product->discount_allowed ?? 'Not Allowed') === 'Not Allowed' ? 'selected' : '' }}>Not Allowed</option>
-                            <option value="Allowed" {{ ($product->discount_allowed ?? '') === 'Allowed' ? 'selected' : '' }}>Allowed</option>
-                            <option value="Approval Required" {{ ($product->discount_allowed ?? '') === 'Approval Required' ? 'selected' : '' }}>Approval Required</option>
-                        </select>
-                    </div>
-                </div>
+        <select name="discount_allowed" class="w-full border border-slate-300 rounded-lg p-2.5 pl-9 bg-white outline-none focus:border-blue-500">
+            <option value="" disabled {{ empty($product->discount_allowed) ? 'selected' : '' }}>-- Select Discount Policy --</option>
+            <option value="Not Allowed" {{ ($product->discount_allowed ?? '') === 'Not Allowed' ? 'selected' : '' }}>Not Allowed</option>
+            <option value="Allowed" {{ ($product->discount_allowed ?? '') === 'Allowed' ? 'selected' : '' }}>Allowed</option>
+        </select>
+    </div>
+</div>
 
                 {{-- MAX DISCOUNT WITHOUT APPROVAL --}}
                 <div>

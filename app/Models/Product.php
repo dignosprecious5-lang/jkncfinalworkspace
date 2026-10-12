@@ -19,6 +19,7 @@ class Product extends Model
         'name',
         'short_name',
         'sku',
+        'product_type',
         'service_area',
         'category',
         'pricing_type',
