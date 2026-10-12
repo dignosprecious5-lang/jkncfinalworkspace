@@ -312,18 +312,22 @@ class OfficialBusinessTripController extends Controller
     {
         abort_unless(app(OfficialBusinessAuthorizationService::class)->canView(Auth::user()), 403);
         $input = $request->validate([
-            'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'company_id' => ['nullable', 'required_without:contact_id', 'integer', 'exists:companies,id'],
+            'contact_id' => ['nullable', 'required_without:company_id', 'integer', 'exists:contacts,id'],
             'type' => ['required', Rule::in(['Regular', 'Project'])],
         ]);
-        $items = app(\App\Services\OfficialBusinessEngagementService::class)
-            ->eligible((int) $input['company_id'], $input['type'])
+        abort_if(filled($input['company_id'] ?? null) && filled($input['contact_id'] ?? null), 422);
+        $engagements = app(\App\Services\OfficialBusinessEngagementService::class);
+        $items = (filled($input['company_id'] ?? null)
+            ? $engagements->eligible((int) $input['company_id'], $input['type'])
+            : $engagements->eligibleForContact((int) $input['contact_id'], $input['type']))
             ->map(fn (Project $project): array => [
                 'id' => $project->id,
                 'name' => $project->name,
                 'deal_id' => $input['type'] === 'Regular' ? $project->deal_id : null,
             ]);
-        $company = Company::findOrFail($input['company_id']);
-        $credit = app(OfficialBusinessAuthorizationService::class)->canReadFinance(Auth::user())
+        $company = filled($input['company_id'] ?? null) ? Company::findOrFail($input['company_id']) : null;
+        $credit = $company && app(OfficialBusinessAuthorizationService::class)->canReadFinance(Auth::user())
             ? app(\App\Services\CompanyTravelCreditService::class)->summary($company)['available_units']
             : null;
 
@@ -1586,6 +1590,7 @@ class OfficialBusinessTripController extends Controller
         $validated['destination'] = $first['destination'] ?? null;
         $validated['purpose'] = $first['purpose'] ?? null;
         $validated['company_id'] = $validated['is_client_travel'] ? ($first['company_id'] ?? null) : null;
+        $validated['contact_id'] = $validated['is_client_travel'] ? ($first['contact_id'] ?? null) : null;
         $validated['deal_id'] = $validated['is_client_travel'] ? ($first['deal_id'] ?? null) : null;
         $validated['project_id'] = $validated['is_client_travel'] ? ($first['project_id'] ?? null) : null;
         $validated['date_from'] = $travel['departure_date'] ?? null;

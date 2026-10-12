@@ -231,7 +231,7 @@
                         <div class="obv3-preview-content" x-show="form.classification" x-cloak>
                             @include('human-capital.partials.obf-create-preview')
                         </div>
-                        <div x-show="!form.classification" x-cloak>
+                        <div x-show="!form.classification && (isView || isEdit)" x-cloak>
                                                                         <div class="section-title">
                             Client & Billability Section
                         </div>
@@ -2268,14 +2268,28 @@ function obfPage() {
         clientName(id) { return this.companies.find(item => String(item.id) === String(id))?.company_name || '-'; },
         departmentName(id) { return this.departments.find(item => String(item.id) === String(id))?.department_name || '-'; },
         contactName(id) { return this.contacts.find(item => String(item.id) === String(id))?.full_name || ''; },
+        detailClientName(row) { return row.company_id ? this.clientName(row.company_id) : (this.contacts.find(item => String(item.id) === String(row.contact_id))?.label || '-'); },
+        previewClientRows() {
+            const rows = [...(this.form.detail_rows || [])];
+            if (this.detailModalOpen && this.form.classification === 'client') {
+                const draft = {...this.detailDraft};
+                if (this.detailModalIndex === null) rows.push(draft);
+                else rows[this.detailModalIndex] = draft;
+            }
+            return rows;
+        },
         detailHeading(row) {
-            if (this.form.classification === 'client') return this.clientName(row.company_id);
+            if (this.form.classification === 'client') return this.detailClientName(row);
             if (this.form.classification === 'social') return row.activity_event_name || '-';
             return row.from_location || '-';
         },
         detailRelated(row) {
             if (this.form.classification === 'client') {
                 const engagementId = row.project_id;
+                if (row.no_engagement_selected) {
+                    const clientType = row.company_id ? 'company' : 'contact';
+                    return `This ${clientType} does not have a ${row.engagement_type} engagement`;
+                }
                 return this.engagements.find(item => String(item.id) === String(engagementId))?.name || row.engagement_name || '-';
             }
             if (this.form.classification === 'internal') return this.departmentName(row.department_id);
@@ -2288,7 +2302,7 @@ function obfPage() {
         },
         detailTripLabel(row) {
             if (this.form.classification === 'client') {
-                return this.clientName(row.company_id) + (row.engagement_name ? ` / ${row.engagement_name}` : '');
+                return this.detailClientName(row) + (row.engagement_name ? ` / ${row.engagement_name}` : '');
             }
             if (this.form.classification === 'internal') {
                 return `${row.internal_activity_type || 'Internal O.B.'}${row.department_id ? ` / ${this.departmentName(row.department_id)}` : ''}`;
@@ -2323,7 +2337,7 @@ function obfPage() {
             this.teamModalOpen = true;
         },
         clientEngagementValue() {
-            return this.normalizeEngagementId(this.detailDraft.project_id) ?? '';
+            return this.detailDraft.no_engagement_selected ? 'no-engagement' : (this.normalizeEngagementId(this.detailDraft.project_id) ?? '');
         },
         detailRoute(row) {
             return `${row.from_location || '-'} -> ${row.destination || '-'}`;
@@ -2438,7 +2452,7 @@ function obfPage() {
             }
             this.engagements = [];
             this.detailModalOpen = true;
-            if (this.form.classification === 'client' && this.detailDraft.company_id && this.detailDraft.engagement_type) {
+            if (this.form.classification === 'client' && (this.detailDraft.company_id || this.detailDraft.contact_id) && this.detailDraft.engagement_type) {
                 return this.refreshEngagements(true);
             }
             return Promise.resolve();
@@ -2446,10 +2460,13 @@ function obfPage() {
         normalizeEngagementId(value) {
             return value === '' || value === null || value === undefined ? null : value;
         },
+        engagementsLoading: false,
         async refreshEngagements(preserveSelection = false) {
+            this.engagementsLoading = true;
             const requestId = ++this.engagementRequestId;
             const draft = this.detailDraft;
             const companyId = draft.company_id;
+            const contactId = draft.contact_id;
             const type = draft.engagement_type;
             const isRegular = type === 'Regular';
             const selected = preserveSelection
@@ -2460,18 +2477,24 @@ function obfPage() {
             const isCurrent = () => requestId === this.engagementRequestId
                 && draft === this.detailDraft
                 && String(companyId) === String(draft.company_id)
+                && String(contactId) === String(draft.contact_id)
                 && type === draft.engagement_type;
             draft.deal_id = isRegular ? this.normalizeEngagementId(draft.deal_id) : null;
             draft.project_id = selected;
             this.engagements = [];
             draft.travel_credit_balance = null;
-            if (!companyId || !type) return;
-            const params = new URLSearchParams({company_id: companyId, type});
+            if ((!companyId && !contactId) || !type) {
+                this.engagementsLoading = false;
+                return;
+            }
+            const params = new URLSearchParams({type});
+            params.set(companyId ? 'company_id' : 'contact_id', companyId || contactId);
             const response = await fetch("{{ route('human-capital.obf.engagements') }}?" + params, {headers: {'Accept': 'application/json'}});
             if (!isCurrent() || !response.ok) return;
             const data = await response.json();
             if (!isCurrent()) return;
             this.engagements = data.items || [];
+            this.engagementsLoading = false;
             draft.travel_credit_balance = data.travel_credit_balance;
             // Alpine must create the fetched option elements before restoring the edit value.
             if (typeof this.$nextTick === 'function') await this.$nextTick();
@@ -2484,8 +2507,17 @@ function obfPage() {
                 ? (selectedEngagement ? (selectedEngagement.deal_id ?? null) : (draft.deal_id ?? null)) : null;
             draft.project_id = selectedEngagement?.id ?? selected;
             draft.engagement_name = selectedEngagement?.name || draft.engagement_name || '';
+            if (selectedEngagement) draft.no_engagement_selected = false;
         },
         selectDetailEngagement(value, visibleName = '') {
+            if (value === 'no-engagement') {
+                this.detailDraft.project_id = null;
+                this.detailDraft.deal_id = null;
+                this.detailDraft.engagement_name = visibleName.trim();
+                this.detailDraft.no_engagement_selected = true;
+                return;
+            }
+            this.detailDraft.no_engagement_selected = false;
             const selected = this.normalizeEngagementId(value);
             const selectedEngagement = this.engagements.find(item => String(item.id) === String(selected));
             if (this.detailDraft.engagement_type === 'Regular') {
@@ -2495,13 +2527,25 @@ function obfPage() {
                 this.detailDraft.deal_id = null;
                 this.detailDraft.project_id = selected;
             }
-            this.detailDraft.engagement_name = visibleName.trim() || selectedEngagement?.name || '';
+            this.detailDraft.engagement_name = selected ? (selectedEngagement?.name || visibleName.trim()) : '';
         },
         changeDetailClient(companyId = this.detailDraft.company_id) {
             this.detailDraft.company_id = companyId;
+            if (companyId) this.detailDraft.contact_id = null;
             this.detailDraft.deal_id = null;
             this.detailDraft.project_id = null;
             this.detailDraft.engagement_name = '';
+            this.detailDraft.no_engagement_selected = false;
+            this.detailDraft.travel_credit_balance = null;
+            return this.refreshEngagements();
+        },
+        changeDetailContact(contactId) {
+            this.detailDraft.contact_id = contactId;
+            if (contactId) this.detailDraft.company_id = null;
+            this.detailDraft.deal_id = null;
+            this.detailDraft.project_id = null;
+            this.detailDraft.engagement_name = '';
+            this.detailDraft.no_engagement_selected = false;
             this.detailDraft.travel_credit_balance = null;
             return this.refreshEngagements();
         },
@@ -2510,6 +2554,7 @@ function obfPage() {
             this.detailDraft.deal_id = null;
             this.detailDraft.project_id = null;
             this.detailDraft.engagement_name = '';
+            this.detailDraft.no_engagement_selected = false;
             return this.refreshEngagements();
         },
         serializedDetailRows() {

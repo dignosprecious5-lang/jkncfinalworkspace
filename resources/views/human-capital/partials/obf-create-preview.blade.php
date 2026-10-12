@@ -5,9 +5,9 @@
     <template x-for="member in form.team_rows || []" :key="member.employee_id"><tr><td x-text="member.full_name"></td><td x-text="member.position || '-' "></td><td x-text="member.department || '-' "></td><td x-text="member.nature_of_travel || '-' "></td></tr></template>
 </table>
 <div class="section-title" x-text="detailSectionTitle()"></div>
-<table class="preview-table text-xs" x-show="form.classification === 'client'"><tr><th>Client</th><th>Route</th><th>Purpose</th><th>Engagement</th><th>Travel Credit</th></tr>
-    <template x-for="row in form.detail_rows || []" :key="row.id || row.client_key"><tr><td x-text="clientName(row.company_id)"></td><td x-text="detailRoute(row)"></td><td x-text="row.purpose || '-' "></td><td x-text="detailRelated(row)"></td><td x-text="row.travel_credit_balance ?? '—'"></td></tr></template>
-    <tr x-show="!(form.detail_rows || []).length"><td colspan="5">—</td></tr>
+<table class="preview-table text-xs" x-show="form.classification === 'client'"><tr><th>Client</th><th>Type</th><th>Route</th><th>Purpose</th><th>Engagement</th><th>Travel Credit</th></tr>
+    <template x-for="row in previewClientRows()" :key="row.id || row.client_key || 'editing-client'"><tr><td x-text="detailClientName(row)"></td><td x-text="row.engagement_type || '-'"></td><td x-text="detailRoute(row)"></td><td x-text="row.purpose || '-' "></td><td x-text="detailRelated(row)"></td><td x-text="row.travel_credit_balance ?? '—'"></td></tr></template>
+    <tr x-show="!previewClientRows().length"><td colspan="6">—</td></tr>
 </table>
 <table class="preview-table text-xs" x-show="form.classification === 'internal'"><tr><th>Route</th><th>Purpose</th><th>Activity Type</th><th>Department / Office</th></tr>
     <template x-for="row in form.detail_rows || []" :key="row.id || row.client_key"><tr><td x-text="detailRoute(row)"></td><td x-text="row.purpose || '-' "></td><td x-text="row.internal_activity_type || '-' "></td><td x-text="departmentName(row.department_id)"></td></tr></template>

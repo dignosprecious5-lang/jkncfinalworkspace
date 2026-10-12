@@ -49,8 +49,10 @@ class OfficialBusinessCreateDetailService
 
         if ($classification === OfficialBusinessTrip::CLASSIFICATION_CLIENT) {
             $rules += [
-                'rows.*.company_id' => [$isDraft ? 'nullable' : 'required', 'integer', 'exists:companies,id'],
-                'rows.*.engagement_type' => [$isDraft ? 'nullable' : 'required', Rule::in(['Regular', 'Project'])],
+                'rows.*.company_id' => ['nullable', 'integer', 'exists:companies,id'],
+                'rows.*.contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
+                'rows.*.engagement_type' => ['nullable', Rule::in(['Regular', 'Project'])],
+                'rows.*.no_engagement_selected' => ['nullable', 'boolean'],
                 'rows.*.deal_id' => ['nullable', 'integer', 'min:1'],
                 'rows.*.project_id' => ['nullable', 'integer', 'min:1'],
             ];
@@ -108,25 +110,74 @@ class OfficialBusinessCreateDetailService
                 continue;
             }
 
+            if (! $isDraft && filled($row['company_id'] ?? null) === filled($row['contact_id'] ?? null)) {
+                $errors['details_json'][] = 'O.B. Detail '.($index + 1).' must select one company or contact.';
+                continue;
+            }
+
             $engagementType = $row['engagement_type'] ?? null;
             $companyId = (int) ($row['company_id'] ?? 0);
+            $contactId = (int) ($row['contact_id'] ?? 0);
             $engagements = app(OfficialBusinessEngagementService::class);
             $projectId = $row['project_id'] ?? null;
             $legacyDealId = $engagementType === 'Regular' ? ($row['deal_id'] ?? null) : null;
+            $fallback = (bool) ($row['no_engagement_selected'] ?? false);
+
+            if ($fallback) {
+                if (! in_array($engagementType, ['Regular', 'Project'], true)
+                    || filled($projectId)
+                    || filled($legacyDealId)
+                    || ($companyId > 0) === ($contactId > 0)) {
+                    $errors['details_json'][] =
+                        'O.B. Detail '.($index + 1).' has an invalid no-engagement selection.';
+                    continue;
+                }
+
+                $eligible = $companyId > 0
+                    ? $engagements->eligible($companyId, $engagementType)
+                    : $engagements->eligibleForContact($contactId, $engagementType);
+
+                if ($eligible->isNotEmpty()) {
+                    $errors['details_json'][] =
+                        'O.B. Detail '.($index + 1).' has eligible engagements. Select an existing engagement instead.';
+                    continue;
+                }
+            }
+
+            $row['no_engagement_selected'] = $fallback;
             $label = $engagementType === 'Regular' ? 'Related Regular Engagement' : 'Related Project';
             if (! filled($projectId) && ! filled($legacyDealId)) {
+                if (! $isDraft && ! $fallback) {
+                    if (! in_array($engagementType, ['Regular', 'Project'], true)) {
+                        $errors['details_json'][] =
+                            'O.B. Detail '.($index + 1).' must select Regular or Project.';
+                        continue;
+                    }
+
+                    if (($companyId > 0) !== ($contactId > 0)) {
+                        $eligible = $companyId > 0
+                            ? $engagements->eligible($companyId, $engagementType)
+                            : $engagements->eligibleForContact($contactId, $engagementType);
+
+                        $errors['details_json'][] = $eligible->isNotEmpty()
+                            ? 'O.B. Detail '.($index + 1).' must select an existing '.$engagementType.' engagement.'
+                            : 'O.B. Detail '.($index + 1).' must explicitly select No Engagement.';
+                    }
+
+                    continue;
+                }
+
                 $row['project_id'] = null;
                 $row['deal_id'] = null;
-                if (! $isDraft) {
-                    $errors['details_json'][] = 'O.B. Detail '.($index + 1).' '.$label.' is required.';
-                }
                 continue;
             }
 
             $project = filled($projectId)
                 ? Project::query()->whereKey((int) $projectId)->first()
-                : $engagements->legacyRegular($companyId, (int) $legacyDealId);
-            if (! $project || (int) $project->company_id !== $companyId
+                : $engagements->legacyRegularForClient($companyId, $contactId, (int) $legacyDealId);
+            if (! $project || ($companyId > 0
+                    ? (int) $project->company_id !== $companyId
+                    : (int) $project->contact_id !== $contactId)
                 || ! $engagements->isEligible($project, (string) $engagementType)) {
                 $errors['details_json'][] = 'O.B. Detail '.($index + 1).' '.$label.' must be active and belong to this client.';
                 continue;

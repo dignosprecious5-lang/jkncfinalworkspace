@@ -58,6 +58,7 @@ beforeEach(function (): void {
         $table->string('project_code')->nullable();
         $table->foreignId('deal_id')->nullable();
         $table->foreignId('company_id')->nullable();
+        $table->foreignId('contact_id')->nullable();
         $table->string('name')->nullable();
         $table->string('engagement_type')->nullable();
         $table->string('status')->nullable();
@@ -95,6 +96,7 @@ beforeEach(function (): void {
     foreach ([
         '2026_10_07_120000_add_classification_to_official_business_trips.php',
         '2026_10_07_120100_create_official_business_trip_details_table.php',
+        '2026_10_09_130000_add_no_engagement_selected_to_ob_trip_details.php',
         '2026_10_07_120200_create_official_business_trip_detail_travel_table.php',
         '2026_10_07_120300_create_official_business_trip_detail_transportation_table.php',
         '2026_10_07_120400_add_official_business_trip_detail_id_to_activity_attachments_table.php',
@@ -413,19 +415,11 @@ test('legacy deal-only Regular submission resolves its canonical workspace', fun
         ->and($validated[0]['project_id'])->toBe($engagement['project_id']);
 });
 
-test('client Regular submission reports a friendly row error when engagement is missing', function (): void {
+test('client Regular submission accepts an empty engagement', function (): void {
     $company = Company::create(['company_name' => 'Missing Regular Client']);
-    $row = validObV3ClientDetailRow($company->id, 'Regular');
-
-    try {
-        app(OfficialBusinessCreateDetailService::class)
-            ->validateRows([$row], OfficialBusinessTrip::CLASSIFICATION_CLIENT, false);
-        test()->fail('Regular engagement is required for submission.');
-    } catch (\Illuminate\Validation\ValidationException $exception) {
-        expect($exception->errors()['details_json'])
-            ->toContain('O.B. Detail 1 Related Regular Engagement is required.')
-            ->and(array_keys($exception->errors()))->not->toContain('rows.0.project_id');
-    }
+    $row = validObV3ClientDetailRow($company->id, 'Regular', ['no_engagement_selected' => true]);
+    $validated = app(OfficialBusinessCreateDetailService::class)->validateRows([$row], OfficialBusinessTrip::CLASSIFICATION_CLIENT, false);
+    expect($validated[0]['engagement_type'])->toBe('Regular')->and($validated[0]['project_id'])->toBeNull()->and($validated[0]['deal_id'])->toBeNull();
 });
 
 test('client Project submission requires project_id and keeps deal_id null', function (): void {
@@ -474,19 +468,11 @@ test('type-specific client engagement IDs survive JSON decode validation and det
         ->and($persisted[1]->deal_id)->toBeNull()
         ->and($persisted[1]->project_id)->toBe($project['project_id']);
 });
-test('client Project submission reports a friendly row error when project is missing', function (): void {
+test('client Project submission accepts an empty engagement', function (): void {
     $company = Company::create(['company_name' => 'Missing Project Client']);
-    $row = validObV3ClientDetailRow($company->id, 'Project');
-
-    try {
-        app(OfficialBusinessCreateDetailService::class)
-            ->validateRows([$row], OfficialBusinessTrip::CLASSIFICATION_CLIENT, false);
-        test()->fail('Project is required for submission.');
-    } catch (\Illuminate\Validation\ValidationException $exception) {
-        expect($exception->errors()['details_json'])
-            ->toContain('O.B. Detail 1 Related Project is required.')
-            ->and(array_keys($exception->errors()))->not->toContain('rows.0.project_id');
-    }
+    $row = validObV3ClientDetailRow($company->id, 'Project', ['no_engagement_selected' => true]);
+    $validated = app(OfficialBusinessCreateDetailService::class)->validateRows([$row], OfficialBusinessTrip::CLASSIFICATION_CLIENT, false);
+    expect($validated[0]['engagement_type'])->toBe('Project')->and($validated[0]['project_id'])->toBeNull()->and($validated[0]['deal_id'])->toBeNull();
 });
 
 test('workspace type mismatch is rejected and linked Deal is derived from a valid selection', function (): void {
@@ -853,3 +839,238 @@ test('classification does not alter existing ticket relationships or parent work
         ->and($trip->fresh()->remarks)->toBe('Keep this remark')
         ->and($trip->fresh()->tripTickets()->sole()->id)->toBe($ticket->id);
 });
+
+test('client type persists with the required engagement selection for each company scenario', function (array $existingTypes, string $selectedType): void {
+    $company = Company::create(['company_name' => 'Scenario Client']);
+
+    foreach ($existingTypes as $type) {
+        createObV3ClientEngagement($company->id, $type);
+    }
+
+    $before = DB::table('projects')->count();
+    $service = app(OfficialBusinessCreateDetailService::class);
+    $engagements = app(\App\Services\OfficialBusinessEngagementService::class);
+
+    $eligible = $engagements->eligible($company->id, $selectedType);
+    $selectedProjectId = $eligible->first()?->id;
+
+    $selection = $selectedProjectId === null
+        ? ['no_engagement_selected' => true]
+        : ['project_id' => $selectedProjectId];
+
+    $trip = createObV3CreateFoundationTrip($this, [
+        'workflow_version' => 3,
+        'classification' => 'client',
+    ]);
+
+    $row = validObV3ClientDetailRow($company->id, $selectedType, $selection);
+
+    $rows = $service->validateRows([$row], 'client', false);
+    $service->sync($trip, 'client', $rows);
+
+    $saved = $trip->details()->firstOrFail();
+
+    expect($saved->company_id)->toBe($company->id)
+        ->and($saved->engagement_type)->toBe($selectedType)
+        ->and($saved->project_id)->toBe($selectedProjectId)
+        ->and((bool) $saved->no_engagement_selected)->toBe($selectedProjectId === null)
+        ->and(DB::table('projects')->count())->toBe($before);
+
+    $edited = validObV3ClientDetailRow(
+        $company->id,
+        $selectedType,
+        array_merge($selection, [
+            'id' => $saved->id,
+            'purpose' => 'Edited purpose',
+        ])
+    );
+
+    $service->sync(
+        $trip,
+        'client',
+        $service->validateRows([$edited], 'client', false)
+    );
+
+    $updated = $trip->details()->firstOrFail();
+
+    expect($updated->engagement_type)->toBe($selectedType)
+        ->and($updated->project_id)->toBe($selectedProjectId)
+        ->and((bool) $updated->no_engagement_selected)->toBe($selectedProjectId === null);
+})->with([
+    'company without engagements Regular' => [[], 'Regular'],
+    'company without engagements Project' => [[], 'Project'],
+    'company with only Regular chooses Project' => [['Regular'], 'Project'],
+    'company with only Project chooses Regular' => [['Project'], 'Regular'],
+    'company with both chooses Regular' => [['Regular', 'Project'], 'Regular'],
+    'company with both chooses Project' => [['Regular', 'Project'], 'Project'],
+]);
+
+test('contact client without engagements persists either type', function (string $type): void {
+    $contactId = DB::table('contacts')->insertGetId([
+        'first_name' => 'Contact',
+        'last_name' => 'Client',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $service = app(OfficialBusinessCreateDetailService::class);
+
+    $row = validObV3ClientDetailRow(0, $type, [
+        'company_id' => null,
+        'contact_id' => $contactId,
+        'no_engagement_selected' => true,
+    ]);
+
+    $trip = createObV3CreateFoundationTrip($this, [
+        'workflow_version' => 3,
+        'classification' => 'client',
+    ]);
+
+    $service->sync(
+        $trip,
+        'client',
+        $service->validateRows([$row], 'client', false)
+    );
+
+    $saved = $trip->details()->firstOrFail();
+
+    expect($saved->contact_id)->toBe($contactId)
+        ->and($saved->company_id)->toBeNull()
+        ->and($saved->engagement_type)->toBe($type)
+        ->and($saved->project_id)->toBeNull()
+        ->and((bool) $saved->no_engagement_selected)->toBeTrue();
+})->with(['Regular', 'Project']);
+test('contact engagement lookup and validation remain scoped to the selected contact', function (): void {
+    $firstId = DB::table('contacts')->insertGetId(['first_name' => 'First', 'last_name' => 'Contact']);
+    $otherId = DB::table('contacts')->insertGetId(['first_name' => 'Other', 'last_name' => 'Contact']);
+    $company = Company::create(['company_name' => 'Unrelated Company']);
+    $project = createObV3ClientEngagement($company->id, 'Project');
+    DB::table('projects')->where('id', $project['project_id'])->update(['contact_id' => $otherId]);
+    $this->mock(\App\Services\OfficialBusinessAuthorizationService::class, function ($mock): void {
+        $mock->shouldReceive('canView')->andReturn(true);
+        $mock->shouldReceive('canReadFinance')->andReturn(false);
+    });
+    $controller = app(\App\Http\Controllers\OfficialBusinessTripController::class);
+    $payload = $controller->engagements(Request::create('/obf/engagements', 'GET', [
+        'contact_id' => $firstId, 'type' => 'Project',
+    ]))->getData(true);
+    expect($payload['items'])->toBeEmpty();
+    $service = app(OfficialBusinessCreateDetailService::class);
+    $wrongRow = validObV3ClientDetailRow(0, 'Project', [
+        'company_id' => null, 'contact_id' => $firstId, 'project_id' => $project['project_id'],
+    ]);
+    expect(fn () => $service->validateRows([$wrongRow], 'client', false))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    $rightRow = array_replace($wrongRow, ['contact_id' => $otherId]);
+    expect($service->validateRows([$rightRow], 'client', false)[0]['project_id'])->toBe($project['project_id']);
+});
+
+test('submission requires an explicit engagement decision for each client kind and type', function (string $clientKind, string $type, bool $hasEligible): void {
+    $company = Company::create(['company_name' => 'Decision Client']);
+    $contactId = DB::table('contacts')->insertGetId(['first_name' => 'Decision', 'last_name' => 'Contact']);
+    $identity = $clientKind === 'company'
+        ? ['company_id' => $company->id]
+        : ['company_id' => null, 'contact_id' => $contactId];
+    if ($hasEligible) {
+        $engagement = createObV3ClientEngagement($company->id, $type);
+        if ($clientKind === 'contact') {
+            DB::table('projects')->where('id', $engagement['project_id'])
+                ->update(['company_id' => null, 'contact_id' => $contactId]);
+        }
+    }
+    $row = validObV3ClientDetailRow($company->id, $type, $identity);
+    $service = app(OfficialBusinessCreateDetailService::class);
+
+    expect($service->validateRows([$row], 'client', true)[0]['project_id'] ?? null)->toBeNull();
+    try {
+        $service->validateRows([$row], 'client', false);
+        test()->fail('Submission without an explicit engagement decision must fail.');
+    } catch (\Illuminate\Validation\ValidationException $exception) {
+        expect($exception->errors()['details_json'][0])->toContain(
+            $hasEligible ? 'must select an existing '.$type.' engagement' : 'must explicitly select No Engagement'
+        );
+    }
+
+    if ($hasEligible) {
+        try {
+            $service->validateRows([array_replace($row, ['no_engagement_selected' => true])], 'client', false);
+            test()->fail('No Engagement cannot bypass an eligible workspace.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            expect($exception->errors()['details_json'][0])->toContain('has eligible engagements');
+        }
+    } else {
+        $accepted = $service->validateRows([array_replace($row, ['no_engagement_selected' => true])], 'client', false)[0];
+        expect($accepted['no_engagement_selected'])->toBeTrue()
+            ->and($accepted['project_id'])->toBeNull();
+    }
+})->with([
+    'company Regular without eligible work' => ['company', 'Regular', false],
+    'company Project without eligible work' => ['company', 'Project', false],
+    'contact Regular without eligible work' => ['contact', 'Regular', false],
+    'contact Project without eligible work' => ['contact', 'Project', false],
+    'company Regular with eligible work' => ['company', 'Regular', true],
+    'company Project with eligible work' => ['company', 'Project', true],
+    'contact Regular with eligible work' => ['contact', 'Regular', true],
+    'contact Project with eligible work' => ['contact', 'Project', true],
+]);
+
+test('submission rejects another client or the previous type workspace', function (string $clientKind, string $type, string $invalidReason): void {
+    $selectedCompany = Company::create(['company_name' => 'Selected Client']);
+    $otherCompany = Company::create(['company_name' => 'Other Client']);
+    $selectedContact = DB::table('contacts')->insertGetId(['first_name' => 'Selected', 'last_name' => 'Contact']);
+    $otherContact = DB::table('contacts')->insertGetId(['first_name' => 'Other', 'last_name' => 'Contact']);
+    $identity = $clientKind === 'company'
+        ? ['company_id' => $selectedCompany->id]
+        : ['company_id' => null, 'contact_id' => $selectedContact];
+    $workspaceType = $invalidReason === 'wrong type' ? ($type === 'Regular' ? 'Project' : 'Regular') : $type;
+    $workspace = createObV3ClientEngagement(
+        $invalidReason === 'other client' ? $otherCompany->id : $selectedCompany->id,
+        $workspaceType
+    );
+    if ($clientKind === 'contact') {
+        DB::table('projects')->where('id', $workspace['project_id'])->update([
+            'company_id' => null,
+            'contact_id' => $invalidReason === 'other client' ? $otherContact : $selectedContact,
+        ]);
+    }
+    $row = validObV3ClientDetailRow($selectedCompany->id, $type, $identity + ['project_id' => $workspace['project_id']]);
+    $service = app(OfficialBusinessCreateDetailService::class);
+
+    expect(fn () => $service->validateRows([$row], 'client', false))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+})->with([
+    'company Regular other client' => ['company', 'Regular', 'other client'],
+    'company Project other client' => ['company', 'Project', 'other client'],
+    'contact Regular other client' => ['contact', 'Regular', 'other client'],
+    'contact Project other client' => ['contact', 'Project', 'other client'],
+    'company Regular wrong type' => ['company', 'Regular', 'wrong type'],
+    'company Project wrong type' => ['company', 'Project', 'wrong type'],
+    'contact Regular wrong type' => ['contact', 'Regular', 'wrong type'],
+    'contact Project wrong type' => ['contact', 'Project', 'wrong type'],
+]);
+
+test('changing engagement type cannot submit the previously saved selection', function (string $fromType): void {
+    $company = Company::create(['company_name' => 'Changing Type Client']);
+    $toType = $fromType === 'Regular' ? 'Project' : 'Regular';
+    $from = createObV3ClientEngagement($company->id, $fromType);
+    $to = createObV3ClientEngagement($company->id, $toType);
+    $trip = createObV3CreateFoundationTrip($this, ['workflow_version' => 3, 'classification' => 'client', 'status' => 'Draft']);
+    $service = app(OfficialBusinessCreateDetailService::class);
+    $service->sync($trip, 'client', $service->validateRows([
+        validObV3ClientDetailRow($company->id, $fromType, ['project_id' => $from['project_id']]),
+    ], 'client', true));
+    $detail = $trip->details()->sole();
+    $changed = validObV3ClientDetailRow($company->id, $toType, [
+        'id' => $detail->id, 'project_id' => $from['project_id'],
+    ]);
+
+    expect(fn () => $service->validateRows([$changed], 'client', false))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($trip->details()->sole()->project_id)->toBe($from['project_id']);
+    $changed['project_id'] = $to['project_id'];
+    $service->sync($trip, 'client', $service->validateRows([$changed], 'client', false));
+    expect($trip->details()->sole()->id)->toBe($detail->id)
+        ->and($trip->details()->sole()->engagement_type)->toBe($toType)
+        ->and($trip->details()->sole()->project_id)->toBe($to['project_id'])
+        ->and($trip->details()->count())->toBe(1);
+})->with(['Regular', 'Project']);

@@ -92,6 +92,7 @@ class OfficialBusinessDetailService
             'purpose',
             'company_id',
             'engagement_type',
+            'no_engagement_selected',
             'deal_id',
             'project_id',
             'internal_activity_type',

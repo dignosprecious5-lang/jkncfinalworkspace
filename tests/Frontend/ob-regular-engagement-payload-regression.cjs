@@ -149,10 +149,10 @@ vm.runInContext(script, context);
     assert.equal(String(page.detailDraft.project_id), '102');
     assert.equal(page.detailDraft.deal_id, null);
 
-    assert.match(form, /label class="label">Related Engagement \*<\/label><select :value="clientEngagementValue\(\)"/);
+    assert.match(form, /label class="label">Related Engagement \/ No Engagement \(required to submit\)<\/label><select :value="clientEngagementValue\(\)"/);
     assert.match(form, /@change="selectDetailEngagement\(\$event\.target\.value, \$event\.target\.selectedOptions\[0\]\?\.textContent\)"/);
     assert.match(form, /:value="String\(engagement\.id\)"/);
-    assert.match(form, /Related Engagement \*<\/label><select :value="clientEngagementValue\(\)" @change="selectDetailEngagement\(\$event\.target\.value, \$event\.target\.selectedOptions\[0\]\?\.textContent\)"/);
+    assert.match(form, /Related Engagement \/ No Engagement \(required to submit\)<\/label><select :value="clientEngagementValue\(\)" @change="selectDetailEngagement\(\$event\.target\.value, \$event\.target\.selectedOptions\[0\]\?\.textContent\)"/);
     assert.match(view, /JSON\.stringify\(serializedDetailRows\(\)\)/);
     assert.match(view, /name="details_json" :value="JSON\.stringify\(serializedDetailRows\(\)\)"/);
     assert.doesNotMatch(view, /engagementId \? `#\$\{engagementId\}`/);

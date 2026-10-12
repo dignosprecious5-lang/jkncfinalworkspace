@@ -21,6 +21,7 @@ class OfficialBusinessTripDetail extends Model
         'purpose',
         'company_id',
         'engagement_type',
+        'no_engagement_selected',
         'deal_id',
         'project_id',
         'internal_activity_type',
@@ -35,6 +36,7 @@ class OfficialBusinessTripDetail extends Model
     ];
 
     protected $casts = [
+        'no_engagement_selected' => 'boolean',
         'sort_order' => 'integer',
         'related_internal_id' => 'integer',
     ];

@@ -723,6 +723,7 @@ function preparePhase2ObSchema(): void
     foreach ([
         '2026_10_07_120000_add_classification_to_official_business_trips.php',
         '2026_10_07_120100_create_official_business_trip_details_table.php',
+        '2026_10_09_130000_add_no_engagement_selected_to_ob_trip_details.php',
         '2026_10_07_120200_create_official_business_trip_detail_travel_table.php',
         '2026_10_07_120300_create_official_business_trip_detail_transportation_table.php',
         '2026_10_07_120400_add_official_business_trip_detail_id_to_activity_attachments_table.php',
@@ -1767,4 +1768,257 @@ test('client ob with meaningful ticket work cannot convert to internal', functio
         ->and($ticket->deleted_at)->toBeNull()
         ->and($ticket->archived_at)->toBeNull()
         ->and($ticket->archived_reason)->toBeNull();
+});
+
+test('phase 6 official business save and redirect timing diagnostic', function () {
+    $this->actingAs($this->manager);
+    $this->get(route('human-capital.obf'))->assertOk();
+
+    $measure = function (string $label, callable $request) {
+        $started = hrtime(true);
+        $response = $request();
+        $milliseconds = round((hrtime(true) - $started) / 1_000_000, 2);
+        fwrite(STDERR, "OB_SAVE_METRIC {$label} ms={$milliseconds}".PHP_EOL);
+        return $response;
+    };
+
+    $measure('draft_post', fn () => $this->post(route('human-capital.obf.store'), [
+        'intent' => 'save_draft',
+    ]))->assertRedirect(route('human-capital.obf'));
+    $trip = OfficialBusinessTrip::query()->sole();
+    expect($trip->status)->toBe('Draft');
+    $measure('draft_redirect_get', fn () => $this->get(route('human-capital.obf')))->assertOk();
+
+    $measure('draft_edit_put', fn () => $this->put(route('human-capital.obf.update', $trip), [
+        'intent' => 'save_draft',
+    ]))->assertRedirect(route('human-capital.obf'));
+    $measure('edit_redirect_get', fn () => $this->get(route('human-capital.obf')))->assertOk();
+
+    $employeeId = DB::table('employees')->insertGetId([
+        'user_id' => $this->manager->id,
+        'employee_code' => 'EMP-PHASE6',
+        'first_name' => 'Timing',
+        'last_name' => 'Traveler',
+        'position' => 'Consultant',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $measure('submit_put', fn () => $this->put(route('human-capital.obf.update', $trip), [
+        'intent' => 'submit',
+        'employee_id' => $employeeId,
+        'destination' => 'Test destination',
+        'purpose' => 'Isolated timing test',
+        'date_from' => '2026-10-09',
+        'date_to' => '2026-10-09',
+        'is_client_travel' => 0,
+    ]))->assertRedirect(route('human-capital.obf'));
+    expect($trip->fresh()->status)->toBe('Submitted');
+    $measure('submit_redirect_get', fn () => $this->get(route('human-capital.obf')))->assertOk();
+
+    $measure('approval_post', fn () => $this->post(route('human-capital.obf.approve', $trip)))
+        ->assertRedirect(route('human-capital.obf'));
+    expect($trip->fresh()->status)->toBe('Approved');
+    $measure('approval_redirect_get', fn () => $this->get(route('human-capital.obf')))->assertOk();
+});
+
+test('employee saves edits reopens and submits a client type without an engagement', function (string $clientKind, string $type): void {
+    preparePhase2ObSchema();
+    $owner = User::create(['name' => 'Employee Client Owner', 'email' => 'client-owner@example.test', 'role' => 'Employee', 'is_active' => true]);
+    DB::table('user_permissions')->insert(['user_id' => $owner->id, 'access_hc_obf' => true, 'create_hc_obf' => true]);
+    $employeeId = DB::table('employees')->insertGetId(['user_id' => $owner->id, 'first_name' => 'Employee', 'last_name' => 'Owner']);
+    $identity = $clientKind === 'company'
+        ? ['company_id' => Company::create(['company_name' => 'No Engagement Company'])->id]
+        : ['contact_id' => DB::table('contacts')->insertGetId(['first_name' => 'No Engagement', 'last_name' => 'Contact'])];
+    $row = $identity + [
+        'engagement_type' => $type, 'from_location' => 'Office', 'destination' => 'Client',
+        'purpose' => 'Consultation',
+        'travel' => ['departure_date' => '2026-10-08', 'departure_time' => '08:00', 'expected_arrival_date' => '2026-10-08', 'expected_arrival_time' => '09:00'],
+        'transportation' => ['mode' => 'Walking'],
+    ];
+    $this->actingAs($owner)->post(route('human-capital.obf.store'), [
+        'intent' => 'save_draft', 'classification' => 'client',
+        'details_json' => json_encode([$row]),
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    $trip = OfficialBusinessTrip::query()->sole();
+    expect($trip->status)->toBe('Draft')
+        ->and($trip->contact_id)->toBe($identity['contact_id'] ?? null)
+        ->and($trip->details()->sole()->engagement_type)->toBe($type)
+        ->and($trip->details()->sole()->project_id)->toBeNull();
+    $page = $this->actingAs($owner)->get(route('human-capital.obf', ['edit' => $trip->id]))->assertOk();
+    $reopened = collect($page->viewData('trips'))->firstWhere('id', $trip->id);
+    expect($reopened['detail_rows'][0]['engagement_type'])->toBe($type)
+        ->and($reopened['can_edit'])->toBeTrue();
+    $row['id'] = $trip->details()->sole()->id;
+    $row['purpose'] = 'Edited consultation';
+    $this->actingAs($owner)->put(route('human-capital.obf.update', $trip), [
+        'intent' => 'save_draft', 'classification' => 'client', 'details_json' => json_encode([$row]),
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect($trip->fresh()->details()->sole()->purpose)->toBe('Edited consultation');
+    $row['no_engagement_selected'] = true;
+    $this->actingAs($owner)->put(route('human-capital.obf.update', $trip), [
+        'intent' => 'submit', 'classification' => 'client', 'details_json' => json_encode([$row]),
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect($trip->fresh()->status)->toBe('Submitted')
+        ->and($trip->fresh()->details()->sole()->engagement_type)->toBe($type)
+        ->and($trip->fresh()->details()->sole()->project_id)->toBeNull()
+        ->and(DB::table('projects')->count())->toBe(0);
+})->with([
+    'company Regular' => ['company', 'Regular'],
+    'company Project' => ['company', 'Project'],
+    'contact Regular' => ['contact', 'Regular'],
+    'contact Project' => ['contact', 'Project'],
+]);
+test('admin submits a client O.B. without an existing engagement', function (string $type): void {
+    preparePhase2ObSchema();
+    $employeeId = DB::table('employees')->insertGetId([
+        'user_id' => $this->manager->id, 'first_name' => 'Admin', 'last_name' => 'Traveler',
+    ]);
+    $company = Company::create(['company_name' => 'Admin Client Without Engagement']);
+    $row = [
+        'company_id' => $company->id, 'engagement_type' => $type,
+        'no_engagement_selected' => true,
+        'from_location' => 'Office', 'destination' => 'Client', 'purpose' => 'Consultation',
+        'travel' => ['departure_date' => '2026-10-08', 'departure_time' => '08:00', 'expected_arrival_date' => '2026-10-08', 'expected_arrival_time' => '09:00'],
+        'transportation' => ['mode' => 'Walking'],
+    ];
+    $this->actingAs($this->manager)->post(route('human-capital.obf.store'), [
+        'intent' => 'submit', 'classification' => 'client', 'employee_id' => $employeeId,
+        'details_json' => json_encode([$row]),
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    $trip = OfficialBusinessTrip::query()->sole();
+    expect($trip->status)->toBe('Submitted')
+        ->and($trip->details()->sole()->engagement_type)->toBe($type)
+        ->and($trip->details()->sole()->project_id)->toBeNull()
+        ->and(DB::table('projects')->count())->toBe(0);
+})->with(['Regular', 'Project']);
+
+test('employee and admin retain an eligible engagement through draft edit reopen and submission', function (string $role, string $type): void {
+    preparePhase2ObSchema();
+    $actor = $role === 'Admin' ? $this->manager : User::create([
+        'name' => 'Employee Engagement Owner', 'email' => 'engagement-owner@example.test',
+        'role' => 'Employee', 'is_active' => true,
+    ]);
+    if ($role === 'Employee') {
+        DB::table('user_permissions')->insert([
+            'user_id' => $actor->id, 'access_hc_obf' => true, 'create_hc_obf' => true,
+        ]);
+    }
+    $employeeId = DB::table('employees')->insertGetId([
+        'user_id' => $actor->id, 'first_name' => $role, 'last_name' => 'Traveler',
+    ]);
+    $company = Company::create(['company_name' => $role.' '.$type.' Client']);
+    $dealId = $type === 'Regular'
+        ? DB::table('deals')->insertGetId(['deal_name' => 'Client Retainer']) : null;
+    $projectId = DB::table('projects')->insertGetId([
+        'company_id' => $company->id, 'deal_id' => $dealId,
+        'name' => $type.' Engagement', 'engagement_type' => $type, 'status' => 'In Progress',
+    ]);
+    $row = [
+        'company_id' => $company->id, 'engagement_type' => $type, 'project_id' => $projectId,
+        'from_location' => 'Office', 'destination' => 'Client', 'purpose' => 'Consultation',
+        'travel' => [
+            'departure_date' => '2026-10-08', 'departure_time' => '08:00',
+            'expected_arrival_date' => '2026-10-08', 'expected_arrival_time' => '09:00',
+        ],
+        'transportation' => ['mode' => 'Walking'],
+    ];
+    $payload = [
+        'classification' => 'client', 'employee_id' => $employeeId,
+        'details_json' => json_encode([$row]),
+    ];
+
+    $this->actingAs($actor)->post(route('human-capital.obf.store'), $payload + ['intent' => 'save_draft'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $trip = OfficialBusinessTrip::query()->sole();
+    $detailId = $trip->details()->sole()->id;
+    expect($trip->status)->toBe('Draft')
+        ->and($trip->details()->sole()->project_id)->toBe($projectId);
+
+    $row['id'] = $detailId;
+    $row['purpose'] = 'Edited consultation';
+    $payload['details_json'] = json_encode([$row]);
+    $this->actingAs($actor)->put(route('human-capital.obf.update', $trip), $payload + ['intent' => 'save_draft'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $page = $this->actingAs($actor)->get(route('human-capital.obf', ['edit' => $trip->id]))->assertOk();
+    $reopened = collect($page->viewData('trips'))->firstWhere('id', $trip->id);
+    expect($reopened['detail_rows'][0]['project_id'])->toBe($projectId)
+        ->and($reopened['detail_rows'][0]['engagement_type'])->toBe($type)
+        ->and($reopened['detail_rows'][0]['engagement_name'])->toBe($type.' Engagement')
+        ->and($trip->fresh()->details()->sole()->id)->toBe($detailId);
+
+    $this->actingAs($actor)->put(route('human-capital.obf.update', $trip), $payload + ['intent' => 'submit'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+    expect($trip->fresh()->status)->toBe('Submitted')
+        ->and($trip->fresh()->details()->sole()->id)->toBe($detailId)
+        ->and($trip->fresh()->details()->sole()->project_id)->toBe($projectId)
+        ->and($trip->fresh()->details()->sole()->deal_id)->toBe($dealId)
+        ->and(OfficialBusinessTrip::query()->count())->toBe(1);
+})->with([
+    'employee Regular' => ['Employee', 'Regular'],
+    'employee Project' => ['Employee', 'Project'],
+    'admin Regular' => ['Admin', 'Regular'],
+    'admin Project' => ['Admin', 'Project'],
+]);
+
+test('legacy pending O.B. renders its original fields and submits an authorized edit request', function (): void {
+    (require database_path('migrations/2026_06_05_150000_create_human_capital_change_requests_table.php'))->up();
+    $employeeId = DB::table('employees')->insertGetId([
+        'user_id' => $this->manager->id, 'first_name' => 'Legacy', 'last_name' => 'Traveler',
+    ]);
+    $pending = OfficialBusinessTrip::create([
+        'ob_reference_no' => 'OBF-LEGACY-PENDING', 'workflow_version' => 1,
+        'status' => 'Pending', 'employee_id' => $employeeId, 'created_by' => $this->manager->id,
+        'destination' => 'Original client office', 'purpose' => 'Original client meeting',
+        'date_from' => '2026-10-12', 'is_client_travel' => false,
+    ]);
+    $approved = OfficialBusinessTrip::create([
+        'ob_reference_no' => 'OBF-LEGACY-APPROVED', 'workflow_version' => 1,
+        'status' => 'Approved', 'employee_id' => $employeeId, 'created_by' => $this->manager->id,
+        'destination' => 'Approved destination', 'purpose' => 'Approved purpose',
+        'date_from' => '2026-10-12', 'is_client_travel' => false,
+    ]);
+
+    $page = $this->actingAs($this->manager)
+        ->get(route('human-capital.obf', ['edit' => $pending->id]))->assertOk();
+    $page->assertSee('OBF-LEGACY-PENDING')
+        ->assertSee('Client & Billability Section', false)
+        ->assertSee('name="destination"', false)
+        ->assertSee('x-show="!form.classification && (isView || isEdit)"', false)
+        ->assertSee('x-show="!form.classification && isEdit"', false);
+    $records = collect($page->viewData('trips'));
+    expect($records->firstWhere('id', $pending->id))
+        ->toHaveKey('destination', 'Original client office')
+        ->toHaveKey('purpose', 'Original client meeting')
+        ->toHaveKey('can_edit', true);
+    expect($records->firstWhere('id', $approved->id))
+        ->toHaveKey('destination', 'Approved destination')
+        ->toHaveKey('can_edit', false);
+
+    $this->actingAs($this->manager)->put(route('human-capital.obf.update', $pending), [
+        'is_client_travel' => 0, 'destination' => 'Edited client office',
+        'purpose' => 'Edited client meeting', 'date_from' => '2026-10-12',
+    ])->assertRedirect(route('human-capital.obf'))->assertSessionHasNoErrors();
+    $change = DB::table('human_capital_change_requests')->sole();
+    expect($change->subject_id)->toBe($pending->id)
+        ->and($change->action)->toBe('update')
+        ->and(json_decode($change->new_values, true)['destination'])->toBe('Edited client office')
+        ->and($pending->fresh()->destination)->toBe('Original client office')
+        ->and($approved->fresh()->status)->toBe('Approved');
+});
+
+test('classified V3 draft renders its form while legacy sections remain conditional', function (): void {
+    preparePhase2ObSchema();
+    $draft = OfficialBusinessTrip::create([
+        'ob_reference_no' => 'OBF-V3-VISIBILITY', 'workflow_version' => 3,
+        'classification' => 'client', 'status' => 'Draft', 'created_by' => $this->manager->id,
+    ]);
+    $page = $this->actingAs($this->manager)
+        ->get(route('human-capital.obf', ['edit' => $draft->id]))->assertOk();
+    $page->assertSee('O.B. Classification')
+        ->assertSee('Related Engagement / No Engagement (required to submit)')
+        ->assertSee('x-show="form.classification"', false)
+        ->assertSee('x-show="!form.classification && isEdit"', false);
+    expect(collect($page->viewData('trips'))->firstWhere('id', $draft->id))
+        ->toHaveKey('classification', 'client')
+        ->toHaveKey('can_edit', true);
 });

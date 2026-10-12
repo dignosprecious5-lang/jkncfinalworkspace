@@ -15,18 +15,20 @@ class OfficialBusinessEngagementService
             ->values();
     }
 
+    public function eligibleForContact(int $contactId, string $type): Collection
+    {
+        return Project::query()->where('contact_id', $contactId)->orderBy('name')->get()
+            ->filter(fn (Project $workspace): bool => $this->isEligible($workspace, $type))
+            ->values();
+    }
+
     public function isEligible(Project $workspace, string $type): bool
     {
-        if (! in_array($type, ['Regular', 'Project'], true) || $workspace->isShell()) {
-            return false;
-        }
+        $regular = str_contains(strtolower(trim((string) $workspace->engagement_type)), 'regular');
 
-        $regular = str_contains(
-            strtolower(trim((string) $workspace->engagement_type)),
-            'regular'
-        );
-
-        if ($regular !== ($type === 'Regular')) {
+        if (! in_array($type, ['Regular', 'Project'], true)
+            || $regular !== ($type === 'Regular')
+            || $workspace->isShell()) {
             return false;
         }
 
@@ -55,6 +57,16 @@ class OfficialBusinessEngagementService
     }
 
     /** Legacy deal-only IDs are usable only when they identify exactly one workspace. */
+    public function legacyRegularForClient(int $companyId, int $contactId, int $dealId): ?Project
+    {
+        $matches = $companyId > 0
+            ? $this->eligible($companyId, 'Regular')
+            : $this->eligibleForContact($contactId, 'Regular');
+        $matches = $matches->filter(fn (Project $workspace): bool => (int) $workspace->deal_id === $dealId);
+
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
     public function legacyRegular(int $companyId, int $dealId): ?Project
     {
         $matches = $this->eligible($companyId, 'Regular')
