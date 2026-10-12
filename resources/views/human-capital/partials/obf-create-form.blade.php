@@ -46,7 +46,7 @@
             <thead class="bg-blue-50 text-blue-900"><tr><th class="p-2 text-left">Employee</th><th class="p-2 text-left">Employee ID</th><th class="p-2 text-left">Position</th><th class="p-2 text-left">Department / Unit</th><th class="p-2 text-left">Nature of Travel</th><th class="p-2 text-left">Immediate Supervisor</th><th class="p-2 text-left">Action</th></tr></thead>
             <tbody>
                 <tr class="border-b">
-                    <td class="p-2"><span x-text="preview.full_name || form.employee_name || '-' "></span><span class="block text-blue-700 font-semibold">Primary Traveler</span></td>
+                    <td class="p-2"><span x-text="preview.full_name || form.employee_name || '-' "></span><span class="block text-blue-700 font-semibold">Primary Traveler</span><template x-if="canManageObf && !isView"><select x-model="form.employee_id" @change="selectEmployee(); removePrimaryFromTeam()" class="input mt-1"><template x-for="employee in employees" :key="employee.id"><option :value="employee.id" x-text="employee.full_name"></option></template></select></template></td>
                     <td class="p-2" x-text="preview.employee_code || form.employee_code || '-' "></td><td class="p-2" x-text="preview.position || '-' "></td><td class="p-2" x-text="preview.department || '-' "></td>
                     <td class="p-2">
     <template x-if="!primaryNatureOther">
