@@ -32,6 +32,10 @@ use Throwable;
 
 class FinanceController extends Controller
 {
+    private bool $cacheFinanceActiveRecordsForIndex = false;
+    private ?\Illuminate\Support\Collection $financeIndexActiveRecords = null;
+    private ?array $financeIndexApproverDirectory = null;
+
     private const MODULES = [
         'supplier' => 'Supplier',
         'service' => 'Service',
@@ -391,6 +395,9 @@ class FinanceController extends Controller
 
     private function financeOfficialApproverDirectory(): array
     {
+        if ($this->cacheFinanceActiveRecordsForIndex && $this->financeIndexApproverDirectory !== null) {
+            return $this->financeIndexApproverDirectory;
+        }
 
         $officialRows = collect();
         $gisRecord = $this->financeLatestApprovedGisRecord();
@@ -473,7 +480,7 @@ class FinanceController extends Controller
             ->unique(fn(array $option) => (int) $option['user_id'])
             ->values();
 
-        return [
+        $directory = [
             'options' => $options->all(),
             'default_steps' => $defaults->map(fn(array $option, int $index) => [
                 'step' => $index + 1,
@@ -498,6 +505,12 @@ class FinanceController extends Controller
                 ->values()
                 ->all(),
         ];
+
+        if ($this->cacheFinanceActiveRecordsForIndex) {
+            $this->financeIndexApproverDirectory = $directory;
+        }
+
+        return $directory;
     }
 
     private function financePermissionApproverRows()
@@ -2421,17 +2434,21 @@ SVG;
 
     private function financeActiveRecords(): \Illuminate\Support\Collection
     {
-        $cache = null;
-
-        if ($cache === null) {
-            $cache = FinanceRecord::query()
-                ->where('workflow_status', '!=', 'Deleted')
-                ->orderByDesc('id')
-                ->get()
-                ->values();
+        if ($this->cacheFinanceActiveRecordsForIndex && $this->financeIndexActiveRecords !== null) {
+            return $this->financeIndexActiveRecords;
         }
 
-        return $cache;
+        $records = FinanceRecord::query()
+            ->where('workflow_status', '!=', 'Deleted')
+            ->orderByDesc('id')
+            ->get()
+            ->values();
+
+        if ($this->cacheFinanceActiveRecordsForIndex) {
+            $this->financeIndexActiveRecords = $records;
+        }
+
+        return $records;
     }
 
     private function financeActiveRecordById(int $recordId): ?FinanceRecord
@@ -6830,8 +6847,8 @@ SVG;
     private function transformRecordForIndex(FinanceRecord $record): array
     {
         $data = $record->data ?? [];
-        $data['line_items'] = $this->financeTransformLineItemReceiptAttachments((array) data_get($data, 'line_items', []));
-        $attachments = $this->financeTransformRecordAttachments($record, $data);
+        $data['line_items'] = $this->financeTransformLineItemReceiptAttachments((array) data_get($data, 'line_items', []), false);
+        $attachments = $this->financeTransformRecordAttachments($record, $data, false);
 
         return [
             'id' => $record->id,
@@ -7371,9 +7388,9 @@ SVG;
         ];
     }
 
-    private function financeTransformLineItemReceiptAttachments(array $lineItems): array
+    private function financeTransformLineItemReceiptAttachments(array $lineItems, bool $includeImageData = true): array
     {
-        return array_values(array_map(function ($lineItem) {
+        return array_values(array_map(function ($lineItem) use ($includeImageData) {
             if (!is_array($lineItem)) {
                 return $lineItem;
             }
@@ -7401,7 +7418,7 @@ SVG;
             $attachment['url'] = $this->financeAttachmentUrl($attachment);
             $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
             $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
-            $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
+            $attachment['image_data_uri'] = $includeImageData && $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
 
             $lineItem['receipt_attachment'] = $attachment;
             $lineItem['receipt_attachment_name'] = $attachment['name'];
@@ -7413,14 +7430,14 @@ SVG;
         }, $lineItems));
     }
 
-    private function financeTransformRecordAttachments(FinanceRecord $record, array $data = []): array
+    private function financeTransformRecordAttachments(FinanceRecord $record, array $data = [], bool $includeImageData = true): array
     {
-        $directAttachments = array_values(array_map(function ($attachment) {
+        $directAttachments = array_values(array_map(function ($attachment) use ($includeImageData) {
             $attachment = is_array($attachment) ? $attachment : [];
             $attachment['url'] = $this->financeAttachmentUrl($attachment);
             $attachment['download_url'] = $attachment['url'] ? $attachment['url'] . '?download=1' : null;
             $attachment['is_image'] = $this->financeAttachmentIsImage($attachment);
-            $attachment['image_data_uri'] = $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
+            $attachment['image_data_uri'] = $includeImageData && $attachment['is_image'] ? $this->financeAttachmentDataUri($attachment) : null;
 
             return $attachment;
         }, (array) ($record->attachments ?? [])));
@@ -9311,6 +9328,8 @@ SVG;
         if (!in_array($workflowFilter, array_merge(['all'], self::WORKFLOW_STATUSES), true)) {
             $workflowFilter = 'all';
         }
+
+        $this->cacheFinanceActiveRecordsForIndex = true;
 
         $records = FinanceRecord::query()
             ->where('workflow_status', '!=', 'Deleted')
