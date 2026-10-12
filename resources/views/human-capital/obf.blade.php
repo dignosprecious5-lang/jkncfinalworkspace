@@ -1071,7 +1071,6 @@
     </template>
 
 </div>
-                        </div>
 <div class="section-title">Attachments</div>
                         <table class="preview-table">
                             <tr>
