@@ -33,12 +33,11 @@
         <div class="flex items-center space-x-2 w-48">
             <a href="/" class="flex flex-col font-serif text-slate-800 hover:opacity-90 leading-tight">
                 <span class="text-sm font-bold tracking-tight text-slate-900">
-                    {{ config('app.name', 'ORDO') }}
-                </span>
-                <span class="text-xs font-semibold text-slate-900 font-serif -mt-0.5">
-                    <span class="text-blue-600 font-bold italic font-sans">&amp;</span>
-                    {{ config('app.company_name', '') }}
-                </span>
+                John Kelly
+            </span>
+            <span class="text-xs font-semibold text-slate-900 font-serif -mt-0.5">
+                <span class="text-blue-600 font-bold italic font-sans">&amp;</span> Company
+            </span>
             </a>
         </div>
 

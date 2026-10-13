@@ -16,6 +16,11 @@
 
     // Current tab parameter mapping
     $requestedTab = strtolower(request('tab', 'overview'));
+    $normalizedServiceStatus = strtolower(str_replace(' ', '_', trim((string) $service->status)));
+    $normalizedVersionStatus = strtolower((string) ($activeVersion->status ?? 'draft'));
+    $isPendingApproval = in_array($normalizedServiceStatus, ['pending_approval', 'for_approval'], true);
+    $canSubmitForApproval = in_array($normalizedVersionStatus, ['draft', 'rejected'], true)
+        && !in_array($normalizedServiceStatus, ['pending_approval', 'for_approval', 'active', 'approved', 'archived'], true);
 
     if (str_contains($requestedTab, 'wersion') || str_contains($requestedTab, 'version')) {
         $currentTab = 'versions_history';
@@ -454,7 +459,49 @@
          }
         }">
                 <!-- COMPLETENESS GATE BANNER -->
-@if($allSectionsComplete)
+@if($normalizedServiceStatus === 'rejected' && $service->rejection_reason)
+    <div class="bg-blue-50 border border-blue-200 text-slate-900 px-4 py-3 rounded-lg text-xs shadow-sm">
+        <strong>Rejection reason:</strong> {{ $service->rejection_reason }}
+    </div>
+@endif
+@if($isPendingApproval && $canApprove)
+    <div class="bg-white border border-blue-200 text-slate-900 px-4 py-4 rounded-lg text-xs shadow-sm space-y-3">
+        <div>
+            <p class="font-bold text-slate-900">Pending Approval</p>
+            <p class="text-slate-600 mt-1">Review this submission and record your decision.</p>
+        </div>
+        <div class="flex flex-wrap items-start gap-3">
+            <form action="{{ route('services.approve', $service->id) }}" method="POST">
+                @csrf
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded transition shadow-sm">
+                    Approve
+                </button>
+            </form>
+            <details class="flex-1 min-w-[260px]" @if($errors->has('rejection_reason')) open @endif>
+                <summary class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded transition shadow-sm cursor-pointer list-none">
+                    Reject
+                </summary>
+                <form action="{{ route('services.reject', $service->id) }}" method="POST" class="mt-3 space-y-2">
+                    @csrf
+                    <label for="service-rejection-reason" class="block text-xs font-semibold text-black">Optional comment</label>
+                    <textarea id="service-rejection-reason" name="rejection_reason" rows="2" maxlength="2000"
+                              class="w-full border border-blue-300 rounded-lg p-2 text-xs text-black focus:border-blue-500 focus:ring-blue-500"
+                              placeholder="Add a comment if needed.">{{ old('rejection_reason') }}</textarea>
+                    @error('rejection_reason')
+                        <p class="text-xs text-blue-700">{{ $message }}</p>
+                    @enderror
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded transition shadow-sm">
+                        Confirm Reject
+                    </button>
+                </form>
+            </details>
+        </div>
+    </div>
+@elseif($isPendingApproval)
+    <div class="bg-white border border-blue-200 text-slate-900 px-4 py-3 rounded-lg text-xs shadow-sm">
+        This service is pending approval.
+    </div>
+@elseif($allSectionsComplete && $canSubmitForApproval)
     <div class="bg-white border border-blue-300 text-slate-800 px-4 py-3 rounded-lg text-xs flex justify-between items-center shadow-sm relative z-30 pointer-events-auto">
         <div class="flex items-center space-x-2">
             <!-- Ginawa nating text-slate-900 para umitim ang check symbol -->
@@ -473,7 +520,7 @@
             </button>
         </form>
     </div>
-@else
+@elseif(!$allSectionsComplete && $canSubmitForApproval)
     <div class="bg-white border border-slate-200 text-slate-800 px-4 py-3 rounded-lg text-xs flex justify-between items-center shadow-sm">
         <div class="flex items-center space-x-2">
             <!-- Ginawa nating text-slate-900 para umitim ang warning symbol -->
@@ -4350,11 +4397,11 @@ class="text-slate-900 hover:text-black hover:underline cursor-pointer text-left 
             </div>
 
             {{-- SUBMIT FOR APPROVAL --}}
-@if($activeVersion && in_array($activeVersion->status ?? 'draft', ['draft', 'rejected']))
+@if($activeVersion && $allSectionsComplete && $canSubmitForApproval && in_array($normalizedVersionStatus, ['draft', 'rejected'], true))
     <form method="POST" action="{{ route('services.submit_approval', $service->id) }}">
         @csrf
-        <button type="submit" disabled
-                class="inline-flex items-center px-4 py-2 rounded-md bg-slate-300 text-slate-500 text-xs font-semibold cursor-not-allowed">
+        <button type="submit"
+                class="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer">
             Submit for Approval
         </button>
     </form>

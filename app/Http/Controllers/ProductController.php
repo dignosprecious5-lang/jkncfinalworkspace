@@ -109,7 +109,11 @@ private function logAudit($productId, $action, $details = null)
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            if ($request->status === 'for_approval') {
+                $query->whereIn('status', ['for_approval', 'pending_approval', 'Pending Approval']);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         if ($request->filled('category')) {
@@ -150,7 +154,11 @@ private function logAudit($productId, $action, $details = null)
         $allProductsCount = [
             'incomplete'   => \App\Models\Product::where('status', 'incomplete')->count(),
             'draft'        => \App\Models\Product::where('status', 'draft')->count(),
-            'for_approval' => \App\Models\Product::where('status', 'for_approval')->count(),
+            'for_approval' => \App\Models\Product::whereIn('status', [
+                'for_approval',
+                'pending_approval',
+                'Pending Approval',
+            ])->count(),
             'active'       => \App\Models\Product::where('status', 'active')->count(),
             'archived'     => \App\Models\Product::where('status', 'archived')->count(),
         ];
@@ -249,7 +257,11 @@ private function logAudit($productId, $action, $details = null)
         $counts = [
             'incomplete' => Product::where('status', 'incomplete')->count(),
             'draft' => Product::where('status', 'draft')->count(),
-            'for_approval' => Product::where('status', 'for_approval')->count(),
+            'for_approval' => Product::whereIn('status', [
+                'for_approval',
+                'pending_approval',
+                'Pending Approval',
+            ])->count(),
             'active' => Product::where('status', 'active')->count(),
             'archived' => Product::where('status', 'archived')->count(),
         ];
@@ -475,7 +487,7 @@ private function logAudit($productId, $action, $details = null)
     |--------------------------------------------------------------------------
     */
 
-    public function workspace($id)
+    public function workspace(Request $request, $id)
     {
 
     
@@ -621,8 +633,12 @@ if (Schema::hasTable('product_audit_logs')) {
 |--------------------------------------------------------------------------
 */
 
-$isViewOnly = false;
-$mode = 'edit';
+$mode = $request->query('mode', 'edit');
+$isViewOnly = $mode === 'view';
+$status = strtolower(str_replace(' ', '_', trim((string) $product->status)));
+$canSubmitForApproval = in_array($status, ['draft', 'incomplete', 'rejected'], true)
+    && in_array($currentVersion?->status, ['draft', 'rejected'], true);
+$canApprove = $request->user()->canApprove();
 
 /*
 |--------------------------------------------------------------------------
@@ -661,6 +677,8 @@ return view(
                 'mainActivitiesList',
                 'isViewOnly',
                 'mode',
+                'canSubmitForApproval',
+                'canApprove',
                 'actUpdateRouteTemplate',
                 'currentVersion',
                 'versionHistory',
@@ -2630,32 +2648,180 @@ $this->notifyAdminsOfProductUpdate($product);
 
 public function submitApproval($id)
 {
+    $response = DB::transaction(function () use ($id) {
+        $product = Product::query()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->firstOrFail();
+        $version = $product->versions()
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->first();
+
+        abort_unless($version, 409, 'No active product version is available for approval.');
+
+        $status = strtolower(str_replace(' ', '_', trim((string) $product->status)));
+        abort_unless(
+            in_array($status, ['draft', 'incomplete', 'rejected'], true)
+                && in_array($version->status, ['draft', 'rejected'], true),
+            409,
+            'This product cannot be submitted from its current status.'
+        );
+
+        $oldStatus = $product->status;
+        $product->update([
+            'status' => 'pending_approval',
+        ]);
+        $version->update([
+            'status' => 'pending_approval',
+            'approved_by' => null,
+            'approved_at' => null,
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_reason' => null,
+        ]);
+
+        $this->logAudit(
+            $product->id,
+            'Product Status updated',
+            "Changed from: " . ($oldStatus ?: 'Empty') . "\nTo: pending_approval"
+        );
+
+        return $product;
+    });
+
+    $this->notifyAdminsOfProductUpdate($response);
+
+    return redirect()
+        ->route('products.workspace', [
+            'id' => $response->id,
+            'mode' => 'view',
+        ])
+        ->with('success', 'Product successfully submitted for approval!');
+}
+
+public function approve(Request $request, $id)
+{
+    return DB::transaction(function () use ($request, $id) {
+        $product = Product::query()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->firstOrFail();
+        $version = $product->versions()
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        abort_unless(
+            $request->user()->canApprove(),
+            403
+        );
+
+        $status = strtolower(str_replace(' ', '_', trim((string) $product->status)));
+        abort_unless(
+            in_array($status, ['pending_approval', 'for_approval'], true),
+            409,
+            'Only pending products can be approved.'
+        );
+
+        $product->update(['status' => 'active']);
+        $version->update([
+            'status' => 'published',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_reason' => null,
+        ]);
+
+        $this->logAudit(
+            $product->id,
+            'Product Approved',
+            "Approved by {$request->user()->name}."
+        );
+
+        return redirect()
+            ->route('products.workspace', [
+                'id' => $product->id,
+                'mode' => 'view',
+            ])
+            ->with('success', 'Product approved successfully.');
+    });
+}
+
+public function reject(Request $request, $id)
+{
     $product = Product::findOrFail($id);
+    $currentVersion = $product->versions()
+        ->where('is_active', true)
+        ->firstOrFail();
 
-    // 1. I-update ang status ng produkto patungong Pending Approval
-    $oldStatus = $product->status;
-
-    $product->update([
-        'status' => 'Pending Approval'
-    ]);
-
-    // 2. Audit History
-    $this->logAudit(
-        $product->id,
-        'Product Status updated',
-        "Changed from: " . ($oldStatus ?: 'Empty') . "\n"
-        . "To: Pending Approval"
+    abort_unless(
+        $request->user()->canApprove(),
+        403
     );
 
-$this->notifyAdminsOfProductUpdate($product);
+    $status = strtolower(str_replace(' ', '_', trim((string) $product->status)));
+    abort_unless(
+        in_array($status, ['pending_approval', 'for_approval'], true),
+        409,
+        'Only pending products can be rejected.'
+    );
 
-    // 3. I-redirect pabalik sa Product List / Dashboard ng mga Produkto
-    return redirect()
-        ->route('products.index')
-        ->with(
-            'success',
-            'Product successfully submitted for approval!'
+    $validated = $request->validate([
+        'rejection_reason' => ['nullable', 'string', 'min:3', 'max:2000'],
+    ]);
+
+    return DB::transaction(function () use ($request, $id, $validated) {
+        $product = Product::query()
+            ->whereKey($id)
+            ->lockForUpdate()
+            ->firstOrFail();
+        $version = $product->versions()
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        abort_unless(
+            $request->user()->canApprove(),
+            403
         );
+
+        $status = strtolower(str_replace(' ', '_', trim((string) $product->status)));
+        abort_unless(
+            in_array($status, ['pending_approval', 'for_approval'], true),
+            409,
+            'Only pending products can be rejected.'
+        );
+
+        $product->update(['status' => 'rejected']);
+        $version->update([
+            'status' => 'rejected',
+            'approved_by' => null,
+            'approved_at' => null,
+            'rejected_by' => $request->user()->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
+        ]);
+
+        $auditDetails = "Rejected by {$request->user()->name}.";
+        if (!empty($validated['rejection_reason'])) {
+            $auditDetails .= "\nComment: {$validated['rejection_reason']}";
+        }
+
+        $this->logAudit(
+            $product->id,
+            'Product Rejected',
+            $auditDetails
+        );
+
+        return redirect()
+            ->route('products.workspace', [
+                'id' => $product->id,
+                'mode' => 'view',
+            ])
+            ->with('success', 'Product rejected successfully.');
+    });
 }
 
  /*

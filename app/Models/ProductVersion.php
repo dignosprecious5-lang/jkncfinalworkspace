@@ -39,6 +39,10 @@ class ProductVersion extends Model
         // =========================================================
         'created_by',
         'approved_by',
+        'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'rejection_reason',
 
         // =========================================================
         // PRODUCT OVERVIEW
@@ -115,6 +119,8 @@ class ProductVersion extends Model
         'auto_carryover' => 'boolean',
         'auto_carryover_automation' => 'boolean',
         'effective_date' => 'date',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'inventory_stock' => 'integer',
         'reorder_level' => 'integer',
         'minimum_stock' => 'integer',
@@ -160,6 +166,11 @@ class ProductVersion extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     /**

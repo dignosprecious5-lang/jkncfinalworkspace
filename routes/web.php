@@ -351,7 +351,7 @@ Route::middleware(['auth'])->group(function () {
         // ------------------------------------------------------------------
 
        Route::match(
-            ['get', 'post', 'put'],
+            ['post', 'put'],
             '/services/{service}/submit-approval',
             'submitForApproval'
         )->name('services.submit_approval');
@@ -1556,6 +1556,8 @@ Route::post(
 // =========================================================
 
 Route::post('/products/{id}/submit-approval', [ProductController::class, 'submitApproval'])->name('products.submit-approval');
+Route::post('/products/{id}/approve', [ProductController::class, 'approve'])->name('products.approve');
+Route::post('/products/{id}/reject', [ProductController::class, 'reject'])->name('products.reject');
 
     });
 

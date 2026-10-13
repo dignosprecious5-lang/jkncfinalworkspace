@@ -12,6 +12,7 @@
         </a>
     </div>
 
+    @if($canSubmitForApproval)
     {{-- COMPLETENESS GATE --}}
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 mb-6">
 
@@ -30,21 +31,67 @@
                 Incomplete
             </span>
 
-            <form id="submit-approval-form"
-                  action="{{ route('products.submit-approval', $product->id ?? 1) }}"
-                  method="POST"
-                  style="display: none;">
-                @csrf
+            @if($canSubmitForApproval)
+                <form id="submit-approval-form" data-approval-action
+                      action="{{ route('products.submit-approval', $product->id) }}"
+                      method="POST"
+                      style="display: none;">
+                    @csrf
 
-                <button type="submit"
-                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center space-x-1.5 cursor-pointer">
-                    <i class="fa-solid fa-paper-plane"></i>
-                    <span>Submit for Approval</span>
-                </button>
-            </form>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center space-x-1.5 cursor-pointer">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Submit for Approval</span>
+                    </button>
+                </form>
+            @endif
         </div>
 
     </div>
+    @endif
+
+    @if(strtolower(str_replace(' ', '_', trim((string) $product->status))) === 'pending_approval' && $canApprove)
+        <div data-approval-action class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm space-y-3">
+            <div>
+                <h2 class="text-sm font-bold text-slate-900">Pending Approval</h2>
+                <p class="text-xs text-slate-600 mt-1">Review this submission and record your decision.</p>
+            </div>
+
+            <div class="flex flex-wrap items-start gap-3">
+                <form action="{{ route('products.approve', $product->id) }}" method="POST">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm">
+                        Approve
+                    </button>
+                </form>
+
+                <details class="flex-1 min-w-[260px]" @if($errors->has('rejection_reason')) open @endif>
+                    <summary class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm cursor-pointer list-none">
+                        Reject
+                    </summary>
+                    <form action="{{ route('products.reject', $product->id) }}" method="POST" class="mt-3 space-y-2">
+                        @csrf
+                        <label for="product-rejection-reason" class="block text-xs font-semibold text-black">Optional comment</label>
+                        <textarea id="product-rejection-reason" name="rejection_reason" rows="2" maxlength="2000"
+                                  class="w-full border border-blue-300 rounded-lg p-2 text-xs text-black focus:border-blue-500 focus:ring-blue-500"
+                                  placeholder="Add a comment if needed.">{{ old('rejection_reason') }}</textarea>
+                        @error('rejection_reason')
+                            <p class="text-xs text-blue-700">{{ $message }}</p>
+                        @enderror
+                        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm">
+                            Confirm Reject
+                        </button>
+                    </form>
+                </details>
+            </div>
+        </div>
+    @endif
+
+    @if(strtolower(str_replace(' ', '_', trim((string) $product->status))) === 'rejected' && $currentVersion?->rejection_reason)
+        <div class="bg-blue-50 border border-blue-200 text-slate-900 px-4 py-3 rounded-lg text-xs">
+            <strong>Rejection reason:</strong> {{ $currentVersion->rejection_reason }}
+        </div>
+    @endif
 
     {{-- PRODUCT WORKSPACE HEADER --}}
     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
@@ -78,7 +125,7 @@
             <div class="flex items-center space-x-2 flex-wrap">
 
                 <span class="px-3 py-1 bg-white text-slate-700 rounded font-bold text-xs border border-slate-200 uppercase">
-                    {{ $product->status ?? 'Draft' }}
+                    {{ ucwords(str_replace('_', ' ', $product->status ?? 'Draft')) }}
                 </span>
 
                 <span class="px-3 py-1 bg-slate-50 text-slate-600 rounded font-semibold text-xs border border-slate-200">
@@ -8055,14 +8102,14 @@ function openEditTermModal(termId, title, scope, content, updateUrl) {
             </p>
         </div>
         
-        @if($isComplete ?? false)
-            <form action="{{ route('products.submit-approval', $product->id ?? 1) }}" method="POST">
+        @if(($isComplete ?? false) && $canSubmitForApproval)
+            <form action="{{ route('products.submit-approval', $product->id) }}" method="POST">
                 @csrf
                 <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center space-x-1.5 cursor-pointer">
                     <span>Submit for Approval</span>
                 </button>
             </form>
-        @else
+        @elseif($canSubmitForApproval)
             <button type="button" disabled class="px-3 py-1.5 bg-slate-100 text-slate-400 font-bold text-xs rounded-lg border border-slate-200 cursor-not-allowed">
                 Submit for Approval
             </button>
@@ -8077,7 +8124,7 @@ function openEditTermModal(termId, title, scope, content, updateUrl) {
                 {{ is_object($currentVersion) ? ($currentVersion->version_number ?? 'V1.0') : ($currentVersion ?? 'V1.0') }}
             </div>
             <span class="text-xs text-slate-500">
-                Status: {{ is_object($currentVersion) ? ($currentVersion->status ?? 'Draft') : 'Draft' }}
+                Status: {{ is_object($currentVersion) ? ucwords(str_replace('_', ' ', $currentVersion->status ?? 'Draft')) : 'Draft' }}
             </span>
         </div>
     </div>
@@ -9691,6 +9738,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 1. Kunin ang lahat ng inputs, textareas, at selects sa workspace at i-disable
         const fields = document.querySelectorAll('input, textarea, select');
         fields.forEach(field => {
+            if (field.closest('[data-approval-action]')) return;
             field.disabled = true;
             field.classList.add('bg-slate-50', 'text-slate-500', 'cursor-not-allowed');
         });
@@ -9707,6 +9755,7 @@ document.addEventListener('DOMContentLoaded', function() {
         actionButtons.forEach(btn => {
             const text = btn.textContent || '';
             if (
+                !btn.closest('[data-approval-action]') &&
                 !btn.id.startsWith('tab-btn-') && 
                 !text.includes('Back') && 
                 !text.includes('Close') &&

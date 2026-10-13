@@ -123,7 +123,7 @@ class ServiceController extends Controller
         $allServicesCount = [
             'incomplete'   => Service::where('status', 'incomplete')->count(),
             'draft'        => Service::where('status', 'draft')->count(),
-            'for_approval' => Service::where('status', 'for_approval')->count(),
+            'for_approval' => Service::whereIn('status', ['for_approval', 'pending_approval'])->count(),
             'active'       => Service::where('status', 'active')->count(),
             'archived'     => Service::where('status', 'archived')->count(),
         ];
@@ -214,10 +214,11 @@ class ServiceController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where(
-                'status',
-                $request->status
-            );
+            if ($request->status === 'for_approval') {
+                $query->whereIn('status', ['for_approval', 'pending_approval']);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         if ($request->filled('category')) {
@@ -545,6 +546,7 @@ class ServiceController extends Controller
 
         $service->name =
             $validated['name'];
+        $service->created_by = auth()->id();
 
         if (Schema::hasColumn('services', 'service_area')) {
             $service->service_area =
@@ -792,6 +794,8 @@ class ServiceController extends Controller
             'overview'
         );
 
+        $canApprove = $request->user()->canApprove();
+
         $mode = $request->input(
             'mode',
             'view'
@@ -824,7 +828,8 @@ class ServiceController extends Controller
                 'templateCount',
                 'auditLogs',
                 'currentTab',
-                'mode'
+                'mode',
+                'canApprove'
             )
         );
     }
@@ -867,10 +872,11 @@ class ServiceController extends Controller
         }
 
         if ($request->filled('status')) {
-            $serviceQuery->where(
-                'status',
-                $request->status
-            );
+            if ($request->status === 'for_approval') {
+                $serviceQuery->whereIn('status', ['for_approval', 'pending_approval']);
+            } else {
+                $serviceQuery->where('status', $request->status);
+            }
         }
 
         /*
@@ -1388,7 +1394,7 @@ class ServiceController extends Controller
             'Active services' => Service::where('status', 'active')->count(),
             'Incomplete services' => Service::where('status', 'incomplete')->count(),
             'Draft services' => Service::where('status', 'draft')->count(),
-            'For approval services' => Service::where('status', 'for_approval')->count(),
+            'For approval services' => Service::whereIn('status', ['for_approval', 'pending_approval'])->count(),
             'Archived services' => Service::where('status', 'archived')->count(),
         ];
 
@@ -1402,7 +1408,11 @@ class ServiceController extends Controller
             : 'No data';
 
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            if ($request->input('status') === 'for_approval') {
+                $query->whereIn('status', ['for_approval', 'pending_approval']);
+            } else {
+                $query->where('status', $request->input('status'));
+            }
         }
 
         $services = $query->orderByDesc('created_at')->orderByDesc('id')->get()->map(function ($service) {
@@ -1718,68 +1728,177 @@ class ServiceController extends Controller
 }
 
 
-    public function submitForApproval(
-        Request $request,
-        Service $service
-    ) {
-        $version =
-            $service->activeVersion;
+    public function submitForApproval(Service $service)
+    {
+        return DB::transaction(function () use ($service) {
+            $service = Service::query()
+                ->whereKey($service->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (!$version) {
-            return back()->with(
-                'error',
-                'No active service version found.'
+            $version = $service->activeVersion()
+                ->lockForUpdate()
+                ->first();
+
+            if (!$version) {
+                return back()->with('error', 'No active service version found.');
+            }
+
+            abort_unless(
+                in_array($version->status, ['draft', 'rejected'], true)
+                    && !in_array($service->status, [
+                        'pending_approval',
+                        'for_approval',
+                        'active',
+                        'approved',
+                        'archived',
+                    ], true),
+                409,
+                'This service cannot be submitted from its current status.'
             );
-        }
 
-        $version->status =
-            'pending_approval';
+            $version->update(['status' => 'pending_approval']);
+            $service->update([
+                'status' => 'pending_approval',
+                'approved_by' => null,
+                'approved_at' => null,
+                'rejection_reason' => null,
+                'rejected_by' => null,
+                'rejected_at' => null,
+            ]);
 
-        $version->save();
-
-        $service->status =
-            'pending_approval';
-
-        $service->save();
-
-        return redirect()
-            ->route(
-                'services.index'
-            )
-            ->with(
-                'success',
-                "Service {$version->version_number} submitted for approval successfully."
+            $this->logAudit(
+                $service->id,
+                'Submitted for Approval',
+                "Service {$version->version_number} submitted for approval."
             );
+
+            return redirect()
+                ->route('services.workspace', [
+                    'service' => $service->id,
+                    'mode' => 'view',
+                ])
+                ->with(
+                    'success',
+                    "Service {$version->version_number} submitted for approval successfully."
+                );
+        });
     }
 
-    public function approve(Service $service)
+    public function approve(Request $request, Service $service)
     {
-        return redirect()
-            ->route(
-                'services.workspace',
-                [
-                    'service' => $service->id,
-                ]
-            )
-            ->with(
-                'success',
-                'Approved!'
+        return DB::transaction(function () use ($service, $request) {
+            $service = Service::query()
+                ->whereKey($service->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $request->user()->canApprove(),
+                403
             );
+
+            abort_unless(
+                in_array($service->status, ['pending_approval', 'for_approval'], true),
+                409,
+                'Only pending services can be approved.'
+            );
+
+            $version = $service->activeVersion()
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $service->update([
+                'status' => 'active',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'rejection_reason' => null,
+            ]);
+            $version->update(['status' => 'approved']);
+
+            $this->logAudit(
+                $service->id,
+                'Service Approved',
+                "Approved by {$request->user()->name}."
+            );
+
+            return redirect()
+                ->route('services.workspace', [
+                    'service' => $service->id,
+                    'mode' => 'view',
+                ])
+                ->with('success', 'Service approved successfully.');
+        });
     }
 
-    public function reject(Service $service)
+    public function reject(Request $request, Service $service)
     {
-        return redirect()
-            ->route(
-                'services.workspace',
-                [
-                    'service' => $service->id,
-                ]
-            )
-            ->with(
-                'success',
-                'Rejected!'
+        abort_unless(
+            $request->user()->canApprove(),
+            403
+        );
+
+        abort_unless(
+            in_array($service->status, ['pending_approval', 'for_approval'], true),
+            409,
+            'Only pending services can be rejected.'
+        );
+
+        $validated = $request->validate([
+            'rejection_reason' => ['nullable', 'string', 'min:3', 'max:2000'],
+        ]);
+
+        return DB::transaction(function () use ($service, $request, $validated) {
+            $service = Service::query()
+                ->whereKey($service->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $request->user()->canApprove(),
+                403
             );
+
+            abort_unless(
+                in_array($service->status, ['pending_approval', 'for_approval'], true),
+                409,
+                'Only pending services can be rejected.'
+            );
+
+            $version = $service->activeVersion()
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $service->update([
+                'status' => 'rejected',
+                'approved_by' => null,
+                'approved_at' => null,
+                'rejected_by' => $request->user()->id,
+                'rejected_at' => now(),
+                'rejection_reason' => $validated['rejection_reason'] ?? null,
+            ]);
+            $version->update(['status' => 'rejected']);
+
+            $auditDetails = "Rejected by {$request->user()->name}.";
+            if (!empty($validated['rejection_reason'])) {
+                $auditDetails .= "\nComment: {$validated['rejection_reason']}";
+            }
+
+            $this->logAudit(
+                $service->id,
+                'Service Rejected',
+                $auditDetails
+            );
+
+            return redirect()
+                ->route('services.workspace', [
+                    'service' => $service->id,
+                    'mode' => 'view',
+                ])
+                ->with('success', 'Service rejected successfully.');
+        });
     }
 
     public function storeActivity(

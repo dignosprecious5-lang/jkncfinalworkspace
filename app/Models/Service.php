@@ -13,6 +13,11 @@ class Service extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+    ];
+
     /**
      * Relationship para sa Service Area.
      */
@@ -35,6 +40,21 @@ class Service extends Model
     public function activeVersion(): BelongsTo
     {
         return $this->belongsTo(ServiceVersion::class, 'active_version_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     /**
