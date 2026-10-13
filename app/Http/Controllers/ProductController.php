@@ -225,6 +225,7 @@ private function logAudit($productId, $action, $details = null)
             ->route('products.workspace', $product->id)
             ->with('success', 'Product created successfully.');
     }
+
  /*
     |--------------------------------------------------------------------------
     | reports
@@ -236,7 +237,7 @@ private function logAudit($productId, $action, $details = null)
     {
         $query = \App\Models\Product::query();
 
-        // 1. Mga Filter batay sa input ng user sa Report UI
+        // Mga Filter batay sa input ng user
         if ($request->filled('from_date')) {
             $query->whereDate('created_at', '>=', $request->from_date);
         }
@@ -256,16 +257,17 @@ private function logAudit($productId, $action, $details = null)
             $query->where('status', $request->status);
         }
 
-        // Kunin ang mga tunay na produkto mula sa database gamit ang pagination
-        $products = $query->latest()->paginate(10);
+        // Ibalik sa pagination para gumana ang ->total() sa Blade
+        $products = $query->latest()->paginate(10)->withQueryString();
 
-        // 2. Mga Tunay na Bilang / Metrics na kukunin direkta sa database
-        $totalProducts = \App\Models\Product::count();
-        $activeProducts = \App\Models\Product::where('status', 'active')->count();
-        $archivedProducts = \App\Models\Product::where('status', 'archived')->count();
-        $draftProducts = \App\Models\Product::where('status', 'draft')->count();
+// Kunin ang bilang base sa aktwal na query/filters (tulad ng sa Services)
+        $totalProducts = (clone $query)->count();
+        $activeProducts = (clone $query)->where('status', 'active')->count();
+        $archivedProducts = (clone $query)->where('status', 'archived')->count();
+        $draftProducts = (clone $query)->where('status', 'draft')->count();
 
-        // Ibalik ang mga tunay na data patungo sa view ng reports
+
+        // Ibalik ang data patungo sa view
         return view('products.reports', compact(
             'products', 
             'totalProducts', 
@@ -274,6 +276,8 @@ private function logAudit($productId, $action, $details = null)
             'draftProducts'
         ));
     }
+
+    
     /*
     |--------------------------------------------------------------------------
     | PRODUCT WORKSPACE

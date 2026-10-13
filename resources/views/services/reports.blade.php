@@ -43,7 +43,7 @@
 
         {{-- ============================================================
             FILTERS
-        ============================================================= --}}
+        ============================================================ --}}
         <form
             method="GET"
             action="{{ route('services.reports') }}"
@@ -215,10 +215,10 @@
                         >
 
                             <option value="">
-                                All Statuses
+                                All Status
                             </option>
 
-                            @foreach(($statuses ?? []) as $status)
+                            @foreach(($status ?? []) as $status)
 
                                 <option
                                     value="{{ $status }}"
@@ -356,7 +356,7 @@
                     </div>
 
                     <span class="text-[10px] text-slate-400">
-                        {{ $services->total() }} total records
+{{ method_exists($services, 'total') ? $services->total() : $services->count() }} total records
                     </span>
 
                 </div>
@@ -393,17 +393,12 @@
                                 Standard Price
                             </th>
 
-                            {{-- Dito natin idinagdag ang Unit / Rate Kolum --}}
                             <th class="px-3 py-2.5 text-right font-semibold">
                                 Unit / Rate
                             </th>
 
                             <th class="px-3 py-2.5 text-right font-semibold">
                                 Expected Hours
-                            </th>
-
-                            <th class="px-3 py-2.5 text-center font-semibold">
-                                Version
                             </th>
 
                             <th class="px-3 py-2.5 text-center font-semibold">
@@ -445,10 +440,7 @@
                                 );
 
                                 $standardPrice = $service->report_standard_price;
-                                
-                                // Kinukuha ang unit rate mula sa active version o catalog equivalent nito
                                 $unitRate = $service->report_unit_rate ?? $service->activeVersion->unit_rate ?? null;
-
                                 $expectedHours = $service->report_expected_hours;
                             @endphp
 
@@ -497,7 +489,7 @@
                                 <td class="px-3 py-3 text-right whitespace-nowrap">
                                     @if($standardPrice !== null)
                                         <span class="font-medium text-slate-800">
-                                            ₱{{ number_format((float) $standardPrice, 2) }}
+                                           php {{ number_format((float) $standardPrice, 2) }}
                                         </span>
                                     @else
                                         <span class="text-slate-400">
@@ -507,11 +499,11 @@
                                 </td>
 
 
-                                {{-- Unit / Rate (Idinagdag na Data) --}}
+                                {{-- Unit / Rate --}}
                                 <td class="px-3 py-3 text-right whitespace-nowrap">
                                     @if($unitRate !== null && $unitRate > 0)
                                         <span class="font-medium text-slate-800">
-                                            ₱{{ number_format((float) $unitRate, 2) }}
+                                            php {{ number_format((float) $unitRate, 2) }}
                                         </span>
                                     @else
                                         <span class="text-slate-400">
@@ -535,12 +527,6 @@
                                             —
                                         </span>
                                     @endif
-                                </td>
-
-
-                                {{-- Version --}}
-                                <td class="px-3 py-3 text-center text-slate-600">
-                                    {{ $service->report_version }}
                                 </td>
 
 
@@ -584,7 +570,7 @@
                             <tr>
 
                                 <td
-                                    colspan="10"
+                                    colspan="9"
                                     class="px-4 py-12 text-center"
                                 >
 
@@ -609,23 +595,19 @@
             </div>
 
 
-            {{-- Pagination --}}
-            @if($services->hasPages())
-
-                <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50">
-
-                    {{ $services->links() }}
-
-                </div>
-
-            @endif
+           {{-- Pagination: Web view only; exclude from PDF --}}
+@if(!isset($isPdf) && $services instanceof \Illuminate\Contracts\Pagination\Paginator)
+    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+        {{ $services->links() }}
+    </div>
+@endif
 
         </div>
 
 
         {{-- ============================================================
             REPORT INFORMATION
-        ============================================================= --}}
+        ============================================================ --}}
         <div class="mt-4 bg-white border border-slate-200 rounded-xl px-4 py-3">
 
             <h3 class="text-[11px] font-semibold text-slate-800">

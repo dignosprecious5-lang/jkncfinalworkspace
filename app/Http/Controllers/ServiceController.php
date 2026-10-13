@@ -18,6 +18,7 @@ use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Models\ServiceCustomField;
 
+
 class ServiceController extends Controller
 {
     private function sendUserNotification($title, $message, $url)
@@ -955,6 +956,8 @@ class ServiceController extends Controller
 
         foreach ($services as $service) {
 
+
+        
             /*
             |--------------------------------------------------------------------------
             | SERVICE VERSION
@@ -1072,7 +1075,7 @@ class ServiceController extends Controller
             ->orderBy('engagement_behavior')
             ->pluck('engagement_behavior');
 
-        $statuses = Service::query()
+        $status = Service::query()
             ->whereNotNull('status')
             ->where(
                 'status',
@@ -1099,19 +1102,158 @@ class ServiceController extends Controller
                 'serviceAreas',
                 'categories',
                 'engagementTypes',
-                'statuses'
+                'status'
             )
         );
     }
 
-  
-public function updateVersion(
-    Request $request,
-    Service $service
-) {
-    $currentTab = $request->input('tab', 'overview');
-    $nextTab = $request->input('next_tab', 'overview');
 
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORT SERVICE PERFORMANCE REPORT TO PDF
+    |--------------------------------------------------------------------------
+    */
+
+    public function exportReportsPdf(Request $request)
+    {
+        $serviceQuery = Service::query();
+
+        if ($request->filled('service_area')) {
+            $serviceQuery->where('service_area', $request->service_area);
+        }
+
+        if ($request->filled('category')) {
+            $serviceQuery->where('category', $request->category);
+        }
+
+        if ($request->filled('engagement')) {
+            $serviceQuery->where(
+                'engagement_behavior',
+                $request->engagement
+            );
+        }
+
+        if ($request->filled('status')) {
+            $serviceQuery->where('status', $request->status);
+        }
+
+        $serviceIds = (clone $serviceQuery)->pluck('id');
+
+        $totalServices = (clone $serviceQuery)->count();
+
+        $activeServices = (clone $serviceQuery)
+            ->where('status', 'active')
+            ->count();
+
+        $engagementQuery = \App\Models\Engagement::query()
+            ->whereIn('service_id', $serviceIds);
+
+        if ($request->filled('from_date')) {
+            $engagementQuery->whereDate(
+                'created_at',
+                '>=',
+                $request->from_date
+            );
+        }
+
+        if ($request->filled('to_date')) {
+            $engagementQuery->whereDate(
+                'created_at',
+                '<=',
+                $request->to_date
+            );
+        }
+
+        $totalEngagements = (clone $engagementQuery)->count();
+
+        $services = $serviceQuery
+            ->with('activeVersion')
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($services as $service) {
+            $version = $service->activeVersion;
+
+            $service->report_version =
+                $version?->version_number ?? '—';
+
+            $service->report_standard_price =
+                $version?->standard_price;
+
+            $service->report_unit_rate =
+                $version?->unit_rate;
+
+            $service->report_expected_hours =
+                $version?->expected_hours;
+
+            $service->report_reporting_frequency =
+                $version?->reporting_frequency;
+
+            $serviceEngagements = \App\Models\Engagement::query()
+                ->where('service_id', $service->id);
+
+            if ($request->filled('from_date')) {
+                $serviceEngagements->whereDate(
+                    'created_at',
+                    '>=',
+                    $request->from_date
+                );
+            }
+
+            if ($request->filled('to_date')) {
+                $serviceEngagements->whereDate(
+                    'created_at',
+                    '<=',
+                    $request->to_date
+                );
+            }
+
+            $service->report_engagements =
+                (clone $serviceEngagements)->count();
+
+            $service->report_active =
+                (clone $serviceEngagements)
+                    ->where('status', 'active')
+                    ->count();
+
+            $service->report_completed =
+                (clone $serviceEngagements)
+                    ->where('status', 'completed')
+                    ->count();
+        }
+
+        $filters = [
+            'service_area' => $request->input('service_area'),
+            'category'     => $request->input('category'),
+            'engagement'   => $request->input('engagement'),
+            'status'       => $request->input('status'),
+            'from_date'    => $request->input('from_date'),
+            'to_date'      => $request->input('to_date'),
+        ];
+
+       $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
+            'exports.services-pdf', // Itinuro natin sa exports folder at bagong pangalan ng file
+            compact(
+                'services',
+                'totalServices',
+                'activeServices',
+                'totalEngagements',
+                'filters'
+            )
+        )->setPaper('a4', 'landscape');
+
+        return $pdf->download('service-performance-report.pdf');
+    }
+
+
+    public function updateVersion(
+        Request $request,
+        Service $service
+    ) {
+        $currentTab = $request->input('tab', 'overview');
+        $nextTab = $request->input('next_tab');
+
+    
     /*
     |--------------------------------------------------------------------------
     | FIND ACTIVE VERSION
@@ -2120,9 +2262,48 @@ public function updateVersion(
 }
     public function exportAll()
     {
-        return response()->json([]);
-    }
+        $services = \App\Models\Service::all();
+        $filename = "services-report.csv";
+        
+        $headers = [
+            "Content-Type" => "text/csv; charset=UTF-8",
+            "Content-Disposition" => "attachment; filename=\"$filename\"",
+            "Pragma" => "no-cache",
+            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+            "Expires" => "0"
+        ];
 
+        $callback = function() use ($services) {
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            $file = fopen('php://output', 'w');
+            
+            // UTF-8 BOM para mabasa nang tama sa Excel
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // Mga Column Headers ng CSV
+            fputcsv($file, ['ID', 'Name', 'Category', 'Pricing Type', 'Price', 'Status']);
+
+            // Pagsulat ng mga data mula sa database
+            foreach ($services as $service) {
+                fputcsv($file, [
+                    $service->id,
+                    $service->name,
+                    $service->category ?? '',
+                    $service->pricing_type ?? '',
+                    $service->price ?? 0,
+                    $service->status ?? ''
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+    
     /*
     |--------------------------------------------------------------------------
     | DESTROY GLOBAL REQUIREMENT / TEMPLATE LIBRARY ITEM
