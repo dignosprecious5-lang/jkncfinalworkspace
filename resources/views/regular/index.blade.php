@@ -417,7 +417,10 @@
                 <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Search Existing Deal</label>
                     <input id="regularDealSearch" type="text" placeholder="Type deal code, deal name, client, or company..." autocomplete="off" class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900">
-                    <p class="mt-2 text-xs text-gray-500">Only regular deals without a linked regular workspace are shown here.</p>
+                    <p class="mt-2 text-xs text-gray-500">Only regular deals without a linked workspace are shown here.</p>
+                    @if (empty($dealRecords))
+                        <p class="mt-2 text-sm text-gray-600">No eligible regular deals are available to link. All regular deals may already have workspaces.</p>
+                    @endif
                 </div>
                 <div id="regularDealResults" class="hidden max-h-64 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-sm"></div>
                 <div id="regularDealSelectionSummary" class="{{ old('deal_id') ? '' : 'hidden' }} rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"></div>

@@ -98,8 +98,6 @@ class RegularController extends Controller
 
     public function index(Request $request): View
     {
-        $this->provisionMissingRegularRecords();
-
         $regulars = collect();
         $contactRecords = [];
         $companyRecords = [];
@@ -958,23 +956,6 @@ class RegularController extends Controller
         abort_if($this->isRegularCompleted($regular), 423, 'Completed regular engagements are view-only. Documents can be viewed or downloaded, but no longer edited.');
     }
 
-    private function provisionMissingRegularRecords(): void
-    {
-        if (! Schema::hasTable('deals') || ! Schema::hasTable('projects')) {
-            return;
-        }
-
-        Deal::query()
-            ->whereDoesntHave('projects', fn ($query) => $query
-                ->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%'])
-                // Exclude deals that already have a shell workspace — those will activate via START approval
-                ->whereRaw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.is_shell')), 'false') != 'true'")
-            )
-            ->get()
-            ->filter(fn (Deal $deal): bool => $this->isRegularEngagement($deal->engagement_type))
-            ->each(fn (Deal $deal) => $this->projectProvisioner->createOrSyncFromDeal($deal));
-    }
-
     private function isRegularEngagement(?string $engagementType): bool
     {
         return Str::contains(Str::lower(trim((string) $engagementType)), 'regular');
@@ -1406,7 +1387,7 @@ class RegularController extends Controller
 
         return Deal::query()
             ->with(['contact:id,first_name,middle_name,last_name,email,phone,company_name,company_address,position'])
-            ->whereDoesntHave('projects', fn ($query) => $query->whereRaw('LOWER(COALESCE(engagement_type, "")) LIKE ?', ['%regular%']))
+            ->whereDoesntHave('projects')
             ->latest()
             ->get()
             ->filter(fn (Deal $deal): bool => $this->isRegularEngagement($deal->engagement_type))
