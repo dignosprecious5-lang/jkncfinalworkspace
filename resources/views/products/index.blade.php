@@ -21,24 +21,24 @@
 {{-- 3. Header Section & Action Buttons --}}
 <div class="flex justify-between items-start mb-6">
     <div>
-        <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Products Catalog</h1>
-        <p class="text-sm text-slate-500 mt-1">Standardized product catalog with configurable fields, routing, inventory, and pricing.</p>
+        <h1 class="text-2xl font-bold text-slate-900">Products Catalog</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Standardized product catalog with configurable fields, routing, inventory, and pricing.</p>
         <button
             type="button"
             onclick="document.getElementById('whatIsProductModal').classList.remove('hidden')"
-            class="text-sm text-blue-600 font-bold hover:underline mt-1.5 inline-block cursor-pointer"
+            class="text-xs text-blue-600 font-semibold hover:underline mt-1 inline-block cursor-pointer"
         >
             What is a Product?
         </button>
     </div>
-    <div class="flex items-center space-x-3">
+    <div class="flex items-center space-x-2">
         {{-- REPORTS BUTTON --}}
         <button
             type="button"
             onclick="window.location.href='{{ route('products.reports') }}'"
-            class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition flex items-center space-x-2 whitespace-nowrap cursor-pointer"
+            class="relative z-20 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
         >
-            <i class="fa-solid fa-chart-pie text-blue-600 text-sm"></i>
+            <i class="fa-solid fa-chart-pie text-blue-600 text-xs"></i>
             <span>Reports</span>
         </button>
         {{-- BULK ACTIONS DROPDOWN MENU --}}
@@ -46,11 +46,11 @@
             <button
                 type="button"
                 onclick="toggleBulkActionsMenu(event)"
-                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition flex items-center space-x-2 whitespace-nowrap cursor-pointer"
+                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
             >
-                <i class="fa-solid fa-layer-group text-slate-500 text-sm"></i>
+                <i class="fa-solid fa-layer-group text-slate-500 text-xs"></i>
                 <span>Bulk Actions</span>
-                <i class="fa-solid fa-chevron-down text-xs text-slate-400 ml-1"></i>
+                <i class="fa-solid fa-chevron-down text-[9px] text-slate-400 ml-1"></i>
             </button>
             <div
                 id="bulkActionsMenu"
@@ -97,7 +97,7 @@
         <button
             type="button"
             onclick="document.getElementById('quickAddModal').classList.remove('hidden')"
-            class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded shadow-sm transition flex items-center space-x-1 cursor-pointer"
         >
             <span>+ Quick Add</span>
         </button>
