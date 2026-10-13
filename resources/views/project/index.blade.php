@@ -420,7 +420,10 @@
                         autocomplete="off"
                         class="h-11 w-full rounded-xl border border-gray-300 px-4 text-sm text-gray-900"
                     >
-                    <p class="mt-2 text-xs text-gray-500">Only deals without a linked project are shown here.</p>
+                    <p class="mt-2 text-xs text-gray-500">Only project deals without a linked workspace are shown here.</p>
+                    @if (empty($dealRecords))
+                        <p class="mt-2 text-sm text-gray-600">No eligible project deals are available to link. All project deals may already have workspaces.</p>
+                    @endif
                 </div>
                 <div id="projectDealResults" class="hidden max-h-64 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-sm"></div>
                 <div id="projectDealSelectionSummary" class="{{ old('deal_id') ? '' : 'hidden' }} rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"></div>
