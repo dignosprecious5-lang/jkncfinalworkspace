@@ -899,6 +899,7 @@ class ServiceController extends Controller
                 )
                 ->count();
 
+
         /*
         |--------------------------------------------------------------------------
         | ENGAGEMENT QUERY
@@ -1145,6 +1146,7 @@ class ServiceController extends Controller
             ->where('status', 'active')
             ->count();
 
+
         $engagementQuery = \App\Models\Engagement::query()
             ->whereIn('service_id', $serviceIds);
 
@@ -1243,6 +1245,200 @@ class ServiceController extends Controller
         )->setPaper('a4', 'landscape');
 
         return $pdf->download('service-performance-report.pdf');
+    }
+
+    /** Export the same filtered service performance report as CSV. */
+    public function exportReportsCsv(Request $request)
+    {
+        $query = Service::query()->with('activeVersion');
+        foreach (['service_area' => 'service_area', 'category' => 'category', 'engagement' => 'engagement_behavior', 'status' => 'status'] as $filter => $column) {
+            if ($request->filled($filter)) {
+                $query->where($column, $request->input($filter));
+            }
+        }
+
+        $serviceIds = (clone $query)->pluck('id');
+        $engagements = \App\Models\Engagement::query()->whereIn('service_id', $serviceIds);
+        if ($request->filled('from_date')) {
+            $engagements->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $engagements->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
+        $totalServices = (clone $query)->count();
+        $activeServices = (clone $query)->where('status', 'active')->count();
+        $totalEngagements = (clone $engagements)->count();
+        $services = $query->orderByDesc('id')->get();
+
+        return response()->streamDownload(function () use ($services, $request, $totalServices, $activeServices, $totalEngagements) {
+            $output = fopen('php://output', 'w');
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Service Performance Report']);
+            fputcsv($output, ['Total Services', $totalServices, 'Active Services', $activeServices, 'Engagements', $totalEngagements]);
+            fputcsv($output, []);
+            fputcsv($output, ['Applied Filters']);
+            fputcsv($output, ['From Date', $request->input('from_date', 'All')]);
+            fputcsv($output, ['To Date', $request->input('to_date', 'All')]);
+            foreach (['Service Area' => 'service_area', 'Category' => 'category', 'Engagement' => 'engagement', 'Status' => 'status'] as $label => $key) {
+                fputcsv($output, [$label, $request->input($key, 'All') ?: 'All']);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Service', 'Code', 'Category', 'Engagement', 'Frequency', 'Standard Price', 'Unit / Rate', 'Expected Hours', 'Engagements', 'Status']);
+
+            foreach ($services as $service) {
+                $version = $service->activeVersion;
+                $serviceEngagements = \App\Models\Engagement::query()->where('service_id', $service->id);
+                if ($request->filled('from_date')) {
+                    $serviceEngagements->whereDate('created_at', '>=', $request->input('from_date'));
+                }
+                if ($request->filled('to_date')) {
+                    $serviceEngagements->whereDate('created_at', '<=', $request->input('to_date'));
+                }
+                fputcsv($output, [
+                    $service->name,
+                    $service->service_code ?: 'SVC-' . sprintf('%04d', $service->id),
+                    $service->category ?: '',
+                    $service->engagement_behavior ?: '',
+                    $version?->reporting_frequency ?: '',
+                    $version?->standard_price ?? '',
+                    $version?->unit_rate ?? '',
+                    $version?->expected_hours ?? '',
+                    (clone $serviceEngagements)->count(),
+                    str_replace('_', ' ', $service->status ?: ''),
+                ]);
+            }
+            fclose($output);
+        }, 'service-performance-report.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Export the dashboard summary metrics as a PDF. */
+    public function exportDashboardPdf(Request $request)
+    {
+        [$summary, $filters, $services] = $this->dashboardExportData($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
+            'services.dashboard_pdf',
+            compact('summary', 'filters', 'services')
+        )->setPaper('a4', 'landscape');
+
+        return $pdf->download('services-dashboard-summary.pdf');
+    }
+
+    /** Stream the dashboard summary metrics and applied filters as CSV. */
+    public function exportDashboardCsv(Request $request)
+    {
+        [$summary, $filters, $services] = $this->dashboardExportData($request);
+
+        return response()->streamDownload(function () use ($summary, $filters, $services) {
+            $output = fopen('php://output', 'w');
+            fputcsv($output, ['Dashboard summary']);
+            fputcsv($output, ['Metric', 'Value']);
+            foreach ($summary as $label => $value) {
+                fputcsv($output, [$label, $value]);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Applied filters']);
+            fputcsv($output, ['Filter', 'Value']);
+            foreach ($filters as $label => $value) {
+                fputcsv($output, [$label, $value === '' ? 'All' : $value]);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Services']);
+            fputcsv($output, [
+                'Service Name', 'Code', 'Category', 'Company', 'Engagement',
+                'Standard Price', 'Unit / Rate', 'Tax Treatment', 'Expected Hours', 'Status',
+            ]);
+            foreach ($services as $service) {
+                fputcsv($output, array_values($service));
+            }
+            fclose($output);
+        }, 'services-dashboard-summary.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /** Build counts and filters consistently for both dashboard exports. */
+    private function dashboardExportData(Request $request): array
+    {
+        $query = Service::query()->with('activeVersion');
+
+        foreach (['from_date' => '>=', 'to_date' => '<='] as $field => $operator) {
+            if ($request->filled($field)) {
+                $query->whereDate('created_at', $operator, $request->input($field));
+            }
+        }
+        if ($request->filled('version')) {
+            $query->whereHas('activeVersion', fn ($q) => $q->where('version_number', $request->input('version')));
+        }
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
+                ->orWhere('service_code', 'like', "%{$search}%")
+                ->orWhere('short_name', 'like', "%{$search}%"));
+        }
+        foreach (['category' => 'category', 'engagement' => 'engagement_behavior', 'service_area' => 'service_area'] as $field => $column) {
+            if ($request->filled($field)) {
+                $query->where($column, $request->input($field));
+            }
+        }
+
+        $summary = [
+            'Total services' => Service::count(),
+            'Active services' => Service::where('status', 'active')->count(),
+            'Incomplete services' => Service::where('status', 'incomplete')->count(),
+            'Draft services' => Service::where('status', 'draft')->count(),
+            'For approval services' => Service::where('status', 'for_approval')->count(),
+            'Archived services' => Service::where('status', 'archived')->count(),
+        ];
+
+        $highest = Service::query()->whereNotNull('active_version_id')
+            ->join('service_versions', 'services.active_version_id', '=', 'service_versions.id')
+            ->select('services.name', 'service_versions.standard_price')
+            ->orderByDesc('service_versions.standard_price')
+            ->first();
+        $summary['Highest priced service'] = $highest
+            ? $highest->name . ' (' . ($highest->standard_price ?? 0) . ')'
+            : 'No data';
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $services = $query->orderByDesc('created_at')->orderByDesc('id')->get()->map(function ($service) {
+            $version = $service->activeVersion;
+            $category = $service->category;
+            if (is_object($category)) {
+                $category = $category->name ?? '-';
+            }
+
+            return [
+                'Service Name' => $service->name,
+                'Code' => $service->service_code ?: 'SVC-' . sprintf('%04d', $service->id),
+                'Category' => $category ?: ($service->service_area ?: '-'),
+                'Company' => $service->company ?: 'Global Catalog',
+                'Engagement' => ucfirst($service->engagement_behavior ?: '-'),
+                'Standard Price' => number_format((float) ($version->standard_price ?? $service->standard_price ?? 0), 2, '.', ''),
+                'Unit / Rate' => ($version->unit_rate ?? $service->unit_rate)
+                    ? number_format((float) ($version->unit_rate ?? $service->unit_rate), 2, '.', '') : '—',
+                'Tax Treatment' => $version->tax_treatment ?? $service->tax_treatment ?? 'VAT Exclusive',
+                'Expected Hours' => ($version->expected_hours ?? $service->expected_hours ?? 0) . ' hrs',
+                'Status' => ucfirst(strtolower($service->status ?: 'incomplete')),
+            ];
+        })->all();
+
+        $filters = [
+            'Search' => $request->input('search', ''),
+            'Status' => $request->input('status', ''),
+            'Category' => $request->input('category', ''),
+            'Engagement' => $request->input('engagement', ''),
+            'Service area' => $request->input('service_area', ''),
+            'Version' => $request->input('version', ''),
+            'From date' => $request->input('from_date', ''),
+            'To date' => $request->input('to_date', ''),
+        ];
+
+        return [$summary, $filters, $services];
     }
 
 

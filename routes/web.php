@@ -283,6 +283,11 @@ Route::middleware(['auth'])->group(function () {
             '/services/reports',
             'reports'
         )->name('services.reports');
+        Route::get('/services/reports/csv', 'exportReportsCsv')->name('services.reports.csv');
+        Route::get('/services/reports/pdf', 'exportReportsPdf')->name('services.reports.pdf');
+
+        Route::get('/services/dashboard-pdf', 'exportDashboardPdf')->name('services.dashboard.pdf');
+        Route::get('/services/dashboard-csv', 'exportDashboardCsv')->name('services.dashboard.csv');
 // ------------------------------------------------------------------
         // SERVICES PDF
         // ------------------------------------------------------------------
@@ -1368,6 +1373,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('products.workspace');
 
 Route::get('/products/reports', [ProductController::class, 'reports'])->name('products.reports');
+Route::get('/products/reports/csv', [ProductController::class, 'exportReportsCsv'])->name('products.reports.csv');
+Route::get('/products/reports/pdf', [ProductController::class, 'exportReportsPdf'])->name('products.reports.pdf');
 
         Route::match(['get', 'post'], '/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
 Route::patch('/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
@@ -1496,6 +1503,8 @@ Route::post('/products/{product}/terms/{productTerm}/save-as-template', [Product
 
     Route::get('/products/export-csv', [ProductController::class, 'exportCsv'])->name('products.export.csv');
 Route::get('/products/export-pdf', [ProductController::class, 'exportPdf'])->name('products.export.pdf');
+Route::get('/products/dashboard-csv', [ProductController::class, 'exportDashboardCsv'])->name('products.dashboard.csv');
+Route::get('/products/dashboard-pdf', [ProductController::class, 'exportDashboardPdf'])->name('products.dashboard.pdf');
 Route::get('/products/export-all', [ProductExportController::class, 'exportAll']);
 
 Route::get('/products/import', [ProductImportController::class, 'showImportForm'])->name('products.import.form');

@@ -93,11 +93,18 @@ private function logAudit($productId, $action, $details = null)
         // 2. Query para sa Table sa ibaba (Na-filter)
         $query = \App\Models\Product::query();
 
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%");
+                  ->orWhere('sku', 'like', "%{$search}%");
             });
         }
 
@@ -169,6 +176,142 @@ private function logAudit($productId, $action, $details = null)
         ));
     }
 
+    /** Export the product dashboard and its complete filtered table as a PDF. */
+    public function exportDashboardPdf(Request $request)
+    {
+        [$insights, $counts, $filters, $products] = $this->productDashboardExportData($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView(
+            'products.dashboard_pdf',
+            compact('insights', 'counts', 'filters', 'products')
+        )->setPaper('a4', 'landscape');
+
+        return $pdf->download('products-dashboard.pdf');
+    }
+
+    /** Stream the product dashboard summary, filters, and table as CSV. */
+    public function exportDashboardCsv(Request $request)
+    {
+        [$insights, $counts, $filters, $products] = $this->productDashboardExportData($request);
+
+        return response()->streamDownload(function () use ($insights, $counts, $filters, $products) {
+            $output = fopen('php://output', 'w');
+            fputcsv($output, ['Product dashboard insights']);
+            fputcsv($output, ['Metric', 'Product', 'Value']);
+            foreach ($insights as $metric => $values) {
+                fputcsv($output, [$metric, $values[0], $values[1]]);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Status counts']);
+            fputcsv($output, ['Status', 'Count']);
+            foreach ($counts as $status => $count) {
+                fputcsv($output, [ucwords(str_replace('_', ' ', $status)), $count]);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Applied filters']);
+            fputcsv($output, ['Filter', 'Value']);
+            foreach ($filters as $filter => $value) {
+                fputcsv($output, [$filter, $value !== '' ? $value : 'All']);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Products']);
+            fputcsv($output, [
+                'Product Name', 'Code', 'Product Type', 'Category', 'Inventory Stock',
+                'Pricing Type', 'Price', 'Tax Treatment', 'Status',
+            ]);
+            foreach ($products as $product) {
+                fputcsv($output, array_values($product));
+            }
+            fclose($output);
+        }, 'products-dashboard.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Build export data using the same filters and metrics as the product dashboard. */
+    private function productDashboardExportData(Request $request): array
+    {
+        $allProducts = Product::query()->get();
+        $highestPriced = $allProducts->sortByDesc('price')->first();
+        $mostStock = $allProducts->sortByDesc('inventory_stock')->first();
+        $highestName = $highestPriced?->name ?? 'No data yet';
+        $mostStockName = $mostStock?->name ?? 'No data yet';
+        $highestPrice = $highestPriced ? number_format((float) $highestPriced->price, 2) : '0.00';
+        $stockCount = $mostStock?->inventory_stock ?? 0;
+
+        $insights = [
+            'Most Purchased Product' => [$mostStockName, $stockCount . ' Active Units'],
+            'Highest Priced Product' => [$highestName, '₱' . $highestPrice],
+            'Most Stock Intensive' => [$mostStockName, $stockCount . ' Units Stock'],
+            'Most Discounted Product' => [$highestName, '0 Max Discount'],
+            'Highest Margin Product' => [$highestName, '100% Margin'],
+            'Fastest Growing & Inactive' => [$highestName, 'Active | None'],
+        ];
+
+        $counts = [
+            'incomplete' => Product::where('status', 'incomplete')->count(),
+            'draft' => Product::where('status', 'draft')->count(),
+            'for_approval' => Product::where('status', 'for_approval')->count(),
+            'active' => Product::where('status', 'active')->count(),
+            'archived' => Product::where('status', 'archived')->count(),
+        ];
+
+        $query = Product::query();
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")
+                ->orWhere('sku', 'like', "%{$search}%"));
+        }
+        foreach (['status' => 'status', 'inventory_type' => 'inventory_type'] as $filter => $column) {
+            if ($request->filled($filter)) {
+                $query->where($column, $request->input($filter));
+            }
+        }
+        foreach ([
+            'category' => ['other_category', 'category'],
+            'product_type' => ['other_product_type', 'product_type'],
+            'service_area' => ['other_service_area', 'service_area'],
+        ] as $filter => [$customFilter, $column]) {
+            if ($request->filled($filter)) {
+                $value = $request->input($filter) === 'Other' || $request->input($filter) === 'Others'
+                    ? ($request->filled($customFilter) ? $request->input($customFilter) : $request->input($filter))
+                    : $request->input($filter);
+                $query->where($column, $value);
+            }
+        }
+
+        $products = $query->latest()->get()->map(function (Product $product) {
+            return [
+                'Product Name' => $product->name,
+                'Code' => $product->sku ?: 'PRD-' . sprintf('%04d', $product->id),
+                'Product Type' => $product->product_type ?: '-',
+                'Category' => $product->category ?: '-',
+                'Inventory Stock' => ($product->inventory_stock ?? 0) . ' Units',
+                'Pricing Type' => $product->pricing_type ?: '-',
+                'Price' => number_format((float) ($product->price ?? 0), 2, '.', ''),
+                'Tax Treatment' => $product->tax_treatment ?: '-',
+                'Status' => ucfirst(strtolower($product->status ?: 'draft')),
+            ];
+        })->all();
+
+        $filters = [
+            'From date' => $request->input('from_date', ''),
+            'To date' => $request->input('to_date', ''),
+            'Search' => $request->input('search', ''),
+            'Status' => $request->input('status', ''),
+            'Category' => $request->input('category') === 'Other' ? ($request->filled('other_category') ? $request->input('other_category') : 'Other') : $request->input('category', ''),
+            'Product type' => $request->input('product_type') === 'Other' ? ($request->filled('other_product_type') ? $request->input('other_product_type') : 'Other') : $request->input('product_type', ''),
+            'Inventory type' => $request->input('inventory_type', ''),
+            'Service area' => $request->input('service_area') === 'Others' ? ($request->filled('other_service_area') ? $request->input('other_service_area') : 'Others') : $request->input('service_area', ''),
+        ];
+
+        return [$insights, $counts, $filters, $products];
+    }
+
     /*
     |--------------------------------------------------------------------------
     | CREATE PRODUCT
@@ -235,27 +378,7 @@ private function logAudit($productId, $action, $details = null)
 
    public function reports(\Illuminate\Http\Request $request)
     {
-        $query = \App\Models\Product::query();
-
-        // Mga Filter batay sa input ng user
-        if ($request->filled('from_date')) {
-            $query->whereDate('created_at', '>=', $request->from_date);
-        }
-        if ($request->filled('to_date')) {
-            $query->whereDate('created_at', '<=', $request->to_date);
-        }
-        if ($request->filled('service_area')) {
-            $query->where('service_area', $request->service_area);
-        }
-        if ($request->filled('category')) {
-            $query->where('category', $request->category);
-        }
-        if ($request->filled('pricing_type')) {
-            $query->where('pricing_type', $request->pricing_type);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        $query = $this->productReportQuery($request);
 
         // Ibalik sa pagination para gumana ang ->total() sa Blade
         $products = $query->latest()->paginate(10)->withQueryString();
@@ -275,6 +398,74 @@ private function logAudit($productId, $action, $details = null)
             'archivedProducts', 
             'draftProducts'
         ));
+    }
+
+    private function productReportQuery(Request $request)
+    {
+        $query = Product::query();
+        foreach (['service_area', 'category', 'pricing_type', 'status'] as $filter) {
+            if ($request->filled($filter)) {
+                $query->where($filter, $request->input($filter));
+            }
+        }
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->input('to_date'));
+        }
+
+        return $query;
+    }
+
+    public function exportReportsCsv(Request $request)
+    {
+        $query = $this->productReportQuery($request);
+        $totalProducts = (clone $query)->count();
+        $activeProducts = (clone $query)->where('status', 'active')->count();
+        $archivedProducts = (clone $query)->where('status', 'archived')->count();
+        $draftProducts = (clone $query)->where('status', 'draft')->count();
+        $products = $query->latest()->get();
+
+        return response()->streamDownload(function () use ($products, $request, $totalProducts, $activeProducts, $archivedProducts, $draftProducts) {
+            $output = fopen('php://output', 'w');
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Product Performance Report']);
+            fputcsv($output, ['Total Products', $totalProducts, 'Active', $activeProducts, 'Archived', $archivedProducts, 'Draft', $draftProducts]);
+            fputcsv($output, []);
+            fputcsv($output, ['Applied Filters']);
+            foreach (['From Date' => 'from_date', 'To Date' => 'to_date', 'Service Area' => 'service_area', 'Category' => 'category', 'Pricing Type' => 'pricing_type', 'Status' => 'status'] as $label => $filter) {
+                fputcsv($output, [$label, $request->input($filter, 'All') ?: 'All']);
+            }
+            fputcsv($output, []);
+            fputcsv($output, ['Product', 'Code', 'Category', 'Pricing Type', 'Price', 'Stock', 'Status']);
+            foreach ($products as $product) {
+                fputcsv($output, [
+                    $product->name,
+                    $product->sku ?: 'PRD-' . sprintf('%04d', $product->id),
+                    $product->category ?: '',
+                    $product->pricing_type ?: '',
+                    $product->price ?? 0,
+                    $product->inventory_stock ?? 0,
+                    str_replace('_', ' ', $product->status ?: 'draft'),
+                ]);
+            }
+            fclose($output);
+        }, 'product-performance-report.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    public function exportReportsPdf(Request $request)
+    {
+        $query = $this->productReportQuery($request);
+        $totalProducts = (clone $query)->count();
+        $activeProducts = (clone $query)->where('status', 'active')->count();
+        $archivedProducts = (clone $query)->where('status', 'archived')->count();
+        $draftProducts = (clone $query)->where('status', 'draft')->count();
+        $products = $query->latest()->get();
+
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.products-pdf', compact(
+            'products', 'totalProducts', 'activeProducts', 'archivedProducts', 'draftProducts'
+        ))->setPaper('a4', 'landscape')->download('product-performance-report.pdf');
     }
 
     

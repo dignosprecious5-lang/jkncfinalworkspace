@@ -60,22 +60,27 @@
                     <span>Bulk Import Services</span>
                 </button>
 
-                <!-- Bulk Export Options Group -->
+                <!-- Dashboard Summary Exports -->
                 <div class="py-1">
-                    <!-- Export to CSV -->
-                    <a href="{{ Route::has('services.export_all') ? route('services.export_all', ['format' => 'csv']) : url('/services/export-all?format=csv') }}" 
+                    <a href="{{ route('services.dashboard.csv', request()->query()) }}"
                        onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                        class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
                         <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i>
-                        <span>Export to CSV</span>
+                        <span>Export Dashboard to CSV</span>
                     </a>
-
-                    <!-- Export to PDF -->
-                    <a href="{{ Route::has('services.export_all') ? route('services.export_all', ['format' => 'pdf']) : url('/services/export-all?format=pdf') }}" 
+                    <a href="{{ route('services.dashboard.pdf', request()->query()) }}"
                        onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                        class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
                         <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i>
-                        <span>Export to PDF</span>
+                        <span>Export Dashboard to PDF</span>
+                    </a>
+                </div>
+                <div class="py-1">
+                    <a href="{{ route('services.reports.csv', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i><span>Export Report to CSV</span>
+                    </a>
+                    <a href="{{ route('services.reports.pdf', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i><span>Export Report to PDF</span>
                     </a>
                 </div>
             </div>
@@ -602,7 +607,7 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Engagement Behavior *</label>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Engagement Type *</label>
                     <select name="engagement_behavior" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
                         <option value="">-- Select Engagement --</option>
                         <option value="project">Project</option>

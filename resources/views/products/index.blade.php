@@ -66,20 +66,28 @@
                 </button>
                 <div class="py-1">
                     <a
-                        href="{{ Route::has('products.export_all') ? route('products.export_all', ['format' => 'csv']) : url('/products/export-all?format=csv') }}"
+                        href="{{ route('products.dashboard.csv', request()->query()) }}"
                         onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                         class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
                     >
                         <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i>
-                        <span>Export to CSV</span>
+                        <span>Export Dashboard to CSV</span>
                     </a>
                     <a
-                        href="{{ Route::has('products.export_all') ? route('products.export_all', ['format' => 'pdf']) : url('/products/export-all?format=pdf') }}"
+                        href="{{ route('products.dashboard.pdf', request()->query()) }}"
                         onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                         class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
                     >
                         <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i>
-                        <span>Export to PDF</span>
+                        <span>Export Dashboard to PDF</span>
+                    </a>
+                </div>
+                <div class="py-1">
+                    <a href="{{ route('products.reports.csv', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i><span>Export Report to CSV</span>
+                    </a>
+                    <a href="{{ route('products.reports.pdf', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i><span>Export Report to PDF</span>
                     </a>
                 </div>
             </div>

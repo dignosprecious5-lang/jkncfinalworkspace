@@ -184,7 +184,7 @@
                         name="status"
                         class="w-full min-w-0 border border-slate-300 rounded-lg px-2 py-2 text-[11px] text-slate-700 bg-white focus:border-blue-500 outline-none"
                     >
-                        <option value="">All Statuses</option>
+                        <option value="">All Status</option>
 
                         <option value="incomplete" {{ request('status') === 'incomplete' ? 'selected' : '' }}>Incomplete</option>
 
