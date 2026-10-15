@@ -1573,7 +1573,7 @@ function checkEditClientTypeOther(select) {
             </thead>
 
            <tbody id="requirementTableBody" class="divide-y divide-slate-100">
-    @foreach($product->requirements as $index => $requirement)
+    @foreach(($requirements ?? collect()) as $index => $requirement)
                     <tr>
                         {{-- Checkbox --}}
                         <td class="py-3 px-3 text-center">

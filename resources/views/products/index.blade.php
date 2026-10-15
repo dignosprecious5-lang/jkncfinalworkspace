@@ -12,6 +12,7 @@
     ];
     $insightData = isset($insights) ? $insights : [];
 @endphp
+<div class="products-catalog-page min-w-0 w-full px-4 py-5 sm:px-6 lg:px-8">
 {{-- 2. Success Flash Notification --}}
 @if (session('success'))
     <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 px-4 py-2.5 rounded text-xs font-semibold shadow-sm mb-4 flex items-center justify-between">
@@ -19,7 +20,7 @@
     </div>
 @endif
 {{-- 3. Header Section & Action Buttons --}}
-<div class="flex justify-between items-start mb-6">
+<div class="mb-7 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
     <div>
         <h1 class="text-2xl font-bold text-slate-900">Products Catalog</h1>
         <p class="text-xs text-slate-500 mt-0.5">Standardized product catalog with configurable fields, routing, inventory, and pricing.</p>
@@ -31,7 +32,7 @@
             What is a Product?
         </button>
     </div>
-    <div class="flex items-center space-x-2">
+    <div class="flex flex-wrap items-center gap-2">
         {{-- REPORTS BUTTON --}}
         <button
             type="button"
@@ -66,7 +67,7 @@
                 </button>
                 <div class="py-1">
                     <a
-                        href="{{ route('products.dashboard.csv', request()->query()) }}"
+                        href="{{ route('products.export.csv', request()->query()) }}"
                         onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                         class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
                     >
@@ -74,7 +75,7 @@
                         <span>Export Dashboard to CSV</span>
                     </a>
                     <a
-                        href="{{ route('products.dashboard.pdf', request()->query()) }}"
+                        href="{{ route('products.export.pdf', request()->query()) }}"
                         onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
                         class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
                     >
@@ -83,10 +84,10 @@
                     </a>
                 </div>
                 <div class="py-1">
-                    <a href="{{ route('products.reports.csv', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                    <a href="{{ route('products.export.csv', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
                         <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i><span>Export Report to CSV</span>
                     </a>
-                    <a href="{{ route('products.reports.pdf', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                    <a href="{{ route('products.export.pdf', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
                         <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i><span>Export Report to PDF</span>
                     </a>
                 </div>
@@ -106,42 +107,42 @@
 
 
 {{-- 4. Detailed Insights Cards --}}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Purchased Product</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $mostPurchasedName ?? 'No data yet' }}">{{ $mostPurchasedName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $mostPurchasedName ?? 'No data yet' }}">{{ $mostPurchasedName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-700 font-semibold mt-1">{{ $purchasedCount ?? 0 }} Active Units</div>
     </div>
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Priced Product</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $highestName ?? 'No data yet' }}">{{ $highestName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $highestName ?? 'No data yet' }}">{{ $highestName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-800 font-semibold mt-1">₱{{ $highestPrice ?? '0.00' }}</div>
     </div>
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Stock Intensive</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $laborName ?? 'No data yet' }}">{{ $laborName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $laborName ?? 'No data yet' }}">{{ $laborName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-700 font-semibold mt-1">{{ $laborHours ?? 0 }} Units Stock</div>
     </div>
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Discounted Product</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $discountName ?? 'No data yet' }}">{{ $discountName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $discountName ?? 'No data yet' }}">{{ $discountName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-700 font-semibold mt-1">{{ $maxDiscount ?? '0 Max Discount' }}</div>
     </div>
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Margin Product</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $marginName ?? 'No data yet' }}">{{ $marginName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $marginName ?? 'No data yet' }}">{{ $marginName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-700 font-semibold mt-1">{{ $marginPct ?? 0 }}% Margin</div>
     </div>
-    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fastest Growing & Inactive</span>
-        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $fastestName ?? 'No data yet' }}">{{ $fastestName ?? 'No data yet' }}</p>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $fastestName ?? 'No data yet' }}">{{ $fastestName ?? 'No data yet' }}</p>
         <div class="text-xs text-slate-700 font-semibold mt-1">{{ $fastestRate ?? 'No growth data' }} | {{ $decliningName ?? 'No data yet' }}</div>
     </div>
 </div>
 
 
 {{-- 5. Status Metrics Cards --}}
-<div class="grid grid-cols-5 gap-3 mb-6">
+<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:gap-4">
     @php
         $statusMap = [
             'incomplete'   => ['label' => 'Incomplete', 'color' => 'slate'],
@@ -160,7 +161,7 @@
         @endphp
         <a
             href="{{ route('products.index') }}?status={{ $key }}"
-            class="bg-white border border-slate-200 hover:bg-slate-50 rounded p-3 transition block shadow-sm {{ $isSelected }}"
+            class="min-h-24 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg p-4 transition block shadow-sm {{ $isSelected }}"
         >
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                 {{ $meta['label'] }}
@@ -178,12 +179,12 @@
 <form
     method="GET"
     action="{{ route('products.index') }}"
-    class="bg-white border border-slate-200 rounded-lg p-4 mb-4 shadow-sm space-y-4"
+    class="mb-5 bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-5"
 >
 
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
 
-        <div class="flex items-center space-x-3">
+        <div class="flex flex-wrap items-center gap-3">
 
             <span class="font-bold text-slate-800 text-sm">
                 Dashboard Filters
@@ -220,13 +221,13 @@
         ROW 2: SEARCH + FILTERS + RESET + APPLY
     ========================================================== --}}
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="grid grid-cols-1 items-end gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
 
-        <div class="flex flex-wrap items-center gap-3 flex-1">
+        <div class="flex min-w-0 flex-wrap items-center gap-3">
 
             {{-- SEARCH --}}
 
-            <div class="relative flex-1 min-w-[200px] max-w-sm">
+            <div class="relative min-w-[240px] flex-1">
 
                 <input
                     type="text"
@@ -245,7 +246,7 @@
 
             <select
                 name="status"
-                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                class="min-w-[145px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white"
             >
 
                 <option value="">
@@ -294,13 +295,13 @@
 
             <div
                 x-data="{ selectedCategory: '{{ request('category', '') }}' }"
-                class="flex items-center space-x-2"
+                class="flex min-w-0 flex-wrap items-center gap-2"
             >
 
                 <select
                     name="category"
                     x-model="selectedCategory"
-                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                    class="min-w-[180px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white"
                 >
 
                     <option value="">
@@ -353,7 +354,7 @@
                         name="other_category"
                         value="{{ request('other_category') }}"
                         placeholder="Enter new category..."
-                        class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                        class="min-w-[180px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-slate-500 bg-white"
                     >
 
                 </template>
@@ -365,13 +366,13 @@
 
             <div
                 x-data="{ selectedProductType: '{{ request('product_type', '') }}' }"
-                class="flex items-center space-x-2"
+                class="flex min-w-0 flex-wrap items-center gap-2"
             >
 
                 <select
                     name="product_type"
                     x-model="selectedProductType"
-                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                    class="min-w-[170px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white"
                 >
 
                     <option value="">
@@ -412,7 +413,7 @@
                         name="other_product_type"
                         value="{{ request('other_product_type') }}"
                         placeholder="Enter new product type..."
-                        class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                        class="min-w-[180px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-slate-500 bg-white"
                     >
 
                 </template>
@@ -424,7 +425,7 @@
 
             <select
                 name="inventory_type"
-                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                class="min-w-[155px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white"
             >
 
                 <option value="">
@@ -466,7 +467,7 @@
 
         {{-- RESET + APPLY --}}
 
-        <div class="flex items-center space-x-3 ml-auto">
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
 
             <a
                 href="{{ route('products.index') }}"
@@ -491,13 +492,13 @@
         ROW 3: SERVICE AREA + CREATE FIELD
     ========================================================== --}}
 
-    <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
+    <div class="flex flex-wrap items-center justify-between pt-4 border-t border-slate-100 gap-4">
 
         {{-- SERVICE AREA --}}
 
         <div
             x-data="{ selectedServiceArea: '{{ request('service_area', '') }}' }"
-            class="flex items-center space-x-2 w-full md:w-auto"
+            class="flex w-full flex-wrap items-center gap-3 md:w-auto"
         >
 
             <span class="text-xs font-semibold text-slate-700">
@@ -507,7 +508,7 @@
             <select
                 name="service_area"
                 x-model="selectedServiceArea"
-                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white w-full md:w-72"
+                class="w-full min-w-[240px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white md:w-72"
             >
 
                 <option value="">
@@ -859,11 +860,11 @@ function closeFieldModal() {
 </script>
 
 {{-- 7. Products Data Table --}}
-<div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-4">
-    <table class="w-full text-left border-collapse text-xs border-slate-200 divide-y divide-slate-200">
+<div class="mb-5 w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+    <table class="w-full min-w-[1480px] table-fixed text-left border-collapse text-xs border-slate-200 divide-y divide-slate-200">
         <thead>
             <tr class="bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider divide-x divide-slate-200">
-                <th class="py-3 px-3 w-10 text-center">
+                <th class="w-12 whitespace-nowrap py-4 px-3 text-center">
                     <input
                         type="checkbox"
                         id="selectAllCheckbox"
@@ -871,15 +872,15 @@ function closeFieldModal() {
                         class="rounded border-slate-300"
                     >
                 </th>
-                <th class="py-3 px-4">PRODUCT NAME & CODE</th>
-                <th class="py-3 px-4">PRODUCT TYPE</th>
-                <th class="py-3 px-4">CATEGORY</th>
-                <th class="py-3 px-4">INVENTORY STOCK</th>
-                <th class="py-3 px-4">PRICING TYPE</th>
-                <th class="py-3 px-4">PRICE</th>
-                <th class="py-3 px-4">TAX TREATMENT</th>
-                <th class="py-3 px-4">STATUS</th>
-                <th class="py-3 px-4 text-center">ACTIONS</th>
+                <th class="w-64 whitespace-nowrap py-4 px-5">PRODUCT NAME & CODE</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4">PRODUCT TYPE</th>
+                <th class="w-44 whitespace-nowrap py-4 px-4">CATEGORY</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4">INVENTORY STOCK</th>
+                <th class="w-36 whitespace-nowrap py-4 px-4">PRICING TYPE</th>
+                <th class="w-32 whitespace-nowrap py-4 px-4">PRICE</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4">TAX TREATMENT</th>
+                <th class="w-32 whitespace-nowrap py-4 px-4">STATUS</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4 text-center">ACTIONS</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 text-slate-700 bg-white">
@@ -902,7 +903,7 @@ function closeFieldModal() {
                         $workspaceUrl = route('products.workspace', $id);
                     @endphp
                     <tr class="hover:bg-slate-50 transition divide-x divide-slate-200">
-                        <td class="py-3 px-3 text-center">
+                        <td class="align-top py-4 px-3 text-center">
                             <input
                                 type="checkbox"
                                 name="selected_products[]"
@@ -910,10 +911,10 @@ function closeFieldModal() {
                                 class="product-checkbox rounded border-slate-300"
                             >
                         </td>
-                        <td class="py-3 px-4">
+                        <td class="align-top break-words py-4 px-5">
                             <a
                                 href="{{ $workspaceUrl }}"
-                                class="font-bold text-slate-900 hover:text-blue-600 hover:underline block leading-tight"
+                                class="font-bold text-slate-900 hover:text-blue-600 hover:underline block leading-snug"
                             >
                                 {{ $name }}
                             </a>
@@ -922,31 +923,31 @@ function closeFieldModal() {
                                 <strong class="text-slate-600">{{ $code }}</strong>
                             </span>
                         </td>
-                        <td class="py-3 px-4 text-slate-600 font-medium">
+                        <td class="align-top break-words py-4 px-4 text-slate-600 font-medium">
                             {{ $productType }}
                         </td>
-                        <td class="py-3 px-4 text-slate-600">
+                        <td class="align-top break-words py-4 px-4 text-slate-600">
                             {{ $cat }}
                         </td>
-                        <td class="py-3 px-4 font-semibold text-slate-900">
+                        <td class="align-top whitespace-nowrap py-4 px-4 font-semibold text-slate-900">
                             {{ $stock }} Units
                         </td>
-                        <td class="py-3 px-4 text-slate-700">
+                        <td class="align-top break-words py-4 px-4 text-slate-700">
                             {{ $pricing }}
                         </td>
-                        <td class="py-3 px-4 font-mono font-semibold text-slate-900">
+                        <td class="align-top whitespace-nowrap py-4 px-4 font-mono font-semibold text-slate-900">
                             ₱{{ $price }}
                         </td>
-                        <td class="py-3 px-4 text-slate-500">
+                        <td class="align-top break-words py-4 px-4 text-slate-500">
                             {{ $tax }}
                         </td>
-                        <td class="py-3 px-4">
+                        <td class="align-top py-4 px-4">
                             <span class="px-2.5 py-1 bg-white text-slate-700 rounded-full text-[10px] font-bold uppercase tracking-wide border border-slate-200">
                                 {{ ucfirst($status) }}
                             </span>
                         </td>
-                        <td class="py-3 px-4 text-center whitespace-nowrap">
-                            <div class="inline-flex items-center space-x-1 justify-center">
+                        <td class="align-top py-4 px-4 text-center whitespace-nowrap">
+                            <div class="inline-flex items-center justify-center gap-2">
                                 <!-- VIEW BUTTON -->
                                 <a
                                     href="{{ route('products.workspace', ['id' => $id, 'mode' => 'view']) }}"
@@ -1017,16 +1018,16 @@ function closeFieldModal() {
 </div>
 
 {{-- Custom Pagination Footer --}}
-<div class="bg-white border border-slate-200 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-4 mt-4 shadow-sm text-xs text-slate-700">
+<div class="mb-6 mt-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm text-xs text-slate-700">
     <!-- Results Count Info -->
     <div>
         Showing <span class="font-semibold">{{ $products->firstItem() ?? 0 }}</span> to <span class="font-semibold">{{ $products->lastItem() ?? 0 }}</span> of <span class="font-semibold">{{ $products->total() }}</span> results
     </div>
 
     <!-- Records per page & Page Numbers -->
-    <div class="flex items-center space-x-6">
+    <div class="flex flex-wrap items-center gap-5">
         <!-- Records per page dropdown -->
-        <div class="flex items-center space-x-2">
+        <div class="flex flex-wrap items-center gap-2">
             <span class="text-slate-500">Records per page</span>
             <select
                 onchange="window.location.href = this.value"
@@ -1081,7 +1082,7 @@ function closeFieldModal() {
     </div>
 </div>
 
-
+ </div>
 {{-- 8. WHAT IS A PRODUCT MODAL --}}
 <div
     id="whatIsProductModal"
@@ -1118,9 +1119,9 @@ function closeFieldModal() {
 {{-- 9. QUICK ADD PRODUCT MODAL --}}
 <div
     id="quickAddModal"
-    class="fixed inset-0 w-screen h-screen bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-6 z-[9999]"
+    class="fixed inset-0 z-[9999] hidden flex items-center justify-center overflow-y-auto bg-slate-900/60 p-6 backdrop-blur-sm"
 >
-    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-8 text-sm relative z-[10000] max-h-[92vh] overflow-y-auto">
+    <div class="relative z-[10000] max-h-[calc(100dvh-3rem)] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-xl bg-white p-8 text-sm shadow-2xl">
         <div class="flex justify-between items-center border-b pb-4 mb-4">
             <div>
                 <h3 class="text-lg font-bold text-slate-900">Quick Add Product</h3>
