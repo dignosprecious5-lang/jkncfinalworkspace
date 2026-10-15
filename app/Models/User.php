@@ -107,6 +107,11 @@ class User extends Authenticatable
         return strtolower((string) $this->role) === 'admin';
     }
 
+    public function canApprove(): bool
+    {
+        return $this->isSuperAdmin() || $this->isAdmin();
+    }
+
     public function isEmployee(): bool
     {
         return strtolower((string) $this->role) === 'employee';

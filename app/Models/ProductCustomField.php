@@ -3,22 +3,29 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductCustomField extends Model
 {
     protected $fillable = [
-        'field_type',
+        'product_id',
         'field_name',
-        'field_key',
-        'is_required',
+        'field_api_name',
+        'field_type',
         'options',
-        'lookup_module',
-        'default_value',
-        'sort_order',
+        'is_required',
     ];
 
-    protected $casts = [
-        'is_required' => 'boolean',
-        'options' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'options' => 'array',
+            'is_required' => 'boolean',
+        ];
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
 }

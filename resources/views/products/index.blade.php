@@ -1,1421 +1,1565 @@
 @extends('layouts.app')
-@section('title', 'Products')
-
 @section('content')
 @php
-    $activePillClasses = [
-        'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
-        'Active' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        'Inactive' => 'border-slate-200 bg-slate-50 text-slate-700',
-        'Rejected' => 'border-rose-200 bg-rose-50 text-rose-700',
-        'Archived' => 'border-rose-200 bg-rose-50 text-rose-700',
+    /**
+     * Products Catalog Dashboard View
+     * Standardized Product Module
+     */
+    // 1. Data Initialization & Fallbacks
+    $productList = isset($products) ? $products : [];
+    $counts = isset($allProductsCount) ? $allProductsCount : [
+        'incomplete' => 0, 'draft' => 0, 'for_approval' => 0, 'active' => 0, 'archived' => 0
     ];
-    $productEditPayloads = $products->mapWithKeys(fn ($product) => [
-        (string) $product->product_id => $product,
-    ]);
-    $shouldReopenCreateModal = $errors->any()
-        && (old('product_name') !== null || old('sku') !== null || old('owner_id') !== null || $errors->has('owner_id'));
-    $oldFieldType = old('field_type');
-    $oldFieldTypeMeta = $oldFieldType ? collect($fieldTypes)->firstWhere('value', $oldFieldType) : null;
-    $oldFieldTypeLabel = $oldFieldTypeMeta['label'] ?? 'Picklist';
-    $productIndexScriptData = [
-        'serviceOptions' => $serviceOptions,
-        'productEditPayloads' => $productEditPayloads,
-        'shouldReopenCreateModal' => $shouldReopenCreateModal,
-        'oldFieldTypeValue' => $oldFieldType,
-        'oldFieldTypeLabelValue' => $oldFieldTypeLabel,
-        'createProductUrl' => route('products.store'),
-        'updateProductUrlTemplate' => route('products.update', '__PRODUCT__'),
-        'defaultOwnerIdValue' => (string) $defaultOwnerId,
-        'defaultOwnerNameValue' => $selectedOwnerName ?? 'Select Owner',
-    ];
+    $insightData = isset($insights) ? $insights : [];
 @endphp
-
-<div class="px-6 py-6 lg:px-8">
-    <div class="mx-auto max-w-[1600px]">
-        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-                <h1 class="text-3xl font-semibold tracking-tight text-gray-900">{{ $isAdminReviewer ? 'Products Review' : 'Products' }}</h1>
-                <p class="mt-1 text-sm text-gray-500">
-                    {{ $isAdminReviewer
-                        ? 'Review submitted products and keep the approved catalog aligned with the services and deals workflow.'
-                        : 'Standardized product catalog with service-linked offerings, pricing, ownership, and approval controls.' }}
-                </p>
-            </div>
+{{-- 2. Success Flash Notification --}}
+@if (session('success'))
+    <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 px-4 py-2.5 rounded text-xs font-semibold shadow-sm mb-4 flex items-center justify-between">
+        <span><i class="fa-solid fa-circle-check mr-2"></i> {{ session('success') }}</span>
+    </div>
+@endif
+{{-- 3. Header Section & Action Buttons --}}
+<div class="flex justify-between items-start mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900">Products Catalog</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Standardized product catalog with configurable fields, routing, inventory, and pricing.</p>
+        <button
+            type="button"
+            onclick="document.getElementById('whatIsProductModal').classList.remove('hidden')"
+            class="text-xs text-blue-600 font-semibold hover:underline mt-1 inline-block cursor-pointer"
+        >
+            What is a Product?
+        </button>
+    </div>
+    <div class="flex items-center space-x-2">
+        {{-- REPORTS BUTTON --}}
+        <button
+            type="button"
+            onclick="window.location.href='{{ route('products.reports') }}'"
+            class="relative z-20 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+        >
+            <i class="fa-solid fa-chart-pie text-blue-600 text-xs"></i>
+            <span>Reports</span>
+        </button>
+        {{-- BULK ACTIONS DROPDOWN MENU --}}
+        <div class="relative inline-block text-left">
             <button
                 type="button"
-                id="openCreateProductModal"
-                class="inline-flex h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+                onclick="toggleBulkActionsMenu(event)"
+                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
             >
-                <i class="fas fa-plus mr-2 text-xs"></i> Add Product
+                <i class="fa-solid fa-layer-group text-slate-500 text-xs"></i>
+                <span>Bulk Actions</span>
+                <i class="fa-solid fa-chevron-down text-[9px] text-slate-400 ml-1"></i>
             </button>
-        </div>
-
-        @if (session('success'))
-            <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        <div class="mb-6 grid gap-3 xl:grid-cols-3">
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isAdminReviewer ? 'Pending Review' : 'Active Products' }}</p>
-                <p class="mt-2 text-2xl font-bold text-gray-900">{{ $isAdminReviewer ? $summary['pending'] : $summary['active'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $isAdminReviewer ? 'Active Products' : 'Pending Approval' }}</p>
-                <p class="mt-2 text-2xl font-bold text-gray-900">{{ $isAdminReviewer ? $summary['active'] : $summary['pending'] }}</p>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rejected Products</p>
-                <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['rejected'] }}</p>
-            </div>
-        </div>
-
-        @if ($isAdminReviewer && $pendingChangeRequests->isNotEmpty())
-            <div class="mb-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-900">Pending Product Change Requests</h2>
-                        <p class="text-sm text-gray-600">Requested edits and removals stay queued here until an admin approves them.</p>
-                    </div>
-                    <div class="text-sm font-medium text-amber-800">
-                        {{ $pendingChangeRequests->count() }} pending {{ \Illuminate\Support\Str::plural('request', $pendingChangeRequests->count()) }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="mb-6 space-y-4">
-                @foreach ($pendingChangeRequests as $changeRequest)
-                    <article class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                            <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <h3 class="text-lg font-semibold text-gray-900">{{ $changeRequest->record_name ?: 'Product' }}</h3>
-                                    <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                                        Pending {{ ucfirst($changeRequest->action) }}
-                                    </span>
-                                </div>
-                                <p class="mt-1 text-sm text-gray-500">
-                                    Product ID {{ $changeRequest->record_public_id ?: '-' }} • Requested by {{ $changeRequest->submitter?->name ?: 'Unknown user' }}
-                                </p>
-                            </div>
-                            <div class="flex flex-wrap gap-2 xl:justify-end">
-                                <form method="POST" action="{{ route('catalog-change-requests.approve', $changeRequest) }}">
-                                    @csrf
-                                    <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100">Approve</button>
-                                </form>
-                                <form method="POST" action="{{ route('catalog-change-requests.reject', $changeRequest) }}">
-                                    @csrf
-                                    <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100">Reject</button>
-                                </form>
-                            </div>
-                        </div>
-                    </article>
-                @endforeach
-            </div>
-        @endif
-
-        <form method="GET" action="{{ route('products.index') }}" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div class="grid gap-3 xl:grid-cols-[minmax(260px,1.6fr)_repeat(4,minmax(170px,1fr))_minmax(190px,1fr)_auto]">
-                <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-                    <input
-                        type="text"
-                        name="search"
-                        value="{{ $filters['search'] ?? $search }}"
-                        placeholder="Search products..."
-                        class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    >
-                </div>
-                <select
-                    name="status"
-                    class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            <div
+                id="bulkActionsMenu"
+                class="hidden absolute right-0 mt-1.5 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 text-xs font-medium text-slate-700 divide-y divide-slate-100"
+            >
+                <button
+                    type="button"
+                    onclick="document.getElementById('importProductModal').classList.remove('hidden'); document.getElementById('bulkActionsMenu').classList.add('hidden')"
+                    class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer"
                 >
-                    <option value="all" @selected(($filters['status'] ?? 'all') === 'all')>Status: All</option>
-                    @foreach ($statusOptions as $option)
-                        <option value="{{ $option }}" @selected(($filters['status'] ?? 'all') === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="category" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all" @selected(($filters['category'] ?? 'all') === 'all')>Category: All</option>
-                    @foreach ($categoryOptions as $option)
-                        <option value="{{ $option }}" @selected(($filters['category'] ?? 'all') === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="product_type" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all" @selected(($filters['product_type'] ?? 'all') === 'all')>Product Type: All</option>
-                    @foreach ($productTypeOptions as $option)
-                        <option value="{{ $option }}" @selected(($filters['product_type'] ?? 'all') === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="inventory_type" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all" @selected(($filters['inventory_type'] ?? 'all') === 'all')>Inventory: All</option>
-                    @foreach ($inventoryTypeOptions as $option)
-                        <option value="{{ $option }}" @selected(($filters['inventory_type'] ?? 'all') === $option)>{{ $option }}</option>
-                    @endforeach
-                </select>
-                <select name="owner_id" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                    <option value="all" @selected(($filters['owner_id'] ?? 'all') === 'all')>Owner: All</option>
-                    @foreach ($owners as $owner)
-                        <option value="{{ $owner['id'] }}" @selected((string) ($filters['owner_id'] ?? 'all') === (string) $owner['id'])>{{ $owner['name'] }}</option>
-                    @endforeach
-                </select>
-
-                <div class="flex items-center gap-3">
-                    <input type="hidden" name="per_page" value="{{ $perPage }}">
-                    <button class="h-11 rounded-xl border border-gray-200 bg-gray-900 px-5 text-sm font-medium text-white hover:bg-gray-800">Apply</button>
+                    <i class="fa-solid fa-file-import text-blue-600 w-4 text-center"></i>
+                    <span>Bulk Import Products</span>
+                </button>
+                <div class="py-1">
+                    <a
+                        href="{{ route('products.dashboard.csv', request()->query()) }}"
+                        onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
+                        class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
+                    >
+                        <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i>
+                        <span>Export Dashboard to CSV</span>
+                    </a>
+                    <a
+                        href="{{ route('products.dashboard.pdf', request()->query()) }}"
+                        onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
+                        class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block"
+                    >
+                        <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i>
+                        <span>Export Dashboard to PDF</span>
+                    </a>
+                </div>
+                <div class="py-1">
+                    <a href="{{ route('products.reports.csv', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i><span>Export Report to CSV</span>
+                    </a>
+                    <a href="{{ route('products.reports.pdf', request()->query()) }}" onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i><span>Export Report to PDF</span>
+                    </a>
                 </div>
             </div>
-        </form>
+        </div>
 
-        <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div class="border-b border-gray-100 px-5 py-4">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <form method="GET" action="{{ route('products.index') }}" class="flex flex-col gap-2 sm:ml-6 sm:flex-row sm:items-center">
-                        <label for="productAreaQuickFilter" class="text-sm font-medium text-gray-600">Service Area</label>
-                        <select id="productAreaQuickFilter" name="service_area" onchange="this.form.submit()" class="h-10 min-w-[320px] rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                            <option value="all" @selected(($filters['service_area'] ?? 'all') === 'all')>All Service Areas</option>
-                            @foreach ($productAreaFilterOptions as $option)
-                                <option value="{{ $option }}" @selected(($filters['service_area'] ?? 'all') === $option)>{{ $option }}</option>
-                            @endforeach
-                        </select>
-                        <input type="hidden" name="search" value="{{ $filters['search'] ?? $search }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] ?? 'all' }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] ?? 'all' }}">
-                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? 'all' }}">
-                        <input type="hidden" name="inventory_type" value="{{ $filters['inventory_type'] ?? 'all' }}">
-                        <input type="hidden" name="owner_id" value="{{ $filters['owner_id'] ?? 'all' }}">
-                        <input type="hidden" name="per_page" value="{{ $filters['per_page'] ?? $perPage }}">
-                    </form>
-                </div>
-                <button id="openCreateFieldDropdown" type="button" class="self-start text-sm font-medium text-blue-600 hover:text-blue-700 lg:self-auto">+ Create Field</button>
-            </div>
-        </div>
-        <div class="overflow-x-auto overflow-y-visible">
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-50 text-xs text-gray-700">
-                    <tr>
-                        <th data-column-key="product_name" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Product Name</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="product_name" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="sku" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>SKU</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="sku" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="product_type" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Product Type</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="product_type" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="category" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Category</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="category" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="price" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Price</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="price" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="status" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Status</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="status" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="product_owner" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Product Owner</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="product_owner" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        @foreach ($customFields as $field)
-                            <th data-column-key="{{ $field->field_key }}" data-column-type="custom" class="group px-3 py-3 text-left font-medium">
-                                <div class="inline-flex items-center gap-1">
-                                    <span>{{ $field->field_name }}</span>
-                                    <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="{{ $field->field_key }}" data-column-type="custom">
-                                        <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                    </button>
-                                </div>
-                            </th>
-                        @endforeach
-                        <th class="w-[180px] px-3 py-3 text-left font-medium">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                        @forelse ($products as $index => $product)
-                            @php
-                                $pendingRequest = $pendingRequestMap->get($product->id);
-                            @endphp
-                            <tr class="product-row text-gray-700" data-row-index="{{ $index }}" data-product-url="{{ route('products.show', $product->product_id) }}">
-                            <td data-column-key="product_name" class="px-3 py-3 font-medium text-gray-900">
-                                <a href="{{ route('products.show', $product->product_id) }}" class="hover:text-blue-700">
-                                    {{ $product->product_name }}
-                                </a>
-                            </td>
-                            <td data-column-key="sku" class="px-3 py-3 text-gray-600">{{ $product->sku ?: '-' }}</td>
-                            <td data-column-key="product_type" class="px-3 py-3 text-gray-600">{{ $product->product_type }}</td>
-                            <td data-column-key="category" class="px-3 py-3 text-gray-600">{{ $product->category }}</td>
-                            <td data-column-key="price" class="px-3 py-3 text-gray-600">P{{ number_format((float) $product->price, 2) }}</td>
-                            <td data-column-key="status" class="px-3 py-3">
-                                <div class="flex flex-col gap-1">
-                                    <span class="inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-medium {{ $activePillClasses[$product->status] ?? 'border-gray-200 bg-gray-50 text-gray-700' }}">
-                                        {{ $product->status }}
-                                    </span>
-                                    @if ($pendingRequest)
-                                        <span class="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                                            Pending {{ ucfirst($pendingRequest->action) }}
-                                        </span>
-                                    @endif
-                                </div>
-                            </td>
-                            <td data-column-key="product_owner" class="product-owner-cell px-3 py-3 text-gray-600">{{ $product->owner_name ?: '-' }}</td>
-                            @foreach ($customFields as $field)
-                                @php
-                                    $customValue = data_get($product->custom_field_values, $field->field_key, '');
-                                @endphp
-                                <td data-column-key="{{ $field->field_key }}" class="px-3 py-3 text-gray-600">
-                                    @if (($field->field_type ?? '') === 'checkbox')
-                                        {{ $customValue === '1' ? 'Yes' : 'No' }}
-                                    @elseif (($field->field_type ?? '') === 'currency' && $customValue !== '')
-                                        P{{ number_format((float) $customValue, 2) }}
-                                @else
-                                    {{ $customValue !== '' ? $customValue : '-' }}
-                                @endif
-                                </td>
-                            @endforeach
-                            <td class="px-3 py-3">
-                                <div class="flex items-center justify-start gap-2 whitespace-nowrap">
-                                    @if ($pendingRequest)
-                                        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                                            Pending {{ ucfirst($pendingRequest->action) }}
-                                        </span>
-                                        @if ($isAdminReviewer)
-                                            <form method="POST" action="{{ route('catalog-change-requests.approve', $pendingRequest) }}">
-                                                @csrf
-                                                <button type="submit" class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">Approve</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('catalog-change-requests.reject', $pendingRequest) }}">
-                                                @csrf
-                                                <button type="submit" class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50">Reject</button>
-                                            </form>
-                                        @endif
-                                    @else
-                                        <button type="button" class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" data-product-id="{{ $product->product_id }}">Edit</button>
-                                        <form method="POST" action="{{ route('products.destroy', $product->product_id) }}" onsubmit="return confirm('Submit a delete request for this product?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Delete</button>
-                                        </form>
-                                    @endif
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="{{ 8 + count($customFields) }}" class="px-3 py-10 text-center text-sm text-gray-500">No products found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-700">
-        <span>Total Products: {{ $totalProducts }}</span>
-        <div class="ml-auto flex items-center gap-2 text-xs text-gray-600">
-            <form method="GET" action="{{ route('products.index') }}" class="flex items-center gap-2">
-                <span>Records per page</span>
-                <select name="per_page" class="h-7 rounded border border-gray-200 px-2 text-xs" onchange="this.form.submit()">
-                    @foreach ([5, 10, 25, 50] as $size)
-                        <option value="{{ $size }}" {{ (int) $perPage === $size ? 'selected' : '' }}>{{ $size }}</option>
-                    @endforeach
-                </select>
-                <input type="hidden" name="search" value="{{ $filters['search'] ?? $search }}">
-                <input type="hidden" name="status" value="{{ $filters['status'] ?? 'all' }}">
-                <input type="hidden" name="category" value="{{ $filters['category'] ?? 'all' }}">
-                <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? 'all' }}">
-                <input type="hidden" name="inventory_type" value="{{ $filters['inventory_type'] ?? 'all' }}">
-                <input type="hidden" name="owner_id" value="{{ $filters['owner_id'] ?? 'all' }}">
-                <input type="hidden" name="service_area" value="{{ $filters['service_area'] ?? 'all' }}">
-            </form>
-            <span>{{ $from }} to {{ $to }} | {{ $currentPage }} to {{ $totalPages }}</span>
-        </div>
-    </div>
+        {{-- QUICK ADD BUTTON --}}
+        <button
+            type="button"
+            onclick="document.getElementById('quickAddModal').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded shadow-sm transition flex items-center space-x-1 cursor-pointer"
+        >
+            <span>+ Quick Add</span>
+        </button>
     </div>
 </div>
 
-@include('products.partials.create-product-modal', [
-    'owners' => $owners,
-    'defaultOwnerId' => $defaultOwnerId,
-    'categoryOptions' => $categoryOptions,
-    'productTypeOptions' => $productTypeOptions,
-    'productAreaOptions' => $productAreaOptions,
-    'pricingTypeOptions' => $pricingTypeOptions,
-    'inventoryTypeOptions' => $inventoryTypeOptions,
-    'statusOptions' => $statusOptions,
-    'unitOptions' => $unitOptions,
-    'serviceOptions' => $serviceOptions,
-    'customFields' => $customFields,
-    'requirementTemplateDefaults' => $requirementTemplateDefaults,
-    'drawerMeta' => $drawerMeta,
-])
-@include('products.partials.create-field-dropdown', ['fieldTypes' => $fieldTypes])
-@include('products.partials.field-actions-dropdown')
-@include('products.partials.create-field-modal')
-@include('products.partials.change-owner-modal', [
-    'owners' => $owners,
-])
 
-<script type="application/json" id="productIndexScriptData">@json($productIndexScriptData)</script>
+{{-- 4. Detailed Insights Cards --}}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Purchased Product</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $mostPurchasedName ?? 'No data yet' }}">{{ $mostPurchasedName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $purchasedCount ?? 0 }} Active Units</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Priced Product</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $highestName ?? 'No data yet' }}">{{ $highestName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-800 font-semibold mt-1">₱{{ $highestPrice ?? '0.00' }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Stock Intensive</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $laborName ?? 'No data yet' }}">{{ $laborName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $laborHours ?? 0 }} Units Stock</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Discounted Product</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $discountName ?? 'No data yet' }}">{{ $discountName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $maxDiscount ?? '0 Max Discount' }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Margin Product</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $marginName ?? 'No data yet' }}">{{ $marginName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $marginPct ?? 0 }}% Margin</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fastest Growing & Inactive</span>
+        <p class="font-bold text-slate-900 text-sm truncate" title="{{ $fastestName ?? 'No data yet' }}">{{ $fastestName ?? 'No data yet' }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $fastestRate ?? 'No growth data' }} | {{ $decliningName ?? 'No data yet' }}</div>
+    </div>
+</div>
+
+
+{{-- 5. Status Metrics Cards --}}
+<div class="grid grid-cols-5 gap-3 mb-6">
+    @php
+        $statusMap = [
+            'incomplete'   => ['label' => 'Incomplete', 'color' => 'slate'],
+            'draft'        => ['label' => 'Draft', 'color' => 'slate'],
+            'for_approval' => ['label' => 'For Approval', 'color' => 'slate'],
+            'active'       => ['label' => 'Active', 'color' => 'slate'],
+            'archived'     => ['label' => 'Archived', 'color' => 'slate'],
+        ];
+    @endphp
+    @foreach ($statusMap as $key => $meta)
+        @php
+            $cnt = $counts[$key] ?? 0;
+            $isSelected = request('status') === $key
+                ? 'ring-2 ring-blue-500 font-bold bg-slate-50'
+                : '';
+        @endphp
+        <a
+            href="{{ route('products.index') }}?status={{ $key }}"
+            class="bg-white border border-slate-200 hover:bg-slate-50 rounded p-3 transition block shadow-sm {{ $isSelected }}"
+        >
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                {{ $meta['label'] }}
+            </span>
+            <div class="text-2xl font-bold text-slate-900 mt-1">
+                {{ $cnt }}
+            </div>
+        </a>
+    @endforeach
+</div>
+
+{{-- =========================================================
+    ROW 1: DASHBOARD FILTERS + DATE RANGE
+========================================================== --}}
+<form
+    method="GET"
+    action="{{ route('products.index') }}"
+    class="bg-white border border-slate-200 rounded-lg p-4 mb-4 shadow-sm space-y-4"
+>
+
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+
+        <div class="flex items-center space-x-3">
+
+            <span class="font-bold text-slate-800 text-sm">
+                Dashboard Filters
+            </span>
+
+            <span class="text-slate-500 text-sm font-medium">
+                From
+            </span>
+
+            <input
+                type="date"
+                name="from_date"
+                value="{{ request('from_date', '') }}"
+                class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white"
+            >
+
+            <span class="text-slate-500 text-sm font-medium">
+                To
+            </span>
+
+            <input
+                type="date"
+                name="to_date"
+                value="{{ request('to_date', '') }}"
+                class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white"
+            >
+
+        </div>
+
+    </div>
+
+
+    {{-- =========================================================
+        ROW 2: SEARCH + FILTERS + RESET + APPLY
+    ========================================================== --}}
+
+    <div class="flex flex-wrap items-center justify-between gap-3">
+
+        <div class="flex flex-wrap items-center gap-3 flex-1">
+
+            {{-- SEARCH --}}
+
+            <div class="relative flex-1 min-w-[200px] max-w-sm">
+
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ request('search', '') }}"
+                    placeholder="Search code or product name..."
+                    class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
+                >
+
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+
+            </div>
+
+
+            {{-- STATUS --}}
+
+            <select
+                name="status"
+                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+            >
+
+                <option value="">
+                    All Status
+                </option>
+
+                <option
+                    value="incomplete"
+                    {{ request('status') === 'incomplete' ? 'selected' : '' }}
+                >
+                    Incomplete
+                </option>
+
+                <option
+                    value="draft"
+                    {{ request('status') === 'draft' ? 'selected' : '' }}
+                >
+                    Draft
+                </option>
+
+                <option
+                    value="for_approval"
+                    {{ request('status') === 'for_approval' ? 'selected' : '' }}
+                >
+                    For Approval
+                </option>
+
+                <option
+                    value="active"
+                    {{ request('status') === 'active' ? 'selected' : '' }}
+                >
+                    Active
+                </option>
+
+                <option
+                    value="archived"
+                    {{ request('status') === 'archived' ? 'selected' : '' }}
+                >
+                    Archived
+                </option>
+
+            </select>
+
+
+            {{-- CATEGORY --}}
+
+            <div
+                x-data="{ selectedCategory: '{{ request('category', '') }}' }"
+                class="flex items-center space-x-2"
+            >
+
+                <select
+                    name="category"
+                    x-model="selectedCategory"
+                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                >
+
+                    <option value="">
+                        Category: All
+                    </option>
+
+                    <option value="Professional Fees">
+                        Professional Fees
+                    </option>
+
+                    <option value="Consulting Revenue">
+                        Consulting Revenue
+                    </option>
+
+                    <option value="Accounting Services">
+                        Accounting Services
+                    </option>
+
+                    <option value="Tax Services">
+                        Tax Services
+                    </option>
+
+                    <option value="Corporate Services">
+                        Corporate Services
+                    </option>
+
+                    <option value="HR Services">
+                        HR Services
+                    </option>
+
+                    <option value="Training & Development">
+                        Training & Development
+                    </option>
+
+                    <option value="Other Income">
+                        Other Income
+                    </option>
+
+                    <option value="Other">
+                        Other
+                    </option>
+
+                </select>
+
+
+                <template x-if="selectedCategory === 'Other'">
+
+                    <input
+                        type="text"
+                        name="other_category"
+                        value="{{ request('other_category') }}"
+                        placeholder="Enter new category..."
+                        class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                    >
+
+                </template>
+
+            </div>
+
+
+            {{-- PRODUCT TYPE --}}
+
+            <div
+                x-data="{ selectedProductType: '{{ request('product_type', '') }}' }"
+                class="flex items-center space-x-2"
+            >
+
+                <select
+                    name="product_type"
+                    x-model="selectedProductType"
+                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+                >
+
+                    <option value="">
+                        Product Type: All
+                    </option>
+
+                    <option value="Service">
+                        Service
+                    </option>
+
+                    <option value="Bundle">
+                        Bundle
+                    </option>
+
+                    <option value="Package">
+                        Package
+                    </option>
+
+                    <option value="Physical Product">
+                        Physical Product
+                    </option>
+
+                    <option value="Digital Product">
+                        Digital Product
+                    </option>
+
+                    <option value="Other">
+                        Other
+                    </option>
+
+                </select>
+
+
+                <template x-if="selectedProductType === 'Other'">
+
+                    <input
+                        type="text"
+                        name="other_product_type"
+                        value="{{ request('other_product_type') }}"
+                        placeholder="Enter new product type..."
+                        class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                    >
+
+                </template>
+
+            </div>
+
+
+            {{-- INVENTORY TYPE --}}
+
+            <select
+                name="inventory_type"
+                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white"
+            >
+
+                <option value="">
+                    Inventory: All
+                </option>
+
+                <option
+                    value="Inventory"
+                    {{ request('inventory_type') === 'Inventory' ? 'selected' : '' }}
+                >
+                    Inventory
+                </option>
+
+                <option
+                    value="Non-Inventory"
+                    {{ request('inventory_type') === 'Non-Inventory' ? 'selected' : '' }}
+                >
+                    Non-Inventory
+                </option>
+
+                <option
+                    value="Service"
+                    {{ request('inventory_type') === 'Service' ? 'selected' : '' }}
+                >
+                    Service
+                </option>
+
+                <option
+                    value="Other"
+                    {{ request('inventory_type') === 'Other' ? 'selected' : '' }}
+                >
+                    Other
+                </option>
+
+            </select>
+
+        </div>
+
+
+        {{-- RESET + APPLY --}}
+
+        <div class="flex items-center space-x-3 ml-auto">
+
+            <a
+                href="{{ route('products.index') }}"
+                class="px-4 py-2 border border-slate-300 text-slate-700 font-medium text-xs rounded-lg hover:bg-slate-50 transition"
+            >
+                Reset
+            </a>
+
+            <button
+                type="submit"
+                class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition cursor-pointer"
+            >
+                Apply Filters
+            </button>
+
+        </div>
+
+    </div>
+
+
+    {{-- =========================================================
+        ROW 3: SERVICE AREA + CREATE FIELD
+    ========================================================== --}}
+
+    <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-3">
+
+        {{-- SERVICE AREA --}}
+
+        <div
+            x-data="{ selectedServiceArea: '{{ request('service_area', '') }}' }"
+            class="flex items-center space-x-2 w-full md:w-auto"
+        >
+
+            <span class="text-xs font-semibold text-slate-700">
+                Service Area:
+            </span>
+
+            <select
+                name="service_area"
+                x-model="selectedServiceArea"
+                class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white w-full md:w-72"
+            >
+
+                <option value="">
+                    All Service Areas
+                </option>
+
+                <option value="Corporate & Regulatory Advisory">
+                    Corporate & Regulatory Advisory
+                </option>
+
+                <option value="Governance & Policy Advisory">
+                    Governance & Policy Advisory
+                </option>
+
+                <option value="People & Talent Solutions">
+                    People & Talent Solutions
+                </option>
+
+                <option value="Strategic Situations Advisory">
+                    Strategic Situations Advisory
+                </option>
+
+                <option value="Accounting & Compliance Advisory">
+                    Accounting & Compliance Advisory
+                </option>
+
+                <option value="Business Strategy & Process Advisory">
+                    Business Strategy & Process Advisory
+                </option>
+
+                <option value="Learning & Capability Development">
+                    Learning & Capability Development
+                </option>
+
+                <option value="Others">
+                    Others
+                </option>
+
+            </select>
+
+
+            <template x-if="selectedServiceArea === 'Others'">
+
+                <input
+                    type="text"
+                    name="other_service_area"
+                    value="{{ request('other_service_area') }}"
+                    placeholder="Enter new service area..."
+                    class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-slate-500 bg-white"
+                >
+
+            </template>
+
+        </div>
+
+
+        {{-- CREATE FIELD --}}
+
+        <div class="relative inline-block text-left">
+
+            <button
+                type="button"
+                onclick="document.getElementById('createFieldMenu').classList.toggle('hidden')"
+                class="text-blue-600 hover:text-blue-800 font-bold text-sm flex items-center space-x-1.5 transition cursor-pointer py-1.5 px-3 rounded-lg hover:bg-blue-50"
+            >
+
+                <span>
+                    + Create Field
+                </span>
+
+                <i class="fa-solid fa-chevron-down text-[9px]"></i>
+
+            </button>
+
+
+            {{-- CREATE FIELD MENU --}}
+
+            <div
+                id="createFieldMenu"
+                class="hidden absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-[9999] text-sm font-medium text-slate-700 max-h-64 overflow-y-auto"
+            >
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Single Line Text')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-font text-slate-400 w-4 text-center"></i>
+                    <span>Single Line Text</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Multi Line Text')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-align-left text-slate-400 w-4 text-center"></i>
+                    <span>Multi Line Text</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Number')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-hashtag text-slate-400 w-4 text-center"></i>
+                    <span>Number</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Currency')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-money-bill-wave text-slate-400 w-4 text-center"></i>
+                    <span>Currency</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Picklist')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-list-check text-slate-400 w-4 text-center"></i>
+                    <span>Picklist</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Checkbox')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-regular fa-square-check text-slate-400 w-4 text-center"></i>
+                    <span>Checkbox</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Date')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-regular fa-calendar text-slate-400 w-4 text-center"></i>
+                    <span>Date</span>
+                </button>
+
+
+                <button
+                    type="button"
+                    onclick="openFieldModal('Lookup')"
+                    class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 cursor-pointer"
+                >
+                    <i class="fa-solid fa-link text-slate-400 w-4 text-center"></i>
+                    <span>Lookup</span>
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</form>
+
+{{-- DYNAMIC FIELD CREATION MODAL (BLUE THEME) --}}
+
+<div
+    id="createFieldModal"
+    class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]"
+>
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-xs space-y-4 relative">
+
+        {{-- HEADER --}}
+        <div class="flex justify-between items-center border-b pb-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">
+                    Create Custom Field
+                </h3>
+
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                    Type:
+                    <span
+                        id="modalFieldTypeName"
+                        class="font-bold text-blue-600"
+                    >
+                        Single Line Text
+                    </span>
+                </p>
+            </div>
+
+            <button
+                type="button"
+                onclick="closeFieldModal()"
+                class="text-slate-400 hover:text-blue-600 text-lg cursor-pointer transition"
+            >
+                &times;
+            </button>
+        </div>
+
+
+        {{-- FORM --}}
+        <form
+            id="createCustomFieldForm"
+            action="#"
+            method="POST"
+            onsubmit="submitCustomField(event)"
+            class="space-y-3"
+        >
+            @csrf
+
+            <input
+                type="hidden"
+                id="customFieldProductId"
+                name="product_id"
+                value=""
+            >
+
+            {{-- FIELD TYPE --}}
+            <input
+                type="hidden"
+                name="field_type"
+                id="modalFieldType"
+                value="Single Line Text"
+            >
+
+
+            {{-- FIELD LABEL / NAME --}}
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Field Label *
+                </label>
+
+                <input
+                    type="text"
+                    name="field_name"
+                    required
+                    placeholder="e.g. Tax Registration ID"
+                    class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+            </div>
+
+
+            {{-- API NAME --}}
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Field API Name
+                </label>
+
+                <input
+                    type="text"
+                    name="field_api_name"
+                    placeholder="e.g. tax_registration_id"
+                    class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50"
+                >
+            </div>
+
+
+            {{-- PICKLIST OPTIONS --}}
+            <div
+                id="picklistOptionsContainer"
+                class="hidden"
+            >
+                <label class="block font-semibold text-slate-700 mb-1">
+                    Options (One per line)
+                </label>
+
+                <textarea
+                    name="options"
+                    rows="3"
+                    placeholder="Option 1&#10;Option 2&#10;Option 3"
+                    class="w-full border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                ></textarea>
+            </div>
+
+
+            {{-- REQUIRED --}}
+            <div class="flex items-center space-x-2 pt-1">
+                <input
+                    type="hidden"
+                    name="is_required"
+                    value="0"
+                >
+
+                <input
+                    type="checkbox"
+                    id="isRequired"
+                    name="is_required"
+                    value="1"
+                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                >
+
+                <label
+                    for="isRequired"
+                    class="text-xs text-slate-700 font-medium cursor-pointer"
+                >
+                    Mark as Required Field
+                </label>
+            </div>
+
+
+            {{-- ACTIONS --}}
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+
+                <button
+                    type="button"
+                    onclick="closeFieldModal()"
+                    class="px-3.5 py-1.5 border border-slate-300 text-slate-700 font-medium rounded hover:bg-slate-50 transition cursor-pointer"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow-sm transition cursor-pointer"
+                >
+                    Create Field
+                </button>
+
+            </div>
+
+        </form>
+    </div>
+</div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const productIndexScriptDataElement = document.getElementById('productIndexScriptData');
-    const productIndexScriptData = productIndexScriptDataElement
-        ? JSON.parse(productIndexScriptDataElement.textContent || '{}')
-        : {};
-
-    const serviceOptionsData = productIndexScriptData.serviceOptions || [];
-    const productEditPayloads = productIndexScriptData.productEditPayloads || {};
-    const shouldReopenCreateModal = Boolean(productIndexScriptData.shouldReopenCreateModal);
-    const oldFieldTypeValue = productIndexScriptData.oldFieldTypeValue || '';
-    const oldFieldTypeLabelValue = productIndexScriptData.oldFieldTypeLabelValue || 'Picklist';
-    const createProductModal = document.getElementById('createProductModal');
-    const createProductForm = document.getElementById('createProductForm');
-    const createProductFormMethod = document.getElementById('createProductFormMethod');
-    const createProductModalTitle = document.getElementById('createProductModalTitle');
-    const createProductFormSubmit = document.getElementById('createProductFormSubmit');
-    const openCreateModalButton = document.getElementById('openCreateProductModal');
-    const closeCreateModalButton = document.getElementById('closeCreateProductModal');
-    const cancelCreateModalButton = document.getElementById('cancelCreateProductModal');
-    const productOwnerDropdownTrigger = document.getElementById('productOwnerDropdownTrigger');
-    const productOwnerDropdownMenu = document.getElementById('productOwnerDropdownMenu');
-    const productOwnerSearch = document.getElementById('productOwnerSearch');
-    const productOwnerIdInput = document.getElementById('product_owner_id');
-    const productOwnerSelectedLabel = document.getElementById('productOwnerSelectedLabel');
-    const productCreatedAtLiveValue = document.getElementById('productCreatedAtLiveValue');
-    const productCreatedAtMetaValue = document.getElementById('productCreatedAtMetaValue');
-    const productNameInput = document.getElementById('product_name');
-    const inventoryTypeInput = document.getElementById('inventory_type');
-    const productTypeInput = document.getElementById('product_type');
-    const categoryInput = document.getElementById('category');
-    const productTypeOtherWrap = document.getElementById('productTypeOtherWrap');
-    const categoryOtherWrap = document.getElementById('categoryOtherWrap');
-    const inventoryTypeOtherWrap = document.getElementById('inventoryTypeOtherWrap');
-    const skuInput = document.getElementById('sku');
-    const stockQtyWrap = document.getElementById('stockQtyWrap');
-    const productAreaOtherWrap = document.getElementById('productAreaOtherWrap');
-    const productAreaCheckboxes = Array.from(document.querySelectorAll('.product-area-checkbox'));
-    const linkedServicesList = document.getElementById('linkedServicesList');
-    const linkedServicesEmptyState = document.getElementById('linkedServicesEmptyState');
-    const linkedServiceOptionTemplate = document.getElementById('linkedServiceOptionTemplate');
-    const selectedLinkedServiceIdsElement = document.getElementById('selectedLinkedServiceIds');
-    const productOwnerOptions = Array.from(document.querySelectorAll('.product-owner-option'));
-    const productDescriptionInput = document.getElementById('product_description');
-    const productInclusionsInput = document.getElementById('product_inclusions');
-    const pricingTypeInput = document.getElementById('pricing_type');
-    const priceInput = document.getElementById('price');
-    const costInput = document.getElementById('cost');
-    const isDiscountableInput = document.querySelector('input[name="is_discountable"]');
-    const taxTypeInput = document.getElementById('tax_type');
-    const unitInput = document.getElementById('unit');
-    const tableRows = Array.from(document.querySelectorAll('.product-row'));
-    const productEditButtons = Array.from(document.querySelectorAll('[data-product-id]'));
-    const productRequirementsInputs = Array.from(document.querySelectorAll('.product-requirements-input'));
-
-    const openCreateFieldDropdown = document.getElementById('openCreateFieldDropdown');
-    const createFieldDropdownMenu = document.getElementById('createFieldDropdownMenu');
-    const fieldTypeButtons = Array.from(document.querySelectorAll('.create-field-type-option'));
-    const createFieldModal = document.getElementById('createFieldModal');
-    const createFieldPanel = document.getElementById('createFieldPanel');
-    const createFieldModalOverlay = document.getElementById('createFieldModalOverlay');
-    const closeCreateFieldModal = document.getElementById('closeCreateFieldModal');
-    const cancelCreateFieldModal = document.getElementById('cancelCreateFieldModal');
-    const createFieldTypeInput = document.getElementById('createFieldTypeInput');
-    const createFieldTypeLabel = document.getElementById('createFieldTypeLabel');
-    const picklistOptionsSection = document.getElementById('picklistOptionsSection');
-    const picklistOptionsContainer = document.getElementById('picklistOptionsContainer');
-    const addPicklistOption = document.getElementById('addPicklistOption');
-    const defaultValueSection = document.getElementById('defaultValueSection');
-    const lookupSection = document.getElementById('lookupSection');
-    const defaultValueInput = document.getElementById('default_value');
-    const headerActionTriggers = Array.from(document.querySelectorAll('.field-header-trigger'));
-    const fieldActionsMenu = document.getElementById('fieldActionsMenu');
-    const fieldActionButtons = Array.from(document.querySelectorAll('.field-action-item'));
-    const tableHead = document.querySelector('table thead');
-    const tableBody = document.querySelector('table tbody');
-    let createFieldDropdownOpen = false;
-    let fieldActionsMenuOpen = false;
-    let activeFieldColumnKey = null;
-    let activeFieldIsCustom = false;
-    const columnSortState = {};
-    const columnFilters = {};
-
-    const createProductPanel = document.getElementById('createProductPanel');
-    const createProductModalOverlay = document.getElementById('createProductModalOverlay');
-    let productCreatedAtIntervalId = null;
-    const createProductUrl = productIndexScriptData.createProductUrl || '';
-    const updateProductUrlTemplate = productIndexScriptData.updateProductUrlTemplate || '';
-    const defaultOwnerIdValue = productIndexScriptData.defaultOwnerIdValue || '';
-    const defaultOwnerNameValue = productIndexScriptData.defaultOwnerNameValue || 'Select Owner';
-
-    const formatCreatedAt = (date) => new Intl.DateTimeFormat('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-    }).format(date);
-
-    const renderProductCreatedAtClock = () => {
-        const label = formatCreatedAt(new Date());
-        if (productCreatedAtLiveValue) {
-            productCreatedAtLiveValue.textContent = label;
-        }
-        if (productCreatedAtMetaValue) {
-            productCreatedAtMetaValue.textContent = label;
-        }
-    };
-
-    const stopProductCreatedAtClock = () => {
-        if (productCreatedAtIntervalId) {
-            window.clearInterval(productCreatedAtIntervalId);
-            productCreatedAtIntervalId = null;
-        }
-    };
-
-    const startProductCreatedAtClock = () => {
-        stopProductCreatedAtClock();
-        renderProductCreatedAtClock();
-        productCreatedAtIntervalId = window.setInterval(renderProductCreatedAtClock, 1000);
-    };
-
-    const syncInventoryFields = () => {
-        const showStock = inventoryTypeInput?.value === 'Inventory';
-        stockQtyWrap?.classList.toggle('hidden', !showStock);
-        inventoryTypeOtherWrap?.classList.toggle('hidden', inventoryTypeInput?.value !== 'Other');
-    };
-
-    const syncCustomSelectField = (selectInput, otherWrap) => {
-        otherWrap?.classList.toggle('hidden', selectInput?.value !== 'Other');
-    };
-
-    const syncProductAreaOther = () => {
-        const hasOther = productAreaCheckboxes.some((checkbox) => checkbox.checked && checkbox.value === 'Others');
-        productAreaOtherWrap?.classList.toggle('hidden', !hasOther);
-    };
-
-    const syncProductAreaSelection = (changedCheckbox = null) => {
-        const noneCheckbox = productAreaCheckboxes.find((checkbox) => checkbox.value === 'None');
-        const nonNoneCheckboxes = productAreaCheckboxes.filter((checkbox) => checkbox.value !== 'None');
-
-        if (changedCheckbox?.value === 'None' && changedCheckbox.checked) {
-            nonNoneCheckboxes.forEach((checkbox) => {
-                checkbox.checked = false;
-            });
-        }
-
-        if (changedCheckbox && changedCheckbox.value !== 'None' && changedCheckbox.checked && noneCheckbox) {
-            noneCheckbox.checked = false;
-        }
-
-        const anyNonNoneChecked = nonNoneCheckboxes.some((checkbox) => checkbox.checked);
-        if (!anyNonNoneChecked && noneCheckbox && !noneCheckbox.checked) {
-            noneCheckbox.checked = true;
-        }
-
-        if (!anyNonNoneChecked && noneCheckbox) {
-            noneCheckbox.checked = true;
-        }
-
-        syncProductAreaOther();
-        renderLinkedServiceOptions();
-    };
-
-    const selectedProductAreas = () => productAreaCheckboxes
-        .filter((checkbox) => checkbox.checked && checkbox.value !== 'None')
-        .map((checkbox) => checkbox.value);
-
-    const selectedLinkedServiceIds = () => {
-        const currentSelections = Array.from(document.querySelectorAll('input[name="linked_service_ids[]"]:checked'))
-            .map((input) => String(input.value));
-
-        if (currentSelections.length > 0) {
-            return currentSelections;
-        }
-
-        if (!selectedLinkedServiceIdsElement?.dataset?.selectedServiceIds) {
-            return [];
-        }
-
-        try {
-            return JSON.parse(selectedLinkedServiceIdsElement.dataset.selectedServiceIds);
-        } catch (error) {
-            return [];
-        }
-    };
-
-    const renderLinkedServiceOptions = () => {
-        if (!linkedServicesList || !linkedServiceOptionTemplate) {
-            return;
-        }
-
-        const activeAreas = selectedProductAreas();
-        const preselectedIds = new Set(selectedLinkedServiceIds().map(String));
-        const matchingServices = serviceOptionsData.filter((service) => {
-            const serviceAreas = Array.isArray(service.service_area) ? service.service_area : [];
-            return activeAreas.some((area) => serviceAreas.includes(area));
-        });
-
-        linkedServicesList.innerHTML = '';
-
-        if (matchingServices.length === 0) {
-            linkedServicesList.classList.add('hidden');
-            linkedServicesEmptyState?.classList.remove('hidden');
-            linkedServicesEmptyState.textContent = activeAreas.length === 0
-                ? 'Select a service area to show matching services.'
-                : 'No services found for the selected service area.';
-            return;
-        }
-
-        linkedServicesEmptyState?.classList.add('hidden');
-        linkedServicesList.classList.remove('hidden');
-
-        matchingServices.forEach((service) => {
-            const fragment = linkedServiceOptionTemplate.content.cloneNode(true);
-            const label = fragment.querySelector('.linked-service-option');
-            const input = fragment.querySelector('input[name="linked_service_ids[]"]');
-            const name = fragment.querySelector('.linked-service-name');
-            const meta = fragment.querySelector('.linked-service-meta');
-
-            if (input) {
-                input.value = String(service.id);
-                input.checked = preselectedIds.has(String(service.id));
-            }
-
-            if (name) {
-                name.textContent = service.service_name || service.name;
-            }
-
-            if (meta) {
-                const areaLabel = Array.isArray(service.service_area) ? service.service_area.join(', ') : '';
-                meta.textContent = [service.service_id, areaLabel].filter(Boolean).join(' | ');
-            }
-
-            linkedServicesList.appendChild(fragment);
-        });
-    };
-
-    const openCreateModal = () => {
-        if (!createProductModal || !createProductPanel) {
-            return;
-        }
-
-        createProductModal.classList.remove('hidden');
-        createProductModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('overflow-hidden');
-
-        requestAnimationFrame(() => {
-            createProductModalOverlay?.classList.remove('opacity-0');
-            createProductPanel.classList.remove('translate-x-full');
-        });
-
-        if (skuInput?.dataset?.defaultSku) {
-            skuInput.value = skuInput.dataset.defaultSku;
-        }
-        startProductCreatedAtClock();
-        syncInventoryFields();
-        syncProductAreaOther();
-        renderLinkedServiceOptions();
-    };
-
-    const resetCreateProductForm = () => {
-        createProductForm?.reset();
-        if (createProductForm) {
-            createProductForm.action = createProductUrl;
-        }
-        if (createProductFormMethod) {
-            createProductFormMethod.value = 'POST';
-        }
-        if (createProductModalTitle) {
-            createProductModalTitle.textContent = 'Create Product';
-        }
-        if (createProductFormSubmit) {
-            createProductFormSubmit.textContent = 'Save';
-        }
-        if (skuInput?.dataset?.defaultSku) {
-            skuInput.value = skuInput.dataset.defaultSku;
-        }
-        productAreaCheckboxes.forEach((checkbox) => {
-            checkbox.checked = checkbox.value === 'None';
-        });
-        if (selectedLinkedServiceIdsElement) {
-            selectedLinkedServiceIdsElement.dataset.selectedServiceIds = '[]';
-        }
-        if (productOwnerIdInput) {
-            productOwnerIdInput.value = defaultOwnerIdValue;
-        }
-        if (productOwnerSelectedLabel) {
-            productOwnerSelectedLabel.textContent = `Owner: ${defaultOwnerNameValue}`;
-        }
-        document.querySelectorAll('input[name="tax_treatment"]').forEach((input) => {
-            input.checked = input.value === 'Tax Exclusive';
-        });
-        document.getElementById('product_requirement_category').value = '';
-        document.getElementById('product_requirements_legacy').value = '';
-        syncInventoryFields();
-        syncCustomSelectField(productTypeInput, productTypeOtherWrap);
-        syncCustomSelectField(categoryInput, categoryOtherWrap);
-        syncProductAreaSelection();
-        renderLinkedServiceOptions();
-        renderRequirementPreviews();
-    };
-
-    const fillProductForm = (product) => {
-        if (createProductForm) {
-            createProductForm.action = updateProductUrlTemplate.replace('__PRODUCT__', product.product_id);
-        }
-        if (createProductFormMethod) {
-            createProductFormMethod.value = 'PUT';
-        }
-        if (createProductModalTitle) {
-            createProductModalTitle.textContent = 'Edit Product';
-        }
-        if (createProductFormSubmit) {
-            createProductFormSubmit.textContent = 'Update';
-        }
-
-        productOwnerIdInput.value = product.owner_id ?? '';
-        productOwnerSelectedLabel.textContent = `Owner: ${product.owner_name || product.created_by || 'Select Owner'}`;
-        productCreatedAtLiveValue.textContent = product.created_at ? formatCreatedAt(new Date(product.created_at)) : productCreatedAtLiveValue.textContent;
-        if (productNameInput) {
-            productNameInput.value = product.product_name ?? '';
-        }
-        const productTypeOtherInput = document.getElementById('product_type_other');
-        const hasKnownProductType = Array.from(productTypeInput?.options ?? []).some((option) => option.value === (product.product_type ?? ''));
-        productTypeInput.value = hasKnownProductType ? (product.product_type ?? '') : 'Other';
-        if (productTypeOtherInput) {
-            productTypeOtherInput.value = hasKnownProductType ? '' : (product.product_type ?? '');
-        }
-        skuInput.value = product.sku ?? '';
-        productDescriptionInput.value = product.product_description ?? '';
-        productInclusionsInput.value = product.product_inclusions ?? '';
-        const requirementGroups = product.requirements?.groups ?? {};
-        document.getElementById('product_requirements_individual').value = Array.isArray(requirementGroups.individual) ? requirementGroups.individual.join('\n') : '';
-        document.getElementById('product_requirements_juridical').value = Array.isArray(requirementGroups.juridical) ? requirementGroups.juridical.join('\n') : '';
-        document.getElementById('product_requirements_other').value = Array.isArray(requirementGroups.other) ? requirementGroups.other.join('\n') : '';
-        document.getElementById('product_requirement_category').value = product.requirement_category ?? '';
-        document.getElementById('product_requirements_legacy').value = '';
-        const categoryOtherInput = document.getElementById('category_other');
-        const hasKnownCategory = Array.from(categoryInput?.options ?? []).some((option) => option.value === (product.category ?? ''));
-        categoryInput.value = hasKnownCategory ? (product.category ?? '') : 'Other';
-        if (categoryOtherInput) {
-            categoryOtherInput.value = hasKnownCategory ? '' : (product.category ?? '');
-        }
-        pricingTypeInput.value = product.pricing_type ?? '';
-        priceInput.value = product.price ?? '';
-        costInput.value = product.cost ?? '';
-        if (isDiscountableInput) {
-            isDiscountableInput.checked = Boolean(product.is_discountable);
-        }
-        taxTypeInput.value = product.tax_type ?? 'VAT';
-        document.querySelectorAll('input[name="tax_treatment"]').forEach((input) => {
-            input.checked = input.value === (product.tax_treatment ?? 'Tax Exclusive');
-        });
-        const inventoryTypeOtherInput = document.getElementById('inventory_type_other');
-        const hasKnownInventoryType = Array.from(inventoryTypeInput?.options ?? []).some((option) => option.value === (product.inventory_type ?? ''));
-        inventoryTypeInput.value = hasKnownInventoryType ? (product.inventory_type ?? '') : 'Other';
-        if (inventoryTypeOtherInput) {
-            inventoryTypeOtherInput.value = hasKnownInventoryType ? '' : (product.inventory_type ?? '');
-        }
-        document.getElementById('stock_qty').value = product.stock_qty ?? '';
-        unitInput.value = product.unit ?? '';
-
-        const selectedAreas = Array.isArray(product.product_area) ? product.product_area : [];
-        productAreaCheckboxes.forEach((checkbox) => {
-            checkbox.checked = selectedAreas.includes(checkbox.value);
-        });
-        if (!productAreaCheckboxes.some((checkbox) => checkbox.checked)) {
-            const noneCheckbox = productAreaCheckboxes.find((checkbox) => checkbox.value === 'None');
-            if (noneCheckbox) {
-                noneCheckbox.checked = true;
-            }
-        }
-        document.getElementById('product_area_other').value = product.product_area_other ?? '';
-        if (selectedLinkedServiceIdsElement) {
-            selectedLinkedServiceIdsElement.dataset.selectedServiceIds = JSON.stringify(product.linked_service_ids ?? []);
-        }
-
-        createProductForm?.querySelectorAll('[name^="custom_fields["]').forEach((input) => {
-            if (input.type === 'checkbox') {
-                input.checked = false;
-            } else {
-                input.value = '';
-            }
-        });
-
-        const customFieldValues = product.custom_field_values ?? {};
-        Object.entries(customFieldValues).forEach(([key, value]) => {
-            const input = createProductForm?.querySelector(`[name="custom_fields[${key}]"]`);
-            if (!input) return;
-            if (input.type === 'checkbox') {
-                input.checked = value === '1' || value === 1 || value === true;
-            } else {
-                input.value = value ?? '';
-            }
-        });
-
-        syncInventoryFields();
-        syncCustomSelectField(productTypeInput, productTypeOtherWrap);
-        syncCustomSelectField(categoryInput, categoryOtherWrap);
-        syncProductAreaSelection();
-        renderLinkedServiceOptions();
-        renderRequirementPreviews();
-    };
-
-    const buildRequirementPreview = (value) => {
-        const items = String(value || '')
-            .split(/\r?\n/)
-            .map((item) => item.trim().replace(/^[^A-Za-z0-9]+/u, ''))
-            .filter((item) => item !== '');
-
-        if (items.length === 0) {
-            return '';
-        }
-
-        return `
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Bullet Preview</p>
-            <ul class="mt-2 space-y-1 text-sm text-gray-700">
-                ${items.map((item) => `<li class="flex items-start gap-2"><span class="mt-[2px] text-blue-600">&bull;</span><span>${item}</span></li>`).join('')}
-            </ul>
-        `;
-    };
-
-    const renderRequirementPreviews = () => {
-        productRequirementsInputs.forEach((input) => {
-            const preview = input.parentElement?.querySelector('.product-requirements-preview');
-            if (!preview) {
-                return;
-            }
-
-            const html = buildRequirementPreview(input.value);
-            preview.innerHTML = html;
-            preview.classList.toggle('hidden', html === '');
-        });
-    };
-
-    const closeProductOwnerDropdown = () => {
-        productOwnerDropdownMenu?.classList.add('hidden');
-    };
-
-    const closeCreateModal = () => {
-        if (!createProductModal || !createProductPanel) {
-            return;
-        }
-
-        closeProductOwnerDropdown();
-        stopProductCreatedAtClock();
-        createProductModalOverlay?.classList.add('opacity-0');
-        createProductPanel.classList.add('translate-x-full');
-        document.body.classList.remove('overflow-hidden');
-
-        window.setTimeout(() => {
-            createProductModal.classList.add('hidden');
-            createProductModal.setAttribute('aria-hidden', 'true');
-        }, 300);
-    };
-
-    const buildPicklistOptionRow = (value = '') => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-2';
-        row.innerHTML = `
-            <input name="options[]" value="${value}" placeholder="Option value" class="h-10 flex-1 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-            <button type="button" class="remove-picklist-option h-8 w-8 rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <i class="fas fa-minus text-xs"></i>
-            </button>
-        `;
-        return row;
-    };
-
-    const ensurePicklistOptionRows = () => {
-        if (!picklistOptionsContainer) {
-            return;
-        }
-        if (picklistOptionsContainer.querySelectorAll('input[name="options[]"]').length === 0) {
-            picklistOptionsContainer.appendChild(buildPicklistOptionRow(''));
-        }
-    };
-
-    const applyCreateFieldTypeUI = (type, label) => {
-        if (!createFieldTypeInput || !createFieldTypeLabel) {
-            return;
-        }
-
-        createFieldTypeInput.value = type;
-        createFieldTypeLabel.textContent = label;
-
-        if (picklistOptionsSection) {
-            picklistOptionsSection.classList.toggle('hidden', type !== 'picklist');
-        }
-        if (lookupSection) {
-            lookupSection.classList.toggle('hidden', type !== 'lookup');
-            lookupSection.classList.toggle('grid', type === 'lookup');
-        }
-        if (defaultValueSection) {
-            defaultValueSection.classList.toggle('hidden', type === 'lookup');
-            defaultValueSection.classList.toggle('grid', type !== 'lookup');
-        }
-        if (defaultValueInput) {
-            defaultValueInput.placeholder = type === 'date' ? 'YYYY-MM-DD' : 'Optional default value';
-        }
-
-        if (type === 'picklist') {
-            ensurePicklistOptionRows();
-        }
-    };
-
-    const openCreateFieldModalFn = (type, label) => {
-        applyCreateFieldTypeUI(type, label);
-        createFieldDropdownMenu?.classList.add('hidden');
-        createFieldDropdownOpen = false;
-        createFieldModal?.classList.remove('hidden');
-        createFieldModal?.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('overflow-hidden');
-        requestAnimationFrame(() => {
-            createFieldModalOverlay?.classList.remove('opacity-0');
-            createFieldPanel?.classList.remove('translate-x-full');
-        });
-    };
-
-    const closeCreateFieldModalFn = () => {
-        createFieldModalOverlay?.classList.add('opacity-0');
-        createFieldPanel?.classList.add('translate-x-full');
-        document.body.classList.remove('overflow-hidden');
-        window.setTimeout(() => {
-            createFieldModal?.classList.add('hidden');
-            createFieldModal?.setAttribute('aria-hidden', 'true');
-        }, 300);
-    };
-
-    const positionCreateFieldDropdown = () => {
-        if (!openCreateFieldDropdown || !createFieldDropdownMenu) {
-            return;
-        }
-
-        const rect = openCreateFieldDropdown.getBoundingClientRect();
-        const dropdownWidth = createFieldDropdownMenu.offsetWidth || 208;
-        const viewportPadding = 12;
-
-        let left = rect.right - dropdownWidth;
-        if (left < viewportPadding) {
-            left = viewportPadding;
-        }
-        if (left + dropdownWidth > window.innerWidth - viewportPadding) {
-            left = window.innerWidth - dropdownWidth - viewportPadding;
-        }
-
-        let top = rect.bottom + 6;
-        const dropdownHeight = createFieldDropdownMenu.offsetHeight || 260;
-        if (top + dropdownHeight > window.innerHeight - viewportPadding) {
-            top = Math.max(viewportPadding, rect.top - dropdownHeight - 6);
-        }
-
-        createFieldDropdownMenu.style.left = `${left}px`;
-        createFieldDropdownMenu.style.top = `${top}px`;
-    };
-
-    const openCreateFieldDropdownFn = () => {
-        if (!createFieldDropdownMenu) {
-            return;
-        }
-        createFieldDropdownMenu.classList.remove('hidden');
-        createFieldDropdownOpen = true;
-        positionCreateFieldDropdown();
-    };
-
-    const closeCreateFieldDropdownFn = () => {
-        if (!createFieldDropdownMenu) {
-            return;
-        }
-        createFieldDropdownMenu.classList.add('hidden');
-        createFieldDropdownOpen = false;
-    };
-
-    const getColumnHeader = (columnKey) => {
-        if (!tableHead) {
-            return null;
-        }
-        return tableHead.querySelector(`th[data-column-key="${columnKey}"]`);
-    };
-
-    const getColumnCells = (columnKey) => {
-        if (!tableBody) {
-            return [];
-        }
-        return Array.from(tableBody.querySelectorAll(`td[data-column-key="${columnKey}"]`));
-    };
-
-    const cellValue = (cell) => {
-        if (!cell) {
-            return '';
-        }
-        const select = cell.querySelector('select');
-        if (select) {
-            return (select.value || '').trim().toLowerCase();
-        }
-        return (cell.textContent || '').trim().toLowerCase();
-    };
-
-    const applyRowFilters = () => {
-        if (!tableBody) {
-            return;
-        }
-        const rows = Array.from(tableBody.querySelectorAll('.product-row'));
-        rows.forEach((row) => {
-            let visible = true;
-            Object.entries(columnFilters).forEach(([columnKey, filterText]) => {
-                if (filterText === '') {
-                    return;
-                }
-                const cell = row.querySelector(`td[data-column-key="${columnKey}"]`);
-                if (!cellValue(cell).includes(filterText)) {
-                    visible = false;
-                }
-            });
-            row.classList.toggle('hidden', !visible);
-        });
-    };
-
-    const sortByColumn = (columnKey) => {
-        if (!tableBody) {
-            return;
-        }
-        const rows = Array.from(tableBody.querySelectorAll('.product-row'));
-        if (rows.length === 0) {
-            return;
-        }
-
-        const nextDirection = columnSortState[columnKey] === 'asc' ? 'desc' : 'asc';
-        columnSortState[columnKey] = nextDirection;
-
-        rows.sort((rowA, rowB) => {
-            const valueA = cellValue(rowA.querySelector(`td[data-column-key="${columnKey}"]`));
-            const valueB = cellValue(rowB.querySelector(`td[data-column-key="${columnKey}"]`));
-            const numericA = Number(valueA.replace(/[^0-9.-]/g, ''));
-            const numericB = Number(valueB.replace(/[^0-9.-]/g, ''));
-            let comparison = 0;
-
-            if (!Number.isNaN(numericA) && !Number.isNaN(numericB) && valueA !== '' && valueB !== '') {
-                comparison = numericA - numericB;
-            } else {
-                comparison = valueA.localeCompare(valueB);
-            }
-
-            return nextDirection === 'asc' ? comparison : -comparison;
-        });
-
-        rows.forEach((row) => tableBody.appendChild(row));
-    };
-
-    const collapseColumn = (columnKey) => {
-        const header = getColumnHeader(columnKey);
-        const cells = getColumnCells(columnKey);
-        if (!header) {
-            return;
-        }
-        const willHide = !header.classList.contains('hidden');
-        header.classList.toggle('hidden', willHide);
-        cells.forEach((cell) => cell.classList.toggle('hidden', willHide));
-    };
-
-    const moveColumnLeft = (columnKey) => {
-        if (!tableHead || !tableBody) {
-            return;
-        }
-        const header = getColumnHeader(columnKey);
-        if (!header || !header.previousElementSibling || !header.previousElementSibling.hasAttribute('data-column-key')) {
-            return;
-        }
-        const previousHeader = header.previousElementSibling;
-        const previousKey = previousHeader.getAttribute('data-column-key');
-        if (!previousKey) {
-            return;
-        }
-
-        tableHead.querySelector('tr')?.insertBefore(header, previousHeader);
-        Array.from(tableBody.querySelectorAll('.product-row')).forEach((row) => {
-            const cell = row.querySelector(`td[data-column-key="${columnKey}"]`);
-            const previousCell = row.querySelector(`td[data-column-key="${previousKey}"]`);
-            if (cell && previousCell) {
-                row.insertBefore(cell, previousCell);
-            }
-        });
-    };
-
-    const autoFitColumn = (columnKey) => {
-        const header = getColumnHeader(columnKey);
-        const cells = getColumnCells(columnKey);
-        if (!header) {
-            return;
-        }
-        header.style.width = '1%';
-        header.classList.add('whitespace-nowrap');
-        cells.forEach((cell) => {
-            cell.classList.add('whitespace-nowrap');
-        });
-    };
-
-    const removeCustomColumn = (columnKey) => {
-        if (!activeFieldIsCustom) {
-            return;
-        }
-        const header = getColumnHeader(columnKey);
-        const cells = getColumnCells(columnKey);
-        header?.remove();
-        cells.forEach((cell) => cell.remove());
-    };
-
-    const positionFieldActionsMenu = (trigger) => {
-        if (!fieldActionsMenu || !trigger) {
-            return;
-        }
-        const rect = trigger.getBoundingClientRect();
-        const menuWidth = fieldActionsMenu.offsetWidth || 224;
-        const viewportPadding = 12;
-        let left = rect.right - menuWidth;
-        if (left < viewportPadding) {
-            left = viewportPadding;
-        }
-        if (left + menuWidth > window.innerWidth - viewportPadding) {
-            left = window.innerWidth - menuWidth - viewportPadding;
-        }
-        let top = rect.bottom + 6;
-        const menuHeight = fieldActionsMenu.offsetHeight || 300;
-        if (top + menuHeight > window.innerHeight - viewportPadding) {
-            top = Math.max(viewportPadding, rect.top - menuHeight - 6);
-        }
-        fieldActionsMenu.style.left = `${left}px`;
-        fieldActionsMenu.style.top = `${top}px`;
-    };
-
-    const closeFieldActionsMenu = () => {
-        if (!fieldActionsMenu) {
-            return;
-        }
-        fieldActionsMenu.classList.add('hidden');
-        fieldActionsMenuOpen = false;
-        activeFieldColumnKey = null;
-        activeFieldIsCustom = false;
-    };
-
-    const openFieldActionsMenu = (trigger, columnKey, isCustom) => {
-        if (!fieldActionsMenu) {
-            return;
-        }
-        activeFieldColumnKey = columnKey;
-        activeFieldIsCustom = isCustom;
-        const removeBtn = fieldActionsMenu.querySelector('[data-action="remove-column"]');
-        if (removeBtn) {
-            removeBtn.classList.toggle('opacity-50', !isCustom);
-            removeBtn.classList.toggle('cursor-not-allowed', !isCustom);
-            removeBtn.classList.toggle('pointer-events-none', !isCustom);
-            removeBtn.setAttribute('aria-disabled', !isCustom ? 'true' : 'false');
-        }
-        fieldActionsMenu.classList.remove('hidden');
-        fieldActionsMenuOpen = true;
-        positionFieldActionsMenu(trigger);
-    };
-
-    openCreateModalButton?.addEventListener('click', function () {
-        resetCreateProductForm();
-        openCreateModal();
-    });
-    closeCreateModalButton?.addEventListener('click', closeCreateModal);
-    cancelCreateModalButton?.addEventListener('click', closeCreateModal);
-
-    createProductModalOverlay?.addEventListener('click', closeCreateModal);
-
-    productOwnerDropdownTrigger?.addEventListener('click', function () {
-        productOwnerDropdownMenu?.classList.toggle('hidden');
-        if (productOwnerDropdownMenu && !productOwnerDropdownMenu.classList.contains('hidden')) {
-            productOwnerSearch?.focus();
-        }
-    });
-
-    productOwnerSearch?.addEventListener('input', function () {
-        const keyword = productOwnerSearch.value.toLowerCase().trim();
-        productOwnerOptions.forEach((option) => {
-            const name = (option.dataset.ownerName || '').toLowerCase();
-            const email = (option.dataset.ownerEmail || '').toLowerCase();
-            option.classList.toggle('hidden', keyword !== '' && !name.includes(keyword) && !email.includes(keyword));
-        });
-    });
-
-    productOwnerOptions.forEach((option) => {
-        option.addEventListener('click', function () {
-            if (productOwnerIdInput) {
-                productOwnerIdInput.value = option.dataset.ownerId || '';
-            }
-            if (productOwnerSelectedLabel) {
-                productOwnerSelectedLabel.textContent = `Owner: ${option.dataset.ownerName || ''}`;
-            }
-            closeProductOwnerDropdown();
-        });
-    });
-
-    inventoryTypeInput?.addEventListener('change', syncInventoryFields);
-    productTypeInput?.addEventListener('change', () => syncCustomSelectField(productTypeInput, productTypeOtherWrap));
-    categoryInput?.addEventListener('change', () => syncCustomSelectField(categoryInput, categoryOtherWrap));
-    productAreaCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', () => syncProductAreaSelection(checkbox)));
-    productRequirementsInputs.forEach((input) => {
-        input.addEventListener('input', renderRequirementPreviews);
-    });
-
-    document.addEventListener('click', function (event) {
-        if (productOwnerDropdownMenu && !productOwnerDropdownMenu.classList.contains('hidden')) {
-            const clickedProductOwnerTrigger = productOwnerDropdownTrigger ? productOwnerDropdownTrigger.contains(event.target) : false;
-            const clickedProductOwnerSearch = productOwnerSearch ? productOwnerSearch.contains(event.target) : false;
-            if (!productOwnerDropdownMenu.contains(event.target) && !clickedProductOwnerTrigger && !clickedProductOwnerSearch) {
-                closeProductOwnerDropdown();
-            }
-        }
-
-        if (createFieldDropdownMenu && createFieldDropdownOpen) {
-            const clickedFieldTrigger = openCreateFieldDropdown ? openCreateFieldDropdown.contains(event.target) : false;
-            if (!createFieldDropdownMenu.contains(event.target) && !clickedFieldTrigger) {
-                closeCreateFieldDropdownFn();
-            }
-        }
-
-        if (fieldActionsMenu && fieldActionsMenuOpen) {
-            const clickedHeaderTrigger = headerActionTriggers.some((trigger) => trigger.contains(event.target));
-            if (!fieldActionsMenu.contains(event.target) && !clickedHeaderTrigger) {
-                closeFieldActionsMenu();
-            }
-        }
-
-    });
-
-    openCreateFieldDropdown?.addEventListener('click', function () {
-        if (createFieldDropdownOpen) {
-            closeCreateFieldDropdownFn();
-            return;
-        }
-        closeFieldActionsMenu();
-        openCreateFieldDropdownFn();
-    });
-
-    headerActionTriggers.forEach((trigger) => {
-        trigger.addEventListener('click', function (event) {
-            event.stopPropagation();
-            const columnKey = trigger.dataset.columnKey || '';
-            const columnType = trigger.dataset.columnType || 'base';
-            const isCustom = columnType === 'custom';
-
-            if (fieldActionsMenuOpen && activeFieldColumnKey === columnKey) {
-                closeFieldActionsMenu();
-                return;
-            }
-
-            closeCreateFieldDropdownFn();
-            openFieldActionsMenu(trigger, columnKey, isCustom);
-        });
-    });
-
-    fieldActionButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            if (!activeFieldColumnKey) {
-                closeFieldActionsMenu();
-                return;
-            }
-
-            const action = button.dataset.action || '';
-
-            if (action === 'sort') {
-                sortByColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'filter') {
-                const currentFilter = columnFilters[activeFieldColumnKey] || '';
-                const input = window.prompt('Filter value', currentFilter);
-                if (input !== null) {
-                    columnFilters[activeFieldColumnKey] = input.trim().toLowerCase();
-                    applyRowFilters();
-                }
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'edit-field') {
-                window.alert('Edit Field is not available yet.');
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'add-column') {
-                closeFieldActionsMenu();
-                openCreateFieldDropdownFn();
-                return;
-            }
-
-            if (action === 'collapse') {
-                collapseColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'move-left') {
-                moveColumnLeft(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'autofit') {
-                autoFitColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'remove-column') {
-                if (!activeFieldIsCustom) {
-                    return;
-                }
-                removeCustomColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-            }
-        });
-    });
-
-    fieldTypeButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            const type = button.dataset.fieldType || 'picklist';
-            const label = button.dataset.fieldLabel || 'Picklist';
-            openCreateFieldModalFn(type, label);
-        });
-    });
-
-    closeCreateFieldModal?.addEventListener('click', closeCreateFieldModalFn);
-    cancelCreateFieldModal?.addEventListener('click', closeCreateFieldModalFn);
-
-    createFieldModalOverlay?.addEventListener('click', closeCreateFieldModalFn);
-
-    window.addEventListener('resize', function () {
-        if (createFieldDropdownOpen) {
-            positionCreateFieldDropdown();
-        }
-        if (fieldActionsMenuOpen) {
-            const activeTrigger = headerActionTriggers.find((trigger) => trigger.dataset.columnKey === activeFieldColumnKey) || null;
-            positionFieldActionsMenu(activeTrigger);
-        }
-    });
-
-    document.addEventListener('scroll', function () {
-        if (createFieldDropdownOpen) {
-            positionCreateFieldDropdown();
-        }
-        if (fieldActionsMenuOpen) {
-            const activeTrigger = headerActionTriggers.find((trigger) => trigger.dataset.columnKey === activeFieldColumnKey) || null;
-            positionFieldActionsMenu(activeTrigger);
-        }
-    }, true);
-
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-            closeCreateModal();
-            closeChangeOwnerModalFn();
-            closeCreateFieldModalFn();
-            closeProductOwnerDropdown();
-            closeCreateFieldDropdownFn();
-            closeFieldActionsMenu();
-        }
-    });
-
-    addPicklistOption?.addEventListener('click', function () {
-        picklistOptionsContainer?.appendChild(buildPicklistOptionRow(''));
-    });
-
-    picklistOptionsContainer?.addEventListener('click', function (event) {
-        const button = event.target.closest('.remove-picklist-option');
-        if (!button) {
-            return;
-        }
-        const row = button.closest('.flex');
-        if (row) {
-            row.remove();
-        }
-        ensurePicklistOptionRows();
-    });
-
-    tableRows.forEach((row) => {
-        row.classList.add('cursor-pointer');
-        row.addEventListener('click', function (event) {
-            const clickedInteractive = event.target.closest('a, button, input, select, textarea, label');
-            if (clickedInteractive) {
-                return;
-            }
-            const url = row.dataset.productUrl;
-            if (url) {
-                window.location.href = url;
-            }
-        });
-    });
-
-    productEditButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            const productId = button.dataset.productId || '';
-            const product = productEditPayloads[productId] || {};
-            resetCreateProductForm();
-            fillProductForm(product);
-            openCreateModal();
-        });
-    });
-
-    syncInventoryFields();
-    syncCustomSelectField(productTypeInput, productTypeOtherWrap);
-    syncCustomSelectField(categoryInput, categoryOtherWrap);
-    syncProductAreaSelection();
-    renderLinkedServiceOptions();
-    renderRequirementPreviews();
-
-    const initialFieldType = createFieldTypeInput ? createFieldTypeInput.value : 'picklist';
-    const initialTypeButton = fieldTypeButtons.find((button) => (button.dataset.fieldType || '') === initialFieldType);
-    applyCreateFieldTypeUI(initialFieldType, initialTypeButton?.dataset.fieldLabel || 'Picklist');
-
-    if (shouldReopenCreateModal) {
-        openCreateModal();
+function openFieldModal(fieldType) {
+    document.getElementById('createFieldMenu')?.classList.add('hidden');
+    document.getElementById('modalFieldTypeName').innerText = fieldType;
+    document.getElementById('modalFieldType').value = fieldType;
+
+    const picklistContainer = document.getElementById('picklistOptionsContainer');
+    if (fieldType === 'Picklist') {
+        picklistContainer.classList.remove('hidden');
+    } else {
+        picklistContainer.classList.add('hidden');
     }
 
-    if (oldFieldTypeValue) {
-        openCreateFieldModalFn(oldFieldTypeValue, oldFieldTypeLabelValue || 'Picklist');
+    document.getElementById('createFieldModal').classList.remove('hidden');
+}
+
+function closeFieldModal() {
+    document.getElementById('createFieldModal').classList.add('hidden');
+}
+</script>
+
+{{-- 7. Products Data Table --}}
+<div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto mb-4">
+    <table class="w-full text-left border-collapse text-xs border-slate-200 divide-y divide-slate-200">
+        <thead>
+            <tr class="bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider divide-x divide-slate-200">
+                <th class="py-3 px-3 w-10 text-center">
+                    <input
+                        type="checkbox"
+                        id="selectAllCheckbox"
+                        onclick="toggleSelectAll(this)"
+                        class="rounded border-slate-300"
+                    >
+                </th>
+                <th class="py-3 px-4">PRODUCT NAME & CODE</th>
+                <th class="py-3 px-4">PRODUCT TYPE</th>
+                <th class="py-3 px-4">CATEGORY</th>
+                <th class="py-3 px-4">INVENTORY STOCK</th>
+                <th class="py-3 px-4">PRICING TYPE</th>
+                <th class="py-3 px-4">PRICE</th>
+                <th class="py-3 px-4">TAX TREATMENT</th>
+                <th class="py-3 px-4">STATUS</th>
+                <th class="py-3 px-4 text-center">ACTIONS</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 text-slate-700 bg-white">
+            @if (count($productList) > 0)
+                @foreach ($productList as $item)
+                    @php
+                        $id = is_object($item) ? $item->id : $item['id'];
+                        $name = is_object($item) ? $item->name : $item['name'];
+                        $code = is_object($item) ? ($item->sku ?? 'PRD-' . sprintf('%04d', $id)) : ($item['sku'] ?? 'PRD-0000');
+                        $productType = is_object($item) ? ($item->product_type ?? '-') : ($item['product_type'] ?? '-');
+                        $cat = is_object($item) ? ($item->category ?? '-') : ($item['category'] ?? '-');
+                        $stock = is_object($item) ? ($item->inventory_stock ?? 0) : ($item['inventory_stock'] ?? 0);
+                        $pricing = is_object($item) ? ($item->pricing_type ?? '-') : ($item['pricing_type'] ?? '-');
+
+                        $priceVal = is_object($item) ? ($item->price ?? $item->standard_price ?? 0) : ($item['price'] ?? 0);
+                        $price = number_format($priceVal, 2);
+                        $tax = is_object($item) ? ($item->tax_treatment ?? '-') : ($item['tax_treatment'] ?? '-');
+                        $rawStatus = is_object($item) ? ($item->status ?? 'Draft') : ($item['status'] ?? 'Draft');
+                        $status = strtolower($rawStatus);
+                        $workspaceUrl = route('products.workspace', $id);
+                    @endphp
+                    <tr class="hover:bg-slate-50 transition divide-x divide-slate-200">
+                        <td class="py-3 px-3 text-center">
+                            <input
+                                type="checkbox"
+                                name="selected_products[]"
+                                value="{{ $id }}"
+                                class="product-checkbox rounded border-slate-300"
+                            >
+                        </td>
+                        <td class="py-3 px-4">
+                            <a
+                                href="{{ $workspaceUrl }}"
+                                class="font-bold text-slate-900 hover:text-blue-600 hover:underline block leading-tight"
+                            >
+                                {{ $name }}
+                            </a>
+                            <span class="text-[11px] text-slate-400 block font-normal mt-0.5">
+                                Code:
+                                <strong class="text-slate-600">{{ $code }}</strong>
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-slate-600 font-medium">
+                            {{ $productType }}
+                        </td>
+                        <td class="py-3 px-4 text-slate-600">
+                            {{ $cat }}
+                        </td>
+                        <td class="py-3 px-4 font-semibold text-slate-900">
+                            {{ $stock }} Units
+                        </td>
+                        <td class="py-3 px-4 text-slate-700">
+                            {{ $pricing }}
+                        </td>
+                        <td class="py-3 px-4 font-mono font-semibold text-slate-900">
+                            ₱{{ $price }}
+                        </td>
+                        <td class="py-3 px-4 text-slate-500">
+                            {{ $tax }}
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2.5 py-1 bg-white text-slate-700 rounded-full text-[10px] font-bold uppercase tracking-wide border border-slate-200">
+                                {{ ucfirst($status) }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <div class="inline-flex items-center space-x-1 justify-center">
+                                <!-- VIEW BUTTON -->
+                                <a
+                                    href="{{ route('products.workspace', ['id' => $id, 'mode' => 'view']) }}"
+                                    class="border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1 rounded text-[11px] transition inline-block shadow-sm"
+                                >
+                                    View
+                                </a>
+
+                                <!-- MORE DROPDOWN MENU -->
+                                <div class="relative inline-block text-left">
+                                    <button
+                                        onclick="toggleProductRowMenu(event, 'productMenu-{{ $id }}')"
+                                        type="button"
+                                        class="border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium px-2 py-1 rounded text-[11px] transition inline-flex items-center space-x-1 shadow-sm cursor-pointer"
+                                    >
+                                        <span>More</span>
+                                        <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                                    </button>
+
+                                    <div
+                                        id="productMenu-{{ $id }}"
+                                        class="product-row-menu hidden absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-lg shadow-xl py-1 z-50 text-left text-xs font-medium text-slate-700"
+                                    >
+                                        <a href="{{ route('products.workspace', $id) }}" class="block px-4 py-2 hover:bg-slate-50">
+                                            View Workspace
+                                        </a>
+                                        <a href="{{ route('products.workspace', ['id' => $id, 'mode' => 'edit']) }}" class="block px-4 py-2 hover:bg-slate-50">
+                                            Edit / New Revision
+                                        </a>
+
+                                        <!-- DUPLICATE FORM -->
+                                        <form action="{{ url('/products/' . $id . '/duplicate') }}" method="POST" class="block">
+                                            @csrf
+                                            <button type="submit" class="w-full text-left px-4 py-2 hover:bg-slate-50 cursor-pointer">
+                                                Duplicate Product
+                                            </button>
+                                        </form>
+
+                                        <a href="{{ route('products.workspace', $id) }}?tab=11" class="block px-4 py-2 hover:bg-slate-50">
+                                            Usage &amp; Performance
+                                        </a>
+
+                                        <div class="border-t border-slate-100 my-1"></div>
+
+                                        <!-- ARCHIVE FORM -->
+                                        <form action="{{ url('/products/' . $id . '/archive') }}" method="POST" class="block" onsubmit="return confirm('Are you sure you want to archive this product?');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium cursor-pointer">
+                                                Archive Product
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="10" class="py-8 text-center text-slate-400">
+                        No products found in database.
+                    </td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
+</div>
+
+{{-- Custom Pagination Footer --}}
+<div class="bg-white border border-slate-200 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-4 mt-4 shadow-sm text-xs text-slate-700">
+    <!-- Results Count Info -->
+    <div>
+        Showing <span class="font-semibold">{{ $products->firstItem() ?? 0 }}</span> to <span class="font-semibold">{{ $products->lastItem() ?? 0 }}</span> of <span class="font-semibold">{{ $products->total() }}</span> results
+    </div>
+
+    <!-- Records per page & Page Numbers -->
+    <div class="flex items-center space-x-6">
+        <!-- Records per page dropdown -->
+        <div class="flex items-center space-x-2">
+            <span class="text-slate-500">Records per page</span>
+            <select
+                onchange="window.location.href = this.value"
+                class="border border-slate-300 rounded px-2 py-1 bg-white text-xs outline-none focus:border-blue-500"
+            >
+                <option value="{{ $products->appends(['per_page' => 10])->url(1) }}" {{ $products->perPage() == 10 ? 'selected' : '' }}>10</option>
+                <option value="{{ $products->appends(['per_page' => 25])->url(1) }}" {{ $products->perPage() == 25 ? 'selected' : '' }}>25</option>
+                <option value="{{ $products->appends(['per_page' => 50])->url(1) }}" {{ $products->perPage() == 50 ? 'selected' : '' }}>50</option>
+                <option value="{{ $products->appends(['per_page' => 100])->url(1) }}" {{ $products->perPage() == 100 ? 'selected' : '' }}>100</option>
+            </select>
+        </div>
+
+        <!-- Custom Dark Pagination Links -->
+        @if ($products->hasPages())
+            <div class="inline-flex items-center bg-slate-900 rounded-lg overflow-hidden shadow-sm">
+                {{-- Previous Page Button --}}
+                @if ($products->onFirstPage())
+                    <span class="px-3 py-2 text-slate-500 cursor-not-allowed bg-slate-900 border-r border-slate-800">
+                        <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                    </span>
+                @else
+                    <a href="{{ $products->previousPageUrl() }}" class="px-3 py-2 text-white hover:bg-slate-800 transition border-r border-slate-800">
+                        <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                    </a>
+                @endif
+
+                {{-- Page Numbers --}}
+                @foreach ($products->getUrlRange(1, $products->lastPage()) as $page => $url)
+                    @if ($page == $products->currentPage())
+                        <span class="px-3 py-2 bg-slate-800 text-white font-bold border-r border-slate-700">
+                            {{ $page }}
+                        </span>
+                    @else
+                        <a href="{{ $url }}" class="px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white transition border-r border-slate-800">
+                            {{ $page }}
+                        </a>
+                    @endif
+                @endforeach
+
+                {{-- Next Page Button --}}
+                @if ($products->hasMorePages())
+                    <a href="{{ $products->nextPageUrl() }}" class="px-3 py-2 text-white hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </a>
+                @else
+                    <span class="px-3 py-2 text-slate-500 cursor-not-allowed bg-slate-900">
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </span>
+                @endif
+            </div>
+        @endif
+    </div>
+</div>
+
+
+{{-- 8. WHAT IS A PRODUCT MODAL --}}
+<div
+    id="whatIsProductModal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]"
+>
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 text-base space-y-5 relative z-[10000]">
+        <div class="flex justify-between items-center border-b pb-4">
+            <h3 class="text-xl font-bold text-slate-900">
+                What is a Product?
+            </h3>
+            <button
+                type="button"
+                onclick="document.getElementById('whatIsProductModal').classList.add('hidden')"
+                class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer"
+            >
+                &times;
+            </button>
+        </div>
+        <p class="text-slate-700 leading-relaxed text-base font-normal text-justify">
+            A <strong class="font-bold text-slate-900">Product</strong> defines a standardized offering in your catalog with inventory tracking, pricing models, requirements, and workflow activities.
+        </p>
+        <div class="flex justify-end pt-3 border-t">
+            <button
+                type="button"
+                onclick="document.getElementById('whatIsProductModal').classList.add('hidden')"
+                class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-lg shadow-md cursor-pointer transition"
+            >
+                Got it
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- 9. QUICK ADD PRODUCT MODAL --}}
+<div
+    id="quickAddModal"
+    class="fixed inset-0 w-screen h-screen bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-6 z-[9999]"
+>
+    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-8 text-sm relative z-[10000] max-h-[92vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Quick Add Product</h3>
+                <p class="text-xs text-slate-500 mt-1">Create a draft product shell to configure in workspace.</p>
+            </div>
+            <button
+                type="button"
+                onclick="document.getElementById('quickAddModal').classList.add('hidden')"
+                class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer"
+            >
+                &times;
+            </button>
+        </div>
+        <form
+            action="{{ route('products.store') }}"
+            method="POST"
+            class="space-y-4"
+        >
+            @csrf
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Product Name *</label>
+                <input
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="e.g. Stock Certificate Printing"
+                    class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
+                >
+            </div>
+
+            {{-- PRODUCT TYPE FIELD (May custom 'Other' option at hidden input) --}}
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Product Type *</label>
+                <select
+                    name="product_type"
+                    id="productTypeSelect"
+                    onchange="handleProductTypeChange(this)"
+                    required
+                    class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                >
+                    <option value="">Select product type</option>
+                    <option value="Service">Service</option>
+                    <option value="Bundle">Bundle</option>
+                    <option value="Package">Package</option>
+                    <option value="Physical Product">Physical Product</option>
+                    <option value="Digital Product">Digital Product</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                {{-- Hidden input na lilitaw lang kapag 'Other' ang pinili --}}
+                <div id="customProductTypeContainer" class="hidden mt-2">
+                    <input
+                        type="text"
+                        name="custom_product_type"
+                        id="customProductTypeInput"
+                        placeholder="Enter new product type..."
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-blue-500 bg-slate-50"
+                    >
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                {{-- SERVICE AREA --}}
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Service Area *</label>
+                    <select
+                        name="service_area"
+                        id="serviceAreaSelect"
+                        onchange="handleServiceAreaChange(this)"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                        <option value="">-- Select Service Area --</option>
+                        <option value="Corporate & Regulatory Advisory">Corporate & Regulatory Advisory</option>
+                        <option value="Governance & Policy Advisory">Governance & Policy Advisory</option>
+                        <option value="People & Talent Solutions">People & Talent Solutions</option>
+                        <option value="Strategic Situations Advisory">Strategic Situations Advisory</option>
+                        <option value="Accounting & Compliance Advisory">Accounting & Compliance Advisory</option>
+                        <option value="Business Strategy & Process Advisory">Business Strategy & Process Advisory</option>
+                        <option value="Learning & Capability Development">Learning & Capability Development</option>
+                        <option value="Others">Others</option>
+                        <option value="None">None</option>
+                        <option value="Service Add-Ons">Service Add-Ons</option>
+                    </select>
+                    <div id="customServiceAreaContainer" class="hidden mt-2">
+                        <input
+                            type="text"
+                            name="custom_service_area"
+                            id="customServiceAreaInput"
+                            placeholder="Enter new service area..."
+                            class="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-blue-500 bg-slate-50"
+                        >
+                    </div>
+                    <button
+                        type="button"
+                        onclick="toggleCustomField('serviceAreaSelect', 'customServiceAreaContainer', 'Others')"
+                        class="text-blue-600 hover:underline text-[11px] font-semibold mt-1 inline-block cursor-pointer"
+                    >
+                        + Add New Service Area
+                    </button>
+                </div>
+                {{-- CATEGORY --}}
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Category *</label>
+                    <select
+                        name="category"
+                        id="categorySelect"
+                        onchange="handleCategoryChange(this)"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                        <option value="">-- Select Category --</option>
+                        <option value="Professional Fees">Professional Fees</option>
+                        <option value="Consulting Revenue">Consulting Revenue</option>
+                        <option value="Accounting Services">Accounting Services</option>
+                        <option value="Tax Services">Tax Services</option>
+                        <option value="Corporate Services">Corporate Services</option>
+                        <option value="HR Services">HR Services</option>
+                        <option value="Training & Development">Training & Development</option>
+                        <option value="Other Income">Other Income</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <div id="customCategoryContainer" class="hidden mt-2">
+                        <input
+                            type="text"
+                            name="custom_category"
+                            id="customCategoryInput"
+                            placeholder="Enter new category..."
+                            class="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-blue-500 bg-slate-50"
+                        >
+                    </div>
+                    <button
+                        type="button"
+                        onclick="toggleCustomField('categorySelect', 'customCategoryContainer', 'Other')"
+                        class="text-blue-600 hover:underline text-[11px] font-semibold mt-1 inline-block cursor-pointer"
+                    >
+                        + Add New Category
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Pricing Type *</label>
+                    <select
+                        name="pricing_type"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                        <option value="">-- Select Pricing Type --</option>
+                        <option value="Fixed">Fixed</option>
+                        <option value="Variable">Variable</option>
+                        <option value="Tiered">Tiered</option>
+                        <option value="Subscription">Subscription</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Tax Treatment *</label>
+                    <select
+                        name="tax_treatment"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                        <option value="">-- Select Tax Treatment --</option>
+                        <option value="VAT Exclusive">VAT Exclusive</option>
+                        <option value="VAT Inclusive">VAT Inclusive</option>
+                        <option value="No Tax">No Tax</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                {{-- INVENTORY TYPE --}}
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Inventory Type *</label>
+                    <select
+                        name="inventory_type"
+                        id="inventoryTypeSelect"
+                        onchange="handleInventoryTypeChange(this)"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                        <option value="">Select inventory type</option>
+                        <option value="Non-Inventory">Non-Inventory</option>
+                        <option value="Inventory">Inventory</option>
+                        <option value="Service">Service</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <div id="customInventoryContainer" class="hidden mt-2">
+                        <input
+                            type="text"
+                            name="custom_inventory_type"
+                            id="customInventoryInput"
+                            placeholder="Enter new inventory type..."
+                            class="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-sm outline-none focus:border-blue-500 bg-slate-50"
+                        >
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Initial Stock *</label>
+                    <input
+                        type="number"
+                        name="inventory_stock"
+                        value="0"
+                        min="0"
+                        required
+                        class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    >
+                </div>
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Description (Optional)</label>
+                <textarea
+                    name="description"
+                    rows="3"
+                    placeholder="Brief summary for internal catalog..."
+                    class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
+                ></textarea>
+            </div>
+            <div class="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                    type="button"
+                    onclick="document.getElementById('quickAddModal').classList.add('hidden')"
+                    class="px-5 py-2 border border-slate-300 text-slate-700 font-medium text-xs rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition cursor-pointer"
+                >
+                    Save Product
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- JavaScript para umandar ang pag-hide/show ng custom input kapag pinili ang 'Other' --}}
+
+<script>
+    function handleProductTypeChange(select) {
+        const container = document.getElementById('customProductTypeContainer');
+        const input = document.getElementById('customProductTypeInput');
+        if (select.value === 'Other') {
+            container.classList.remove('hidden');
+            input.required = true;
+        } else {
+            container.classList.add('hidden');
+            input.required = false;
+            input.value = '';
+        }
+    }
+</script>
+
+
+{{-- 10. IMPORT PRODUCT MODAL --}}
+<div
+    id="importProductModal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]"
+>
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-5 relative z-[10000]">
+        <div class="flex justify-between items-center border-b pb-4">
+            <h3 class="text-base font-bold text-slate-900">
+                Import Product Specification
+            </h3>
+            <button
+                type="button"
+                onclick="document.getElementById('importProductModal').classList.add('hidden')"
+                class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+            >
+                &times;
+            </button>
+        </div>
+        <form
+            action="{{ route('products.import.store') }}"
+            method="POST"
+            enctype="multipart/form-data"
+            class="space-y-4"
+        >
+            @csrf
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Select File *</label>
+                <input
+                    type="file"
+                    name="file"
+                    required
+                    class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-300 rounded-lg cursor-pointer"
+                >
+                <p class="text-[11px] text-slate-500 mt-1">Supported formats: CSV, XLSX, JSON</p>
+            </div>
+            <div class="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                    type="button"
+                    onclick="document.getElementById('importProductModal').classList.add('hidden')"
+                    class="px-4 py-2 border border-slate-300 text-slate-700 font-medium text-xs rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition cursor-pointer"
+                >
+                    Upload & Import
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+function toggleBulkActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('bulkActionsMenu');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
+}
+function toggleProductRowMenu(event, menuId) {
+    event.stopPropagation();
+
+    document.querySelectorAll('.product-row-menu').forEach(menu => {
+        if (menu.id !== menuId) {
+            menu.classList.add('hidden');
+        }
+    });
+    const targetMenu = document.getElementById(menuId);
+    if (targetMenu) {
+        targetMenu.classList.toggle('hidden');
+    }
+}
+function toggleSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.product-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCheckbox.checked;
+    });
+}
+function handleServiceAreaChange(selectElement) {
+    const customContainer = document.getElementById('customServiceAreaContainer');
+    const customInput = document.getElementById('customServiceAreaInput');
+    if (selectElement.value === 'Others') {
+        customContainer.classList.remove('hidden');
+        customInput.required = true;
+    } else {
+        customContainer.classList.add('hidden');
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+function handleCategoryChange(selectElement) {
+    const customContainer = document.getElementById('customCategoryContainer');
+    const customInput = document.getElementById('customCategoryInput');
+    if (selectElement.value === 'Other') {
+        customContainer.classList.remove('hidden');
+        customInput.required = true;
+    } else {
+        customContainer.classList.add('hidden');
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+function handleInventoryTypeChange(selectElement) {
+    const customContainer = document.getElementById('customInventoryContainer');
+    const customInput = document.getElementById('customInventoryInput');
+    if (selectElement.value === 'Other') {
+        customContainer.classList.remove('hidden');
+        customInput.required = true;
+    } else {
+        customContainer.classList.add('hidden');
+        customInput.required = false;
+        customInput.value = '';
+    }
+}
+function toggleCustomField(selectId, containerId, otherValue) {
+    const select = document.getElementById(selectId);
+    const container = document.getElementById(containerId);
+    const input = container.querySelector('input');
+
+    select.value = otherValue;
+    container.classList.remove('hidden');
+    input.required = true;
+    input.focus();
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#bulkActionsMenu')) {
+        document.getElementById('bulkActionsMenu')?.classList.add('hidden');
+    }
+    if (!e.target.closest('.product-row-menu') && !e.target.closest('button[onclick*="toggleProductRowMenu"]')) {
+        document.querySelectorAll('.product-row-menu').forEach(menu => {
+            menu.classList.add('hidden');
+        });
     }
 });
+
+function openFieldModal(fieldType) {
+    document.getElementById('createFieldMenu').classList.add('hidden');
+
+    document.getElementById('modalFieldTypeName').innerText = fieldType;
+    document.getElementById('modalFieldType').value = fieldType;
+
+    const picklistContainer = document.getElementById('picklistOptionsContainer');
+
+    if (fieldType === 'Picklist') {
+        picklistContainer.classList.remove('hidden');
+    } else {
+        picklistContainer.classList.add('hidden');
+    }
+
+    // Get the selected product from the product checkbox.
+    const selectedProduct = document.querySelector('.product-checkbox:checked');
+
+    const productId = selectedProduct
+        ? selectedProduct.value
+        : '';
+
+    document.getElementById('customFieldProductId').value = productId;
+
+    document.getElementById('createFieldModal').classList.remove('hidden');
+}
+
+function closeFieldModal() {
+    document.getElementById('createFieldModal').classList.add('hidden');
+}
+
+function submitCustomField(event) {
+    event.preventDefault();
+
+    const form = document.getElementById('createCustomFieldForm');
+    const productId = document.getElementById('customFieldProductId').value;
+
+    if (!productId) {
+        alert('Please select a product first.');
+        return;
+    }
+
+    form.action = `/products/${encodeURIComponent(productId)}/custom-fields`;
+
+    form.submit();
+}
+
+
 </script>
 @endsection
