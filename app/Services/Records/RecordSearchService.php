@@ -15,6 +15,15 @@ use Illuminate\Support\Facades\Gate;
  */
 class RecordSearchService
 {
+    /**
+     * The character LIKE patterns are escaped with.
+     *
+     * Not a backslash: a backslash is itself an escape character inside a MySQL
+     * or MariaDB string literal, so naming it as the ESCAPE character produces
+     * SQL neither engine can parse. See escape() for the full reasoning.
+     */
+    private const ESCAPE = '!';
+
     public function __construct(private readonly CompanyContext $context) {}
 
     /**
@@ -56,24 +65,25 @@ class RecordSearchService
     public function apply(Builder $query, array $filters): Builder
     {
         return $query
-            // Free-text search needs an explicit ESCAPE clause: MySQL defaults to
-            // a backslash, SQLite has no default, so the two would disagree.
+            // Free-text search needs an explicit ESCAPE clause: the engines disagree on
+            // the default, so relying on it makes a literal % searchable on one and
+            // a wildcard on another.
             ->when($this->filled($filters, 'q'), fn (Builder $q) => $q->where(
                 fn (Builder $inner) => $inner->whereRaw(
-                    "title LIKE ? ESCAPE '\\'",
+                    "title LIKE ? ESCAPE '!'",
                     [$filters['q']],
                 )
-                    ->orWhereRaw("document_reference LIKE ? ESCAPE '\\'", [$filters['q']])
-                    ->orWhereRaw("id LIKE ? ESCAPE '\\'", [$filters['q']])
-                    ->orWhereRaw("source LIKE ? ESCAPE '\\'", [$filters['q']])
-                    ->orWhereRaw("external_reference_number LIKE ? ESCAPE '\\'", [$filters['q']])
-                    ->orWhereRaw("notes LIKE ? ESCAPE '\\'", [$filters['q']])
+                    ->orWhereRaw("document_reference LIKE ? ESCAPE '!'", [$filters['q']])
+                    ->orWhereRaw("id LIKE ? ESCAPE '!'", [$filters['q']])
+                    ->orWhereRaw("source LIKE ? ESCAPE '!'", [$filters['q']])
+                    ->orWhereRaw("external_reference_number LIKE ? ESCAPE '!'", [$filters['q']])
+                    ->orWhereRaw("notes LIKE ? ESCAPE '!'", [$filters['q']])
             ))
             // OCR text lives on the file rows, so a full-text hit is a whereHas.
             ->when($this->filled($filters, 'ocr'), fn (Builder $q) => $q->whereHas(
                 'files',
                 fn (Builder $files) => $files->whereRaw(
-                    "ocr_text LIKE ? ESCAPE '\\'",
+                    "ocr_text LIKE ? ESCAPE '!'",
                     [$filters['ocr']],
                 ),
             ))
@@ -161,9 +171,20 @@ class RecordSearchService
                 continue;
             }
 
+            // '!' rather than a backslash, deliberately.
+            //
+            // A backslash is the default escape character inside a MySQL or
+            // MariaDB string literal, so `ESCAPE '\'` is parsed as an escaped
+            // quote and leaves the literal unterminated: the register's search
+            // returned a syntax error on every MySQL and MariaDB connection and
+            // SQLite hid it. The escape character itself must therefore be one with
+            // no meaning in the SQL around it.
+            //
+            // '!' must be replaced first, or the doubling of the wildcards it
+            // introduces would be escaped a second time.
             $term = str_replace(
-                ['\\', '%', '_'],
-                ['\\\\', '\%', '\_'],
+                [self::ESCAPE, '%', '_'],
+                [self::ESCAPE.self::ESCAPE, self::ESCAPE.'%', self::ESCAPE.'_'],
                 $filters[$key],
             );
 

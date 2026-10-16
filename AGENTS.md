@@ -27,8 +27,7 @@ This project is strictly confidential and contains proprietary business requirem
 - **Styling:** Tailwind CSS[cite: 1].
 - **Interactivity:** Alpine.js or Livewire[cite: 1].
 - **PDF Processing:** `smalot/pdfparser`[cite: 1].
-- **Image Processing:** Intervention Image[cite: 1].
-- **QR Generation:** `simplesoftwareio/simple-qrcode`[cite: 1].
+- **QR Generation:** `bacon/bacon-qr-code`[cite: 1]. **SVG, not raster** — `ext-gd` is not required and not installed. The label is printed, and SVG is resolution independent, so one asset serves a 203dpi label printer and a laser printer. This is a deliberate departure from the originally-specified `simplesoftwareio/simple-qrcode`, which hard-depends on `ext-gd` and therefore cannot be installed at all on a host without it. Do not reintroduce a rasteriser dependency; there is nothing to rasterise.
 
 ---
 
@@ -128,3 +127,14 @@ When fixing or enhancing document previews across drawers (`#classifyDrawer`, `#
 ---
 
 **Progressive Disclosure:** Show only necessary default fields (Company, Classification, Index, Title, Document Date, Source, Reference No.)[cite: 1]. Keep "Advanced Details" (Identifiers, Dates, Signatories, Financials) collapsed and expose them conditionally based on the selected Index[cite: 1].
+
+---
+
+## v2.1 Roadmap
+Deliberately left undone at the v2.0.0 milestone. Each item is a real gap, not a nice-to-have; they are ordered by how much they block a real deployment.
+
+1. **Authentication.** The single blocking item for any workplace deployment. There is no sign-in: `bootstrap/app.php` registers no `auth` middleware, so every request resolves a role from `config('ordo.default_role')`. The current `.env` sets that to `system_admin`, which means every anonymous request has full rights — scheme management, numbering, legal holds. Everything the policy layer enforces is only as strong as this fallback. **No deployment checklist should be signed off while this stands.**
+2. **Setup UI for `advanced_field_config`.** The column exists on `record_indexes` and the drawer reads it, but nothing writes it. Until an admin can set it, every Index has no config and therefore renders none of the four advanced sections. The contract the drawer expects is `{ sections: [...], required: [...] }`, with a bare `true` still meaning all four.
+3. **Submit-blocking on `required`.** `required` currently drives auto-open and the badge only. A section listed as required is not enforced, so a record can be filed with it empty while the interface claimed otherwise.
+4. **Label print audit logging.** The Record Label writes no trail entry. Everything else that matters is append-only logged; a physical label handed to someone is not, so there is no answer to "who printed this".
+5. **Configurable file ceilings.** `max:20480` (intake, 20 MB) and `max:51200` (supporting files and versions, 50 MB) are hard-coded in the FormRequests. There is no `.env` key, so the deployment checklist cannot configure them without a code change.

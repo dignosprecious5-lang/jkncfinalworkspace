@@ -219,7 +219,7 @@ class RecordNumberingAtomicityTest extends TestCase
                 return;
             }
 
-            if (preg_match('/from "(\w+)"/', (string) $query->sql, $m) === 1) {
+            if (preg_match('/from [`"](\w+)[`"]/', (string) $query->sql, $m) === 1) {
                 $tables[] = $m[1];
             }
         });
