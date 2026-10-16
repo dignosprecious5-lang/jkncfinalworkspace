@@ -4,10 +4,12 @@ namespace App\Jobs;
 
 use App\Enums\OcrStatus;
 use App\Models\RecordFile;
+use App\Services\Records\DocumentTextExtractor;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class ProcessIntakeOcr implements ShouldQueue
@@ -61,18 +63,43 @@ class ProcessIntakeOcr implements ShouldQueue
 
     /**
      * Document reading is queued asynchronously and must never block the original file
-     * from being preserved or filed manually. Extraction is deferred to a later sprint
-     * day; this job proves the async path and settles the file into a terminal state.
+     * from being preserved or filed manually.
+     *
+     * Extraction lives in DocumentTextExtractor so this job only decides what a read
+     * means for a file's state. A file that yields text becomes Ready with the text
+     * stored; a file that yields none becomes Needs Review carrying the reason.
+     *
+     * Nothing here throws for an unreadable document: the stored bytes stay put
+     * either way, and an exception would only cost us the reason the file could not
+     * be read, which is the one thing the drawer needs to show.
      */
     public function handle(): void
     {
+        $extractor = $this->extractor();
+
         foreach ($this->files() as $file) {
             try {
                 $file->forceFill(['ocr_status' => OcrStatus::Reading])->save();
 
+                $result = $extractor->extract(
+                    $this->absolutePath($file),
+                    (string) $file->mime_type,
+                    (string) $file->extension,
+                );
+
+                if ($result['reason'] !== null) {
+                    // No text is not a success. Settling these to Ready — which is
+                    // what the earlier stub did — made an unreadable document look
+                    // like it had been read.
+                    $this->settleForReview($file, $result['reason']);
+
+                    continue;
+                }
+
                 $file->forceFill([
+                    'ocr_text' => $result['text'],
                     'ocr_status' => OcrStatus::Ready,
-                    'ocr_error' => 'Document reading is not implemented yet; the file is preserved and may be filed manually.',
+                    'ocr_error' => null,
                     'ocr_completed_at' => now(),
                 ])->save();
             } catch (Throwable $e) {
@@ -102,6 +129,36 @@ class ProcessIntakeOcr implements ShouldQueue
 
         foreach ($this->files() as $file) {
             $this->settleForReview($file, $reason);
+        }
+    }
+
+    /**
+     * Resolved inside the job rather than injected.
+     *
+     * A job is rebuilt from its serialised payload on the worker, so a constructor
+     * dependency would have to be serialisable. Resolving here keeps the payload to
+     * the three identifiers it genuinely needs, which is also all a worker can
+     * safely be handed.
+     */
+    private function extractor(): DocumentTextExtractor
+    {
+        return app(DocumentTextExtractor::class);
+    }
+
+    /**
+     * Where a file's bytes actually are on disk.
+     *
+     * Read through the file's own disk rather than assumed to be the default,
+     * because a supporting file or a new version can be stored on another one. A
+     * disk that cannot be resolved yields an empty path, which the extractor
+     * reports as Needs Review rather than as a job failure.
+     */
+    private function absolutePath(RecordFile $file): string
+    {
+        try {
+            return Storage::disk((string) $file->disk)->path((string) $file->path);
+        } catch (Throwable) {
+            return '';
         }
     }
 

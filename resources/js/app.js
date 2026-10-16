@@ -318,6 +318,13 @@ function currentMaster(files) {
     )[0] ?? null;
 }
 
+/**
+ * The advanced sections an Index may ask for, in the order the drawer renders
+ * them. The keys are the field names the filing form submits, so an
+ * advanced_field_config names exactly what it controls.
+ */
+const ADVANCED_SECTIONS = ['identifiers', 'additional_dates', 'signatories', 'financials'];
+
 Alpine.data('queueUpload', (uploadUrl) => ({
     dragging: false,
     busy: false,
@@ -1765,13 +1772,56 @@ Alpine.data('classifyDrawer', (items, classifications, indexesByClassification, 
     },
 
     /**
-     * Some Index codes carry an advanced_field_config that asks for the collapsed
-     * section; when the selected Index demands it, the section is opened for the user.
+     * Whether the collapsed panel should open itself, because the Index asks for
+     * something in it.
+     *
+     * Sections an Index merely allows are not required, so the badge refers to the
+     * `required` list rather than to the whole config.
      */
     get advancedRequired() {
         const config = this.currentIndexConfig();
 
-        return config === true || (typeof config === 'object' && config !== null);
+        if (config === true) {
+            return true;
+        }
+
+        if (typeof config !== 'object' || config === null) {
+            return false;
+        }
+
+        return Array.isArray(config.required) && config.required.length > 0;
+    },
+
+    /**
+     * Which advanced sections the selected Index actually asks for.
+     *
+     * AGENTS.md asks for these to be "exposed conditionally based on the selected
+     * Index", so an Index that declares nothing shows none of them — the panel
+     * still opens by hand and still carries External Reference, Retention Period
+     * and Confidential, which are always available.
+     *
+     * A bare `true` is what this panel already accepted before sections existed and
+     * still means all four, so an Index configured the old way keeps working rather
+     * than silently losing its fields.
+     */
+    get advancedSections() {
+        const config = this.currentIndexConfig();
+
+        if (config === true) {
+            return [...ADVANCED_SECTIONS];
+        }
+
+        if (typeof config !== 'object' || config === null || ! Array.isArray(config.sections)) {
+            return [];
+        }
+
+        // Unknown keys are dropped rather than rendered: a typo in a stored config
+        // should show one field too few, not an unlabelled input.
+        return config.sections.filter((section) => ADVANCED_SECTIONS.includes(section));
+    },
+
+    advancedSectionVisible(section) {
+        return this.advancedSections.includes(section);
     },
 
     currentIndexConfig() {

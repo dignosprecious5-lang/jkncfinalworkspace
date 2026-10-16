@@ -294,7 +294,8 @@
                         </x-ordo.field>
                     </div>
 
-                    {{-- Advanced Details stays collapsed until the index asks for it. --}}
+                    {{-- Advanced Details stays collapsed until the index asks for it, and
+                         then renders only the sections that index actually applies. --}}
                     <details class="mt-3 border-t border-ordo-line pt-2.5"
                              x-bind:open="advancedRequired"
                              x-on:toggle="if ($event.target.open) $event.target.setAttribute('data-opened-by-user', 'true')">
@@ -315,14 +316,18 @@
                                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                             </x-ordo.field>
 
-                            <div class="col-span-full grid grid-cols-2 gap-2.5 max-[860px]:grid-cols-1">
+                            {{-- Only the sections the selected Index declares. An Index with no
+                                 advanced_field_config shows none of them, which is the progressive
+                                 disclosure AGENTS.md asks for. --}}
+                            <div class="col-span-full grid grid-cols-2 gap-2.5 max-[860px]:grid-cols-1"
+                                 x-show="advancedSections.length > 0">
                                 @foreach ([
                                     'identifiers' => 'Identifiers',
                                     'additional_dates' => 'Additional Dates',
                                     'signatories' => 'Signatories',
                                     'financials' => 'Financials',
                                 ] as $key => $label)
-                                    <x-ordo.field :label="$label">
+                                    <x-ordo.field :label="$label" x-show="advancedSectionVisible('{{ $key }}')">
                                         <textarea name="{{ $key }}[]" rows="3" x-model="form.{{ $key }}"
                                                   placeholder="One value per line"
                                                   class="min-h-[74px] w-full resize-y rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue"></textarea>

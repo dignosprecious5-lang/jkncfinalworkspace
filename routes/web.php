@@ -6,6 +6,7 @@ use App\Http\Controllers\Records\RecordActivityLogController;
 use App\Http\Controllers\Records\RecordArchiveController;
 use App\Http\Controllers\Records\RecordClassificationController;
 use App\Http\Controllers\Records\RecordController;
+use App\Http\Controllers\Records\RecordLabelController;
 use App\Http\Controllers\Records\RecordDashboardController;
 use App\Http\Controllers\Records\RecordFieldController;
 use App\Http\Controllers\Records\RecordFileAttachmentController;
@@ -228,4 +229,13 @@ Route::middleware('ordo.context')->group(function (): void {
     Route::get('/records/{record}/preview', [RecordController::class, 'preview'])
         ->middleware('ordo.record')
         ->name('records.preview');
+
+    // The printable label, and the last step of the core flow. Carries both
+    // ordo.record and can:view,record: the middleware resolves the record under
+    // company scope and answers 404 rather than 403, and the policy decides
+    // whether this role may view it at all — including the confidentiality check
+    // that keeps a secret record's label out of reach.
+    Route::get('/records/{record}/label', [RecordLabelController::class, 'show'])
+        ->middleware(['ordo.record', 'can:view,record'])
+        ->name('records.label');
 });

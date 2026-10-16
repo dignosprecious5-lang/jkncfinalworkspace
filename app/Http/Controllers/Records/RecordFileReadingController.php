@@ -23,10 +23,10 @@ use Illuminate\Support\Facades\Auth;
  *
  * The control does exactly one thing here: it puts this one file back on the
  * queue. It does not extract anything itself, and it does not pretend to —
- * extraction is ProcessIntakeOcr's job and it is not implemented yet. What this
- * controller owns is the part that is real: the file is reset to Queued, the job
- * is dispatched against that single file, and the preview can then poll for the
- * genuine outcome rather than showing a timer that means nothing.
+ * extraction is ProcessIntakeOcr's job, on a worker. What this controller owns is
+ * the part that is real: the file is reset to Queued, the job is dispatched against
+ * that single file, and the preview can then poll for the genuine outcome rather
+ * than showing a timer that means nothing.
  *
  * Both routes are driven by fetch, so they answer with JSON.
  *
