@@ -15,11 +15,34 @@ use App\Models\User;
 use App\Services\CompanyContext;
 use App\Support\DocumentReferenceGenerator;
 use App\Support\RecordNumberGenerator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use LogicException;
 
 class RecordFilingService
 {
+    /**
+     * How many times a filing is retried when the Document Reference collides.
+     *
+     * The reference is five glyphs from a 32-character alphabet, so the keyspace is
+     * about 33.5 million and a collision is rare — but the records table carries a
+     * unique index on (tenant_id, company_id, document_reference), and that index
+     * is what actually decides. DocumentReferenceGenerator's own existence loop
+     * cannot see uncommitted rows, so two filings landing together can still reach
+     * it. One retry turns an HTTP 500 into a filed record.
+     */
+    private const REFERENCE_COLLISION_ATTEMPTS = 3;
+
+    /**
+     * The index whose violation is safe to treat as a lost race.
+     *
+     * Matching on this rather than on "any QueryException" matters: retrying a
+     * foreign key failure or a check violation three times would delay a real bug
+     * and then report it as something it is not.
+     */
+    private const REFERENCE_INDEX = 'records_tenant_company_doc_ref_unique';
+
     public function __construct(
         private readonly CompanyContext $context,
         private readonly DocumentReferenceGenerator $references,
@@ -47,6 +70,14 @@ class RecordFilingService
         $this->guardItemIsOpen($item, $tenantId, $companyId);
         $this->capacity->verifyFilingCapacity();
 
+        return $this->fileWithRetry($item, $attributes, $filedBy, $tenantId, $companyId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function fileInTransaction(RecordIntakeItem $item, array $attributes, ?User $filedBy, string $tenantId, string $companyId): Record
+    {
         return DB::transaction(function () use ($item, $attributes, $filedBy, $tenantId, $companyId): Record {
             $locked = RecordIntakeItem::query()
                 ->whereKey($item->getKey())
@@ -123,6 +154,75 @@ class RecordFilingService
 
             return $record->load(['classification', 'index', 'files']);
         });
+    }
+
+    /**
+     * Run the filing transaction, retrying only a lost race for the Document
+     * Reference.
+     *
+     * The retry sits *outside* the transaction rather than inside it, because that
+     * is the only portable place to put it: on PostgreSQL a unique violation
+     * poisons the whole transaction, so every statement after it fails with 25P02
+     * and retrying within the same transaction cannot work. MySQL only aborts the
+     * offending statement, which is why an in-transaction retry would appear to
+     * work there and fail in production on the other engine.
+     *
+     * Each attempt re-runs the entire transaction, so the intake item is re-locked
+     * and re-checked rather than resumed. That matters because a failed attempt
+     * rolled back: the item is open again and the capacity check has to hold.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function fileWithRetry(RecordIntakeItem $item, array $attributes, ?User $filedBy, string $tenantId, string $companyId): Record
+    {
+        $attempt = 0;
+
+        while (true) {
+            try {
+                return $this->fileInTransaction($item, $attributes, $filedBy, $tenantId, $companyId);
+            } catch (QueryException $e) {
+                $attempt++;
+
+                if ($attempt >= self::REFERENCE_COLLISION_ATTEMPTS || ! $this->isReferenceCollision($e)) {
+                    throw $e;
+                }
+
+                // Collision, not failure. Logged at warning rather than reported: the filing
+                // succeeds on the retry, so this is an anomaly worth being able to
+                // find — a rising rate would mean the keyspace is filling up —
+                // but reporting it would page someone for something that worked.
+                Log::warning('Document Reference collision on filing; retried with a new reference.', [
+                    'tenant_id' => $tenantId,
+                    'company_id' => $companyId,
+                    'attempt' => $attempt,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Whether this failure is the Document Reference index and nothing else.
+     *
+     * Matching the index name keeps a foreign key violation or a check constraint
+     * from being retried three times and then reported as a collision.
+     */
+    private function isReferenceCollision(QueryException $e): bool
+    {
+        // SQLSTATE class 23 is an integrity-constraint violation: MySQL 23000,
+        // PostgreSQL 23505, SQLite 23000. Requiring it stops a foreign key or
+        // not-null failure elsewhere in the insert from being retried and then
+        // reported as a collision.
+        if (! str_starts_with((string) $e->getCode(), '23')) {
+            return false;
+        }
+
+        // The index name alone would not be portable: MySQL and PostgreSQL name
+        // the index, but SQLite reports the columns instead, so a match on the
+        // name alone would mean the retry never fires under the test suite.
+        $message = $e->getMessage();
+
+        return str_contains($message, self::REFERENCE_INDEX)
+            || str_contains($message, 'document_reference');
     }
 
     /**

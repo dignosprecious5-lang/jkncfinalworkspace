@@ -180,6 +180,33 @@ class RecordNumberingAtomicityTest extends TestCase
     }
 
     /**
+     * The operator save has to take the same lock as filing, or the two can
+     * interleave and rewind the counter. Same caveat as above: unobservable on
+     * SQLite.
+     */
+    public function test_the_numbering_save_locks_the_same_row_filing_does(): void
+    {
+        $this->requireRowLocks();
+
+        $admin = \App\Models\User::factory()->create(['role' => \App\Enums\UserRole::SystemAdmin]);
+
+        $tables = $this->lockedTablesDuring(function () use ($admin): void {
+            \App\Support\Auth::as($admin, fn () => $this->put(route('records.numbering.update'), [
+                'record_prefix' => 'LOCK',
+                'record_sequence_digits' => 6,
+                'record_next_sequence' => 1,
+                'record_include_year' => 'yes',
+            ])->assertRedirect());
+        });
+
+        $this->assertContains(
+            'companies',
+            $tables,
+            'The numbering save must serialise against filing on the company row.',
+        );
+    }
+
+    /**
      * @param  callable(): void  $during
      * @return list<string>
      */

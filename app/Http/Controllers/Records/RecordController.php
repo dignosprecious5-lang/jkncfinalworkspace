@@ -10,13 +10,11 @@ use App\Models\Record;
 use App\Models\RecordActivityLog;
 use App\Models\RecordFile;
 use App\Models\RecordLink;
-use App\Services\CompanyContext;
 use App\Services\Records\RecordFileStreamer;
 use App\Services\Records\RecordLookups;
 use App\Services\Records\RecordSearchService;
 use App\Services\Records\RecordService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -38,7 +36,6 @@ class RecordController extends Controller
         private readonly RecordService $records,
         private readonly RecordLookups $lookups,
         private readonly RecordSearchService $search,
-        private readonly CompanyContext $context,
         private readonly RecordFileStreamer $streamer,
     ) {}
 
@@ -291,27 +288,5 @@ class RecordController extends Controller
         return implode(',', array_map(static function (string $value): string {
             return '"'.str_replace('"', '""', $value).'"';
         }, $values))."\r\n";
-    }
-
-    /**
-     * Kept for the routes that have not moved to the ordo.record middleware yet.
-     */
-    private function findScoped(string $record): Record
-    {
-        return Record::query()
-            ->where('tenant_id', $this->lookupsTenantId())
-            ->where('company_id', $this->lookupsCompanyId())
-            ->with(['classification', 'index', 'files', 'links', 'activityLogs.user'])
-            ->find($record) ?? throw (new ModelNotFoundException)->setModel(Record::class);
-    }
-
-    private function lookupsTenantId(): string
-    {
-        return $this->context->tenantId();
-    }
-
-    private function lookupsCompanyId(): string
-    {
-        return $this->context->id();
     }
 }

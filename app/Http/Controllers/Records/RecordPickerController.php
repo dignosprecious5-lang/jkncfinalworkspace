@@ -17,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use LogicException;
 
@@ -223,15 +224,27 @@ class RecordPickerController extends Controller
     }
 
     /**
-     * The link target arrives as a submitted id rather than a route parameter, so
-     * it is resolved here under the active company. A target belonging to another
+ * The link target arrives as a submitted id rather than a route parameter, so it
+     * is resolved here under the active company. A target belonging to another
      * company is a 404, so its existence is never confirmed.
+     *
+     * The same confidentiality rule the picker itself applies is applied to the
+     * written target. The candidate list reads through RecordSearchService::scoped()
+     * and withholds confidential records, but that only governs what the dialog
+     * offers — it does nothing about an id submitted directly. The ordo.record
+     * middleware does not help either, because it resolves the {record} route
+     * parameter, which is the source of the link, not its target.
+     *
+     * Without this the reference below would be echoed back in the flash message
+     * and persisted as linked_label, so a role that cannot see a confidential
+     * record could still read its Document Reference by posting its id.
      */
     private function findScopedRecord(string $record): Record
     {
         return Record::query()
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->id())
+            ->when(! Gate::allows('viewConfidential'), fn (Builder $query) => $query->where('is_confidential', false))
             ->find($record) ?? throw (new ModelNotFoundException)->setModel(Record::class);
     }
 }

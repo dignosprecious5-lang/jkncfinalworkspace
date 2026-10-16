@@ -8,6 +8,7 @@ use App\Models\Record;
 use App\Models\RecordActivityLog;
 use App\Models\RecordClassification;
 use App\Models\RecordIndex;
+use App\Models\RecordLink;
 use App\Models\User;
 use App\Policies\RecordPolicy;
 use App\Services\Records\RecordFilingService;
@@ -272,6 +273,82 @@ class ConfidentialRecordExposureTest extends TestCase
         );
 
         $this->assertSame(404, $status);
+    }
+
+    // ---------------------------------------------------------------------
+    // The link target.
+    // ---------------------------------------------------------------------
+
+    /**
+     * The picker's candidate list reads through scoped(), so it withholds a
+     * confidential record. That governs only what the dialog offers — it says
+     * nothing about an id posted directly, and the ordo.record middleware cannot
+     * help because it resolves the {record} route parameter, which is the source of
+     * the link rather than its target.
+     */
+    public function test_a_confidential_record_cannot_be_linked_to_by_a_standard_user(): void
+    {
+        $open = $this->record(['title' => 'Ordinary Record']);
+        $secret = $this->confidentialRecord(['title' => 'Board Resolution']);
+
+        $standard = User::factory()->create(['role' => UserRole::StandardUser]);
+
+        $response = Auth::as($standard, fn () => $this->post(route('records.links.store', [
+            'record' => $open->id,
+        ]), [
+            // target only: sending module as well makes reference_id required, so
+            // validation would answer first and the test would prove nothing.
+            'target' => (string) $secret->id,
+            'link_type' => 'related',
+        ]));
+
+        // 404 rather than 403, like every other withheld record.
+        $this->assertSame(404, $response->getStatusCode());
+    }
+
+    /**
+     * The reference was echoed in the flash message and persisted as linked_label,
+     * so a refusal has to mean neither happened.
+     */
+    public function test_a_refused_link_stores_nothing_and_echoes_no_reference(): void
+    {
+        $open = $this->record(['title' => 'Ordinary Record']);
+        $secret = $this->confidentialRecord(['title' => 'Board Resolution']);
+
+        $standard = User::factory()->create(['role' => UserRole::StandardUser]);
+
+        $status = Auth::as($standard, function () use ($open, $secret): string {
+            $this->post(route('records.links.store', ['record' => $open->id]), [
+                'target' => (string) $secret->id,
+                'link_type' => 'related',
+            ]);
+
+            return (string) session('status');
+        });
+
+        $this->assertStringNotContainsString((string) $secret->document_reference, $status);
+        $this->assertSame(0, RecordLink::query()->where('record_id', $open->id)->count());
+    }
+
+    /**
+     * And the rule has to stay role-aware, or it hides records rather than
+     * protecting them: an Auditor is meant to be able to work across them.
+     */
+    public function test_a_confidential_record_can_still_be_linked_to_by_an_auditor(): void
+    {
+        $open = $this->record(['title' => 'Ordinary Record']);
+        $secret = $this->confidentialRecord(['title' => 'Board Resolution']);
+
+        $auditor = User::factory()->create(['role' => UserRole::Auditor]);
+
+        Auth::as($auditor, function () use ($open, $secret): void {
+            $this->post(route('records.links.store', ['record' => $open->id]), [
+                'target' => (string) $secret->id,
+                'link_type' => 'related',
+            ])->assertRedirect();
+        });
+
+        $this->assertSame(1, RecordLink::query()->where('record_id', $open->id)->count());
     }
 
     // ---------------------------------------------------------------------
