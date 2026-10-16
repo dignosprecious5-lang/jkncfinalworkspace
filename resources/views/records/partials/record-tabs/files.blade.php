@@ -23,6 +23,7 @@
         <form method="POST" enctype="multipart/form-data" x-bind:action="recordUrl(supportingUrl)">
             @csrf
             <input type="file" name="file" class="sr-only" id="ordo-supporting-file"
+                   accept="{{ collect(config('ordo.document_extensions'))->map(fn ($ext) => ".{$ext}")->join(',') }}"
                    x-on:change="$el.form.submit()"
                    x-bind:disabled="! current || archived" />
             <label for="ordo-supporting-file"
@@ -33,6 +34,7 @@
         <form method="POST" enctype="multipart/form-data" x-bind:action="recordUrl(versionUrl)">
             @csrf
             <input type="file" name="file" class="sr-only" id="ordo-version-file"
+                   accept="{{ collect(config('ordo.document_extensions'))->map(fn ($ext) => ".{$ext}")->join(',') }}"
                    x-on:change="$el.form.submit()"
                    x-bind:disabled="! current || archived" />
             <label for="ordo-version-file"

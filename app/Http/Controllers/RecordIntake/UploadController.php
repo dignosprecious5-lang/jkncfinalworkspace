@@ -27,13 +27,13 @@ class UploadController extends Controller
             'title' => 'Unclassified Records',
             'unclassifiedCount' => $this->openItems($context)->count(),
             'intakeItems' => $this->openItems($context)
-                ->with('files')
+                ->with(['files' => fn ($query) => $query->currentMasterFirst()])
                 ->latest('created_at')
                 ->latest('id')
                 ->paginate(25)
                 ->withQueryString(),
             'intake' => $itemId
-                ? $this->openItems($context)->with('files')->find($itemId)
+                ? $this->openItems($context)->with(['files' => fn ($query) => $query->currentMasterFirst()])->find($itemId)
                 : null,
         ]);
     }

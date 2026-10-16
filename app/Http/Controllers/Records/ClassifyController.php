@@ -159,7 +159,7 @@ class ClassifyController extends Controller
     private function drawerItems(CompanyContext $context): array
     {
         return $this->openItems($context)
-            ->with('files')
+            ->with(['files' => fn ($query) => $query->currentMasterFirst()])
             ->orderBy('created_at')
             ->orderBy('id')
             ->get()
@@ -182,6 +182,12 @@ class ClassifyController extends Controller
                     'sizeBytes' => (int) $file->size_bytes,
                     'pageCount' => $file->page_count,
                     'documentType' => $file->documentType(),
+                    // The drawer picks which file to preview with the same rule the
+                    // server uses — master first, then the highest version — so both
+                    // fields have to be present or that sort degrades to id order
+                    // without anything failing.
+                    'version' => (int) $file->version,
+                    'fileRole' => $file->file_role->value,
                     'ocrStatus' => $file->ocr_status->value,
                     'ocrStatusLabel' => $file->ocr_status->label(),
                     // So the preview can explain an empty OCR pane with the file's

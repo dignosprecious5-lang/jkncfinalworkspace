@@ -18,7 +18,8 @@ namespace App\Http\Requests\Concerns;
  *   text/plain                 →  txt                  →  a .txt refused
  *
  * The allowlist below is the contract with the reader, and it is the same list
- * the file picker's `accept` attribute offers, so the dialog and the server agree.
+ * the file picker's `accept` attribute offers, so the dialog and the server agree
+ * — both read config('ordo.document_extensions'), rather than two hand-kept copies.
  *
  * What it deliberately does not do is re-check the content. A file whose bytes
  * are not what its name says is stored with the type it actually has, shown as
@@ -34,19 +35,23 @@ trait ValidatesUploadedDocuments
      */
     protected function documentExtensions(): array
     {
-        return [
-            'pdf',
-            'txt',
-            'csv',
-            'doc',
-            'docx',
-            'xls',
-            'xlsx',
-            'jpg',
-            'jpeg',
-            'png',
-            'webp',
-        ];
+        $configured = config('ordo.document_extensions');
+
+        // The configured list is the single source of truth, because the file
+        // pickers read the same key to build their accept attribute. The fallback
+        // exists only so a missing or emptied config cannot turn the allowlist
+        // into "allow anything", which is the one failure this rule must not have.
+        if (! is_array($configured) || $configured === []) {
+            return [
+                'pdf', 'txt', 'csv', 'doc', 'docx',
+                'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp',
+            ];
+        }
+
+        return array_values(array_map(
+            static fn ($extension): string => strtolower(trim((string) $extension)),
+            $configured,
+        ));
     }
 
     /**

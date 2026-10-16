@@ -29,12 +29,37 @@ class RecordPolicy
 
     public function view(?object $user, Record $record): bool
     {
-        return $this->inScope($record) && UserRole::for($user)->canView();
+        if (! $this->inScope($record)) {
+            return false;
+        }
+
+        $role = UserRole::for($user);
+
+        // A confidential record is not merely kept out of listings; the role that
+        // cannot see them is refused the record itself. Without this clause view()
+        // could not deny a confidential record to anybody, so the id-addressable
+        // routes had nothing to enforce even once their policy was wired up.
+        if ((bool) $record->is_confidential && ! $role->canSeeConfidential()) {
+            return false;
+        }
+
+        return $role->canView();
     }
 
     public function update(?object $user, Record $record): bool
     {
         return $this->inScope($record) && UserRole::for($user)->canEdit();
+    }
+
+    /**
+     * Creating a record without naming one first — filing, and any write that
+     * produces a record as a side effect. It follows the same ability as editing
+     * an existing one, because that is what it is: a records write that consumes
+     * a Record Unit.
+     */
+    public function create(?object $user): bool
+    {
+        return UserRole::for($user)->canEdit();
     }
 
     public function archive(?object $user, Record $record): bool

@@ -77,7 +77,10 @@ class UnclassifiedQueueUploadTest extends TestCase
         $response = $this->get(route('records.unclassified'));
 
         $response->assertOk();
-        $response->assertSee('.pdf,.txt,.csv,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx', false);
+        $response->assertSee(
+            collect(config('ordo.document_extensions'))->map(fn ($ext) => ".{$ext}")->join(','),
+            false,
+        );
         $response->assertSee('multiple', false);
     }
 

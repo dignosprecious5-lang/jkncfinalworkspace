@@ -9,6 +9,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -263,6 +264,35 @@ class RecordActivityLogController extends Controller
         return RecordActivityLog::query()
             ->where('tenant_id', $this->context->tenantId())
             ->where('company_id', $this->context->id())
+            // The trail names its subject, and for a filed record that subject is
+            // the title and the Document Reference. Routing it through the register's
+            // confidentiality rule is what stops the audit log from being a way to
+            // read what the register refuses to show: the export below is the same
+            // query, so without this the CSV and JSON would carry both fields too.
+            //
+            // A row carries two independent subject slots and subjectLabel() renders
+            // whichever it finds, so each slot is filtered on its own. The intake
+            // slot matters as much as the record slot: an intake item is the same
+            // document before it was filed, so withholding only the post-filing
+            // entries would still hand the title over through the pre-filing ones.
+            //
+            // Both slots pass vacuously when empty, so a row about a settings change
+            // or an export — no subject at all — is kept. Dropping those would
+            // quietly rewrite the history the page exists to show.
+            ->when(! Gate::allows('viewConfidential'), fn (Builder $query) => $query->where(
+                fn (Builder $keep) => $keep
+                    // Slot one: the filed record.
+                    ->where(fn (Builder $subject) => $subject
+                        ->whereNull('record_id')
+                        ->orWhereHas('record', fn (Builder $record) => $record->where('is_confidential', false)),
+                    )
+                    // Slot two: the intake item, which may since have been filed
+                    // into a confidential record.
+                    ->where(fn (Builder $subject) => $subject
+                        ->whereDoesntHave('intakeItem.record')
+                        ->orWhereHas('intakeItem.record', fn (Builder $record) => $record->where('is_confidential', false)),
+                    ),
+            ))
             ->when($filters['q'] !== '', fn (Builder $query) => $query->where(
                 fn (Builder $inner) => $inner
                     ->where('description', 'like', '%'.$filters['q'].'%')

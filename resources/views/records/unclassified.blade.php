@@ -59,7 +59,7 @@
                 </div>
 
                 <input type="file" multiple x-ref="input" class="hidden"
-                       accept=".pdf,.txt,.csv,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
+                       accept="{{ collect(config('ordo.document_extensions'))->map(fn ($ext) => ".{$ext}")->join(',') }}"
                        x-on:change="read($event.target.files)" />
 
                 {{-- Why a drop failed. Server-authoritative: the same message

@@ -59,9 +59,9 @@ class IntakeUploadPageTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('enctype="multipart/form-data"', false);
-        // The picker's list is ValidatesUploadedDocuments::documentExtensions(), so the
-        // dialog and the server cannot disagree about what may be uploaded.
-        $response->assertSee('accept=".pdf,.txt,.csv,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"', false);
+        // Both the picker and the upload rule read config('ordo.document_extensions'),
+        // so the dialog and the server cannot disagree about what may be uploaded.
+        $response->assertSee($this->expectedAcceptAttribute(), false);
         $response->assertSee('name="files[]"', false);
         $response->assertSee('multiple x-ref="input"', false);
         $response->assertSee('name="_token"', false);

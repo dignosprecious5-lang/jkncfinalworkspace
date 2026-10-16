@@ -305,10 +305,16 @@ Alpine.data('queueTable', (rowIds) => ({
 function currentMaster(files) {
     const rank = (file) => (file.fileRole === 'master' ? 0 : 1);
 
+    // The id tie-break compares the strings directly rather than through
+    // localeCompare, so it matches the server's ORDER BY id exactly. The two only
+    // differ for characters the collations order differently, and there is no
+    // reason to let a sort disagree with the scope it mirrors.
+    const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
     return [...files].sort((a, b) =>
         rank(a) - rank(b)
         || (b.version ?? 0) - (a.version ?? 0)
-        || String(a.id).localeCompare(String(b.id))
+        || byId(a, b)
     )[0] ?? null;
 }
 
@@ -839,10 +845,16 @@ Alpine.data('recordDrawer', (records, pickerUrl, reReadUrl, statusUrl, supportin
     },
 
     get versions() {
-        const files = [...(this.current?.files ?? [])].sort((a, b) => b.version - a.version);
-        const highest = files.length > 0 ? files[0].version : 0;
+        // Same rule as currentMaster(), so a supporting file can never sort above
+        // the master and ties fall back to id order the way the server orders them.
+        const files = [...(this.current?.files ?? [])].sort((a, b) =>
+            (a.fileRole === 'master' ? 0 : 1) - (b.fileRole === 'master' ? 0 : 1)
+            || (b.version ?? 0) - (a.version ?? 0)
+            || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+        );
+        const highest = files.reduce((max, file) => Math.max(max, file.version ?? 0), 0);
 
-        return files.map((file) => ({ ...file, isLatest: file.version === highest }));
+        return files.map((file) => ({ ...file, isLatest: (file.version ?? 0) === highest }));
     },
 
     get history() {

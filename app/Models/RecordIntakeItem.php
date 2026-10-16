@@ -7,6 +7,7 @@ use App\Enums\IntakeStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RecordIntakeItem extends Model
@@ -79,9 +80,21 @@ class RecordIntakeItem extends Model
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
-    public function record(): BelongsTo
+    /**
+     * The record this item became, once it was officially filed.
+     *
+     * A hasOne, not a belongsTo: the foreign key is `records.record_intake_item_id`,
+     * so it lives on the other table. Declared the other way round it produced a
+     * query against a `record_intake_items.record_intake_item_id` column that has
+     * never existed, and because nothing read the relation the mistake stayed
+     * invisible until the audit trail had to ask whether an item had been filed
+     * into a confidential record.
+     *
+     * One item yields at most one record — filing closes the item.
+     */
+    public function record(): HasOne
     {
-        return $this->belongsTo(Record::class, 'record_intake_item_id');
+        return $this->hasOne(Record::class, 'record_intake_item_id');
     }
 
     /**

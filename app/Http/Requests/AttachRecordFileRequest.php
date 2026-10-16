@@ -31,7 +31,10 @@ class AttachRecordFileRequest extends FormRequest
                 'required',
                 'file',
                 ...$this->documentRules(),
-                'max:51200', // 50 MB, matching the intake ceiling.
+                // 50 MB. Higher than intake's 20 MB ceiling, because a supporting file is
+                // added to a record that is already filed and there is no intake
+                // step to pass it through on the way.
+                'max:51200',
             ],
         ];
     }

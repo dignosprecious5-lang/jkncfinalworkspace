@@ -46,4 +46,19 @@ abstract class TestCase extends BaseTestCase
 
         return $this;
     }
+
+    /**
+     * The accept attribute a file picker should carry, built from the same config
+     * key the server-side rule and every picker read.
+     *
+     * Tests that assert the picker offers the right types used to pin a
+     * hand-copied literal, which is how the copies drifted from the validator in
+     * the first place. Deriving it here keeps the assertion honest.
+     */
+    protected function expectedAcceptAttribute(): string
+    {
+        return collect(config('ordo.document_extensions'))
+            ->map(fn ($extension) => ".{$extension}")
+            ->join(',');
+    }
 }

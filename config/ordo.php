@@ -52,6 +52,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Accepted Document Extensions
+    |--------------------------------------------------------------------------
+    |
+    | The one list of file extensions ORDO accepts as a document. It is read by
+    | both the server-side validation rule and the file picker's accept attribute,
+    | so the dialog cannot offer something the server will refuse. It lived only
+    | in the validation trait, and the pickers were hand-written copies of it that
+    | had already begun to drift.
+    |
+    | The list is checked by extension rather than by sniffed content type, on
+    | purpose. App\Http\Requests\Concerns\ValidatesUploadedDocuments explains why,
+    | and what protects a stored document whose bytes are not what its name says.
+    |
+    */
+
+    'document_extensions' => [
+        'pdf',
+        'txt',
+        'csv',
+        'doc',
+        'docx',
+        'xls',
+        'xlsx',
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Plan Defaults
     |--------------------------------------------------------------------------
     |

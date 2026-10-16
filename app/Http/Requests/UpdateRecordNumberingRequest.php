@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Policies\RecordClassificationPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -12,6 +13,15 @@ use Illuminate\Foundation\Http\FormRequest;
  * Clamping here rather than in the service means a number can never be issued
  * from a width or a sequence outside the range the operator was shown.
  *
+ * Authorised through the same manageScheme ability as the rest of setup. Numbering
+ * is reference data, not day-to-day records work: it decides the identifier on
+ * every record filed from now on, and the next sequence can be reset. The Usage
+ * tab's Plan limits save is guarded identically, and the scheme tables below this
+ * tab are too.
+ *
+ * The company is never read from the request; it comes from the active context, so
+ * a hand-crafted payload cannot renumber another company.
+ *
  * None of this touches the Document Reference. That identifier is generated
  * system-side at filing and stays outside anything a person can edit.
  */
@@ -19,7 +29,7 @@ class UpdateRecordNumberingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return app(RecordClassificationPolicy::class)->create($this->user());
     }
 
     /**

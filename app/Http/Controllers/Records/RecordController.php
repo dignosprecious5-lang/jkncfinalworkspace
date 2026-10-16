@@ -109,7 +109,9 @@ class RecordController extends Controller
             'recordUnits' => $record->recordUnits(),
             'storageBytes' => (int) $record->storage_bytes,
             'storageDisk' => (string) config('filesystems.default'),
-            'storageKey' => (string) ($record->files->first()->path ?? ''),
+            // files is eager loaded through currentMasterFirst(), so first() is the master
+                // and not merely the oldest row.
+                'storageKey' => (string) ($record->files->first()?->path ?? ''),
             'intakeItemId' => $record->record_intake_item_id,
             'tenantId' => (string) $record->tenant_id,
             'companyId' => (string) $record->company_id,
@@ -253,7 +255,7 @@ class RecordController extends Controller
                 'classification',
                 'index',
                 'filedBy:id,name',
-                'files' => fn ($query) => $query->orderBy('id'),
+                'files' => fn ($query) => $query->currentMasterFirst(),
                 'links',
                 'activityLogs.user:id,name',
             ])

@@ -41,6 +41,7 @@
 
                     <x-ordo.field label="Document" required>
                         <input type="file" name="file" required
+                               accept="{{ collect(config('ordo.document_extensions'))->map(fn ($ext) => ".{$ext}")->join(',') }}"
                                class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                     </x-ordo.field>
 
