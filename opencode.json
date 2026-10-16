@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.schema.json",
+  "name": "ORDO Records Management Prototype",
+  "version": "1.0.0",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "context": {
+    "include": [
+      "app/**/*.php",
+      "config/**/*.php",
+      "database/migrations/*.php",
+      "resources/views/**/*.blade.php",
+      "routes/*.php",
+      "AGENTS.md"
+    ],
+    "exclude": [
+      "vendor/**",
+      "node_modules/**",
+      "storage/**",
+      "bootstrap/cache/**",
+      ".env*",
+      "tests/**"
+    ]
+  },
+  "rules": {
+    "framework": "laravel",
+    "language": "php",
+    "style": {
+      "indentation": "spaces",
+      "space_count": 4
+    },
+    "security": {
+      "prevent_secret_leakage": true,
+      "enforce_tenant_scoping": true
+    }
+  },
+  "custom_prompts": {
+    "create-migration": "Generate a Laravel database migration following ORDO schema specifications with tenant_id, company_id, and proper foreign keys/indexes.",
+    "create-service": "Create a domain service class in App\\Services implementing atomic transactions, event logging, and tenant validation.",
+    "check-isolation": "Review the selected file or query to ensure strict server-side tenant_id and company_id scoping."
+  }
+}

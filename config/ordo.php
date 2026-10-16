@@ -1,0 +1,74 @@
+<?php
+
+return [
+
+    /*
+    |---------------------------------------------------------------------------
+    | Default Role
+    |---------------------------------------------------------------------------
+    |
+    | The prototype has no sign-in, so requests arrive without an authenticated
+    | user. Policies fall back to this role rather than denying everything, which
+    | keeps the app usable before authentication lands.
+    |
+    | Set it to the most restrictive value that still lets you work; tighten it
+    | to 'standard_user' once you are testing role enforcement by hand.
+    |
+    */
+
+    'default_role' => env('ORDO_DEFAULT_ROLE', 'records_manager'),
+
+    /*
+    |---------------------------------------------------------------------------
+    | Rate Limits
+    |---------------------------------------------------------------------------
+    |
+    | Per-minute ceilings keyed to named limiters registered in AppServiceProvider.
+    | Exports and the record picker are the expensive reads: both scan beyond a
+    | single page and can be pointed at a large register.
+    |
+    */
+
+    'rate_limits' => [
+        'exports' => (int) env('ORDO_RATE_LIMIT_EXPORTS', 30),
+        'picker' => (int) env('ORDO_RATE_LIMIT_PICKER', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lookup Cache
+    |--------------------------------------------------------------------------
+    |
+    | Seconds a company's classification, index and source lookups stay cached
+    | for, in App\Services\Records\RecordLookups. The scheme is seeded rather
+    | than edited from the interface, so a short window is enough to keep the
+    | lookups off every page load. Anything that changes the scheme forgets the
+    | affected company's entries explicitly, so this window is only a backstop
+    | for a change that forgot to.
+    |
+    */
+
+    'lookup_cache_ttl' => (int) env('ORDO_LOOKUP_CACHE_TTL', 300),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Plan Defaults
+    |--------------------------------------------------------------------------
+    |
+    | The limits a company is given when it is first metered, applied by the
+    | migration that introduces storage_limit_bytes. They live here rather than
+    | in the migration so they can be changed and re-seeded without editing
+    | migration history.
+    |
+    | storage_bytes is raw bytes to match record_files.size_bytes, so the figure
+    | the Repository Usage card compares against is the same unit it sums.
+    | A value of 0 is treated as "do not seed", leaving the company unlimited.
+    |
+    */
+
+    'plan_defaults' => [
+        'record_units' => (int) env('ORDO_DEFAULT_RECORD_UNITS', 1000),
+        'storage_bytes' => (int) env('ORDO_DEFAULT_STORAGE_BYTES', 5368709120),
+    ],
+
+];
