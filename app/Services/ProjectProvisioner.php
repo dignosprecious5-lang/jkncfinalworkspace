@@ -71,6 +71,9 @@ class ProjectProvisioner
         }
 
         $deal = $project->deal()->first();
+        if ($deal?->isArchived()) {
+            return;
+        }
         $engagementType = Str::lower(trim((string) ($project->engagement_type ?? '')));
         $isRegular = Str::contains($engagementType, 'regular');
 
@@ -119,7 +122,7 @@ class ProjectProvisioner
      */
     private function provisionFromDeal(Deal $deal, bool $shell): ?Project
     {
-        if (! Schema::hasTable('projects')) {
+        if ($deal->isArchived() || ! Schema::hasTable('projects')) {
             return null;
         }
 

@@ -6,6 +6,7 @@
     $panelTitle = $panelTitle ?? 'Create Deal';
     $panelSubtitle = $panelSubtitle ?? 'Select an existing client, then complete the consulting and deal form.';
     $draft = $dealDraft ?? [];
+    $catalogPreviewIds = $catalogPreviewIds ?? ['services' => [], 'products' => []];
     $financeUsers = $financeUsers ?? [];
     $employeeOptions = $employeeOptions ?? [];
     $contactRecords = $contactRecords ?? [];
@@ -347,7 +348,9 @@
                 <button id="closeCreateDealModal" type="button" class="text-2xl leading-none text-gray-500 hover:text-gray-800">&times;</button>
             </div>
 
-            <form id="createDealForm" method="POST" action="{{ $formAction }}" class="flex min-h-0 flex-1 flex-col">
+            <form id="createDealForm" method="POST" action="{{ $formAction }}" class="flex min-h-0 flex-1 flex-col"
+                data-catalog-preview-url="{{ route('deals.catalog-configuration') }}"
+                data-catalog-initial-deal-id="{{ $catalogPreviewDealId ?? '' }}">
                 @csrf
                 @if ($formMethod !== 'POST')
                     @method($formMethod)
@@ -545,7 +548,7 @@
                                                 <div class="space-y-2">
                                                     @foreach ($options as $option)
                                                         <label class="flex items-start gap-2 text-sm text-gray-700">
-                                                            <input type="checkbox" name="service_options[]" value="{{ $option }}" data-service-group-option="{{ $group }}" @checked(in_array($option, $selectedServices, true)) class="mt-0.5 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                                            <input type="checkbox" name="service_options[]" value="{{ $option }}" data-catalog-id="{{ $catalogPreviewIds['services'][mb_strtolower(trim($option))] ?? '' }}" data-service-group-option="{{ $group }}" @checked(in_array($option, $selectedServices, true)) class="mt-0.5 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                                             <span>{{ $option }}</span>
                                                         </label>
                                                     @endforeach
@@ -587,7 +590,7 @@
                                         <div class="grid gap-2 sm:grid-cols-2">
                                             @foreach ($options as $option)
                                             <label class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700" data-product-option data-service-area-product="{{ $serviceArea }}" data-product-value="{{ $option }}">
-                                                <input type="checkbox" name="product_options[]" value="{{ $option }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
+                                                <input type="checkbox" name="product_options[]" value="{{ $option }}" data-catalog-id="{{ $catalogPreviewIds['products'][mb_strtolower(trim($option))] ?? '' }}" @checked(in_array($option, $selectedProducts, true)) class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500">
                                                 <span>{{ $option }}</span>
                                             </label>
                                             @endforeach
@@ -614,6 +617,11 @@
                         </section>
 
                         <section class="rounded-2xl border border-gray-200 p-4">
+                            <div class="mb-3 rounded-lg border border-gray-200 p-3" data-catalog-preview aria-live="polite">
+                                <p data-catalog-status>Catalog preview unavailable until the form is ready.</p>
+                                <ul data-catalog-items></ul>
+                                <p class="mt-2 text-xs text-gray-500">Informational preview only. Compatibility does not authorize saving, proposals, payments or engagement activation.</p>
+                            </div>
                             <h3 class="text-base font-semibold text-gray-900">Scope of Work</h3>
                             <p class="mb-2 text-xs text-gray-500">Describe the detailed scope of the engagement</p>
                             <div>
@@ -982,6 +990,8 @@
     </div>
 </div>
 
+<script src="{{ asset('js/deal-catalog-selection.js') }}"></script>
+<script src="{{ asset('js/deal-catalog-preview.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const modal = document.getElementById('createDealModal');
@@ -1310,6 +1320,13 @@ document.addEventListener('DOMContentLoaded', function () {
         modal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('overflow-hidden');
         document.dispatchEvent(new CustomEvent('deal-drawer:opened'));
+        const previewForm = document.getElementById('createDealForm');
+        if (previewForm?.dataset.catalogInitialDealId) {
+            previewForm.dispatchEvent(new CustomEvent('deal-catalog:context-ready', { detail: {
+                dealId: previewForm.dataset.catalogInitialDealId,
+                legacyNames: { 'service_options[]': @json($rawSelectedServices), 'product_options[]': @json($rawSelectedProducts) },
+            } }));
+        }
         requestAnimationFrame(() => {
             overlay?.classList.remove('opacity-0');
             panel.classList.remove('translate-x-full');
@@ -2717,6 +2734,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (shouldAutoOpenModal) {
         openModal();
+        // Initial validation/session redisplay is already hydrated; never infer edit identity from a URL.
+        const previewForm = document.getElementById('createDealForm');
+        if (previewForm && !previewForm.dataset.catalogInitialDealId) {
+            previewForm.dispatchEvent(new CustomEvent('deal-catalog:context-ready', { detail: {
+                dealId: null,
+                legacyNames: { 'service_options[]': @json($rawSelectedServices), 'product_options[]': @json($rawSelectedProducts) },
+            } }));
+        }
     }
 
     document.addEventListener('click', (event) => {

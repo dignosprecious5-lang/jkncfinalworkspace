@@ -55,6 +55,8 @@ class UserPermission extends Model
         'access_finance',
         'create_finance',
         'approve_finance',
+        'manage_deal_stages',
+        'manage_deals_finance_settings',
         'finance_treasurer',
         'finance_president',
         'finance_approver',

@@ -176,6 +176,9 @@
                 @endif
                 <form method="POST" action="{{ route('deals.proposal.send', $deal) }}" class="flex items-center gap-2">
                     @csrf
+                    @if (config('deals.versioned_proposal_issuance', false))
+                        <input type="hidden" name="issuance_request_key" value="{{ old('issuance_request_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                    @endif
                     <input
                         type="email"
                         name="recipient_email"

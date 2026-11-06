@@ -24,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -260,6 +261,7 @@ class ProjectController extends Controller
         ) ?: ($validated['products'] ?? null);
 
         $linkedDeal = ! empty($validated['deal_id']) ? Deal::query()->find($validated['deal_id']) : null;
+        abort_if($linkedDeal?->isArchived(), 422, 'Archived Deals cannot be used to create a project.');
         $linkedContact = ! empty($validated['contact_id']) ? Contact::query()->find($validated['contact_id']) : null;
         $linkedCompany = ! empty($validated['company_id']) ? Company::query()->find($validated['company_id']) : null;
 
@@ -315,6 +317,12 @@ class ProjectController extends Controller
                 ->find($validated['template_id'])
             : null;
         $templatePayload = (array) ($selectedTemplate?->payload ?? []);
+
+        $project = DB::transaction(function () use ($validated, $linkedDeal, $linkedContact, $linkedCompany, $selectedTemplate, $templatePayload): Project {
+            if ($linkedDeal) {
+                $linkedDeal = Deal::query()->lockForUpdate()->findOrFail($linkedDeal->id);
+                abort_if($linkedDeal->isArchived(), 422, 'Archived Deals cannot be used to create a project.');
+            }
 
         $project = Project::query()->create([
             'deal_id' => $linkedDeal?->id,
@@ -393,6 +401,8 @@ class ProjectController extends Controller
             (array) ($templatePayload['internal_approval'] ?? []),
             $validated
         );
+        $approvalStatus = $templatePayload['approval_status'] ?? 'draft';
+        $ntpStatus = $templatePayload['ntp_status'] ?? 'pending';
 
         ProjectSow::query()->create([
             'project_id' => $project->id,
@@ -402,11 +412,11 @@ class ProjectController extends Controller
             'out_of_scope_items' => $outScopeRows,
             'client_confirmation_name' => $project->client_confirmation_name,
             'internal_approval' => $internalApproval,
-            'approval_status' => in_array(($templatePayload['approval_status'] ?? 'draft'), ['draft', 'pending_review', 'approved'], true)
-                ? (string) $templatePayload['approval_status']
+            'approval_status' => in_array($approvalStatus, ['draft', 'pending_review', 'approved'], true)
+                ? (string) $approvalStatus
                 : 'draft',
-            'ntp_status' => in_array(($templatePayload['ntp_status'] ?? 'pending'), ['pending', 'approved', 'rejected'], true)
-                ? (string) $templatePayload['ntp_status']
+            'ntp_status' => in_array($ntpStatus, ['pending', 'approved', 'rejected'], true)
+                ? (string) $ntpStatus
                 : 'pending',
         ]);
 
@@ -428,6 +438,9 @@ class ProjectController extends Controller
             'client_confirmation_name' => $project->client_confirmation_name,
             'internal_approval' => $internalApproval,
         ]);
+
+            return $project;
+        });
 
         return redirect()
             ->route('project.show', ['project' => $project, 'tab' => 'sow'])
@@ -576,38 +589,45 @@ class ProjectController extends Controller
     {
         abort_unless($this->canReviewStart($request), 403, 'Unauthorized');
 
-        $start = $this->resolveCurrentStart($project);
-        abort_unless($start, 404, 'START form not found.');
-        abort_if(strtolower((string) $start->status) !== 'pending_approval', 422, 'Only submitted START forms can be approved.');
+        return DB::transaction(function () use ($request, $project): RedirectResponse {
+            $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
+            $linkedDeal = $lockedProject->deal_id
+                ? Deal::query()->lockForUpdate()->find($lockedProject->deal_id)
+                : null;
 
-        $start->forceFill([
-            'status' => 'approved',
-            'approved_at' => now(),
-            'approved_by_name' => $request->user()?->name ?? 'System User',
-            'rejected_at' => null,
-            'rejected_by_name' => null,
-            'rejection_reason' => null,
-        ])->save();
+            abort_if($linkedDeal?->isArchived(), 403, 'Archived Deals cannot approve linked START forms.');
 
-        // Step 1: Generate the service memo first (while still a shell / using current project data).
-        // This matches the business flow: START approved → service memo generated → Project/Regular created.
-        $this->ensureServiceMemoGenerated($project, $start, $project->sows()->latest()->first());
+            $start = $this->resolveCurrentStart($lockedProject);
+            abort_unless($start, 404, 'START form not found.');
+            abort_if(strtolower((string) $start->status) !== 'pending_approval', 422, 'Only submitted START forms can be approved.');
 
-        // Step 2: Now activate the shell workspace — creates the full SOW/SowReport records
-        // and sets the real operational status (SOW or RSAT), making it visible in the
-        // Project / Regular modules.
-        if ($project->isShell()) {
-            app(ProjectProvisioner::class)->activateShellWorkspace($project->fresh());
-            $project->refresh();
-        }
+            $start->forceFill([
+                'status' => 'approved',
+                'approved_at' => now(),
+                'approved_by_name' => $request->user()?->name ?? 'System User',
+                'rejected_at' => null,
+                'rejected_by_name' => null,
+                'rejection_reason' => null,
+            ])->save();
 
+            // Step 1: Generate the service memo first (while still a shell / using current project data).
+            // This matches the business flow: START approved → service memo generated → Project/Regular created.
+            $this->ensureServiceMemoGenerated($lockedProject, $start, $lockedProject->sows()->latest()->first());
 
+            // Step 2: Now activate the shell workspace — creates the full SOW/SowReport records
+            // and sets the real operational status (SOW or RSAT), making it visible in the
+            // Project / Regular modules.
+            if ($lockedProject->isShell()) {
+                app(ProjectProvisioner::class)->activateShellWorkspace($lockedProject->fresh());
+                $lockedProject->refresh();
+            }
 
-        // Step 4: Move the linked deal to the Closed Won stage.
-        $this->moveLinkedDealToStage($project, 'Closed Won');
+            // Step 4: Move the linked deal to the Closed Won stage.
+            $this->moveLinkedDealToStage($lockedProject, 'Closed Won');
 
-        return back()
-            ->with('success', 'START form approved. Service memo generated. Project/Regular workspace activated.');
+            return back()
+                ->with('success', 'START form approved. Service memo generated. Project/Regular workspace activated.');
+        });
     }
 
     public function rejectStart(Request $request, Project $project): RedirectResponse

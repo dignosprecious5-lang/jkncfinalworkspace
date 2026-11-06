@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Models\Company;
 use App\Models\Deal;
+use App\Models\DealProposalVersion;
+use App\Models\DealMembership;
 use App\Models\DealStage;
 use App\Models\Employee;
 use App\Models\Project;
@@ -12,6 +14,9 @@ use App\Models\Product;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\ProjectProvisioner;
+use App\Services\DealMembershipService;
+use App\Policies\DealPolicy;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -332,9 +337,8 @@ class DealController extends Controller
             }
 
             if (Schema::hasTable('deals')) {
-                $this->backfillMissingDealCodes();
-
                 $storedDeals = Deal::query()
+                    ->active()
                     ->where(function ($query) {
                         $query->whereNull('delete_request_status')
                               ->orWhere('delete_request_status', '!=', 'pending');
@@ -343,22 +347,21 @@ class DealController extends Controller
                     ->latest()
                     ->get();
 
-                $storedDeals->each(function (Deal $deal): void {
-                    $this->ensureDealCodeAssigned($deal);
-                    $stageRelation = $deal->relationLoaded('stage') ? $deal->getRelation('stage') : null;
-                    if ($deal->stage_id && $stageRelation instanceof DealStage && (string) $deal->getAttribute('stage') !== (string) $stageRelation->name) {
-                        $deal->forceFill(['stage' => $stageRelation->name])->save();
-                    }
-                });
-
                 $accessibleStoredDeals = $storedDeals
                     ->filter(fn (Deal $deal): bool => $this->canViewDeal($deal))
                     ->values();
 
+                $accessibleStoredDeals->each(function (Deal $deal): void {
+                    $this->ensureDealCodeAssigned($deal);
+                });
+
                 $dealRecords = $accessibleStoredDeals
                     ->mapWithKeys(function (Deal $storedDeal): array {
                         $contact = $storedDeal->contact;
-                        $stageName = (string) ($storedDeal->stage ?: 'Inquiry');
+                        $stageRelation = $storedDeal->relationLoaded('stage') ? $storedDeal->getRelation('stage') : null;
+                        $stageName = $stageRelation instanceof DealStage
+                            ? (string) $stageRelation->name
+                            : (string) ($storedDeal->stage ?: 'Inquiry');
                         $dealFormData = $this->normalizeDealFormData([
                             ...$storedDeal->toArray(),
                             'stage' => $stageName,
@@ -403,6 +406,10 @@ class DealController extends Controller
                             $deal->last_name ?: $deal->contact?->last_name,
                         ])->filter()->implode(' '));
                         $canAccess = $this->canViewDeal($deal);
+                        $stageRelation = $deal->relationLoaded('stage') ? $deal->getRelation('stage') : null;
+                        $stageName = $stageRelation instanceof DealStage
+                            ? (string) $stageRelation->name
+                            : $deal->stage;
 
                         return [
                             'id' => $deal->id,
@@ -413,7 +420,7 @@ class DealController extends Controller
                             'amount' => (int) round((float) ($deal->total_estimated_engagement_value ?? 0)),
                             'expected_close' => optional($deal->estimated_completion_date)->format('M d, Y') ?: 'TBD',
                             'owner_name' => $deal->assigned_consultant ?: 'Unassigned',
-                            'stage' => $deal->stage,
+                            'stage' => $stageName,
                             'can_access' => $canAccess,
                             'created_by' => $deal->created_by ?: optional(Auth::user())->name ?: 'System',
                             'created_at_label' => optional($deal->created_at)->format('F d, Y • h:i:s A') ?: now()->format('F d, Y • h:i:s A'),
@@ -478,6 +485,7 @@ class DealController extends Controller
             'contactRecords' => $contactRecords,
             'companyRecords' => $companyRecords,
             'dealRecords' => $dealRecords,
+            'catalogPreviewIds' => $this->catalogPreviewIds(),
             'dealDraft' => is_array($draft) ? $draft : [],
             'openDealModal' => (bool) request()->boolean('open_deal_modal'),
             'serviceAreaOptions' => $serviceCatalog['serviceAreaOptions'],
@@ -496,6 +504,74 @@ class DealController extends Controller
                 empty($productCatalog['productOptionsByServiceArea'] ?? []) ? 'Product options are currently unavailable. Add active products in the Products module to populate deal product selections.' : null,
             ])),
         ]);
+    }
+
+    /** Preview metadata only: duplicate names (including inactive records) never resolve to an ID. */
+    private function catalogPreviewIds(): array
+    {
+        $result = ['services' => [], 'products' => []];
+        try {
+            foreach (['services' => 'service_name', 'products' => 'product_name'] as $table => $column) {
+                if (! Schema::hasTable($table) || ! Schema::hasColumns($table, ['id', $column])) {
+                    continue;
+                }
+                $groups = DB::table($table)->get(['id', $column])->groupBy(
+                    fn ($row) => mb_strtolower(trim((string) $row->{$column}))
+                );
+                foreach ($groups as $name => $rows) {
+                    $id = (string) $rows->first()->id;
+                    if ($name !== '' && $rows->count() === 1 && ctype_digit($id)
+                        && (int) $id > 0 && (int) $id <= 9007199254740991) {
+                        $result[$table][$name] = $id;
+                    }
+                }
+            }
+        } catch (Throwable) {
+            // A preview failure must not break the existing form or invent catalog identity.
+            return ['services' => [], 'products' => []];
+        }
+        return $result;
+    }
+
+    /** Read-only preview; compatibility never grants permission for a business action. */
+    public function catalogConfiguration(Request $request): JsonResponse
+    {
+        $selection = app(\App\Services\DealCatalogSelection::class);
+        $selection->authorize($request->user());
+        abort_if($request->user()->isArchived() || $request->user()->isDisabled(), 403);
+        $positiveSafeInteger = static function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! is_int($value) || $value < 1 || $value > 9007199254740991) {
+                $fail('Catalog and Deal IDs must be positive safe integers.');
+            }
+        };
+        $validated = $request->validate([
+            'deal_id' => ['nullable', $positiveSafeInteger],
+            'customer_type' => ['required', 'in:Business,Individual'],
+            'catalog_selection_present' => ['required', 'accepted'],
+            'service_ids' => ['present', 'array', 'list', 'max:200'],
+            'service_ids.*' => ['required', $positiveSafeInteger],
+            'product_ids' => ['present', 'array', 'list', 'max:200'],
+            'product_ids.*' => ['required', $positiveSafeInteger],
+        ]);
+        $deal = isset($validated['deal_id']) ? Deal::query()->findOrFail($validated['deal_id']) : null;
+        if ($deal !== null) {
+            abort_unless($this->canViewDeal($deal, $request->user()), 403);
+        }
+        $ids = $this->catalogPreviewIds();
+        foreach (['service_ids' => 'services', 'product_ids' => 'products'] as $field => $table) {
+            foreach ($validated[$field] as $id) {
+                if (! in_array((string) $id, array_values($ids[$table]), true)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        $field => 'Catalog identity is ambiguous or unavailable; review without changing the Deal.',
+                    ]);
+                }
+            }
+        }
+        // Limit the reader to the validated preview fields, excluding alternate/custom name inputs.
+        $readerRequest = Request::create('/', 'POST', $validated);
+        return response()->json($selection->configuration(
+            $selection->fromRequest($readerRequest, $deal), $validated['customer_type']
+        ))->header('Cache-Control', 'no-store');
     }
 
     private function dealServiceCatalog(): array
@@ -703,6 +779,7 @@ class DealController extends Controller
 
     public function storeStage(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->hasPermission('manage_deal_stages'), 403);
         $this->ensureDealStagesInfrastructure();
 
         $validated = $request->validate([
@@ -728,6 +805,7 @@ class DealController extends Controller
 
     public function updateStage(Request $request, DealStage $stage): JsonResponse
     {
+        abort_unless($request->user()?->hasPermission('manage_deal_stages'), 403);
         $this->ensureDealStagesInfrastructure();
 
         $validated = $request->validate([
@@ -751,7 +829,7 @@ class DealController extends Controller
         }
 
         if (isset($updates['name']) && Schema::hasTable('deals')) {
-            Deal::query()->where('stage', $originalName)->update(['stage' => $updates['name']]);
+            Deal::query()->active()->where('stage', $originalName)->update(['stage' => $updates['name']]);
         }
 
         return response()->json([
@@ -766,6 +844,7 @@ class DealController extends Controller
 
     public function moveStage(Request $request, DealStage $stage): JsonResponse
     {
+        abort_unless($request->user()?->hasPermission('manage_deal_stages'), 403);
         $this->ensureDealStagesInfrastructure();
 
         $validated = $request->validate([
@@ -791,6 +870,7 @@ class DealController extends Controller
 
     public function destroyStage(DealStage $stage): JsonResponse
     {
+        abort_unless(Auth::user()?->hasPermission('manage_deal_stages'), 403);
         $this->ensureDealStagesInfrastructure();
 
         if (DealStage::query()->count() <= 1) {
@@ -835,15 +915,37 @@ class DealController extends Controller
                 return response()->json(['error' => 'Deal not found.'], 404);
             }
 
-            if (! $this->canViewDeal($deal)) {
+            if ($deal->isArchived()) {
+                return response()->json(['error' => 'Archived Deals cannot be changed.'], 409);
+            }
+
+            if (! app(DealPolicy::class)->update($request->user(), $deal)) {
                 return response()->json(['error' => 'You do not have access to this deal.'], 403);
             }
 
-            $deal->forceFill([
-                'delete_request_status' => 'pending',
-                'delete_requested_by' => $request->user()->id,
-                'delete_requested_at' => now(),
-            ])->save();
+            if (strtolower((string) $deal->delete_request_status) === 'pending') {
+                return response()->json(['error' => 'An archival request is already pending.'], 409);
+            }
+
+            $requested = DB::transaction(function () use ($deal, $request): bool {
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if ($lockedDeal->isArchived() || strtolower((string) $lockedDeal->delete_request_status) === 'pending'
+                    || ! app(DealPolicy::class)->update($request->user(), $lockedDeal)) {
+                    return false;
+                }
+
+                $lockedDeal->forceFill([
+                    'delete_request_status' => 'pending',
+                    'delete_requested_by' => $request->user()->id,
+                    'delete_requested_at' => now(),
+                ])->save();
+
+                return true;
+            });
+
+            if (! $requested) {
+                return response()->json(['error' => 'An archival request is already pending or the Deal is no longer editable.'], 409);
+            }
 
             return response()->json([
                 'ok' => true,
@@ -869,11 +971,31 @@ class DealController extends Controller
                 ->with('error', 'Deal not found.');
         }
 
-        $deal->delete();
+        $archived = DB::transaction(function () use ($deal, $request): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            if ($lockedDeal->isArchived() || strtolower((string) $lockedDeal->delete_request_status) !== 'pending') {
+                return false;
+            }
+
+            $lockedDeal->forceFill([
+                'archived_at' => now(),
+                'archived_by_user_id' => $request->user()->id,
+                'archive_reason' => 'Approved Deal archival request.',
+                'delete_request_status' => 'archived',
+            ])->save();
+
+            return true;
+        });
+
+        if (! $archived) {
+            return redirect()
+                ->route('admin.dashboard.section', 'deals')
+                ->with('error', 'This Deal has already been archived or has no pending archival request.');
+        }
 
         return redirect()
             ->route('admin.dashboard.section', 'deals')
-            ->with('success', 'Deal permanently deleted.');
+            ->with('success', 'Deal archived successfully.');
     }
 
     public function rejectDeletion(Request $request, int $id): RedirectResponse
@@ -891,9 +1013,20 @@ class DealController extends Controller
                 ->with('error', 'Deal not found.');
         }
 
-        $deal->forceFill([
-            'delete_request_status' => 'rejected',
-        ])->save();
+        $rejected = DB::transaction(function () use ($deal): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            if ($lockedDeal->isArchived() || strtolower((string) $lockedDeal->delete_request_status) !== 'pending') {
+                return false;
+            }
+
+            $lockedDeal->forceFill(['delete_request_status' => 'rejected'])->save();
+
+            return true;
+        });
+
+        if (! $rejected) {
+            return redirect()->route('admin.dashboard.section', 'deals')->with('error', 'This Deal has no pending archival request.');
+        }
 
         return redirect()
             ->route('admin.dashboard.section', 'deals')
@@ -921,7 +1054,7 @@ class DealController extends Controller
                 return $this->dealStageErrorResponse($request, $id, 'The deal you are trying to update could not be found.', 404);
             }
 
-            if (! $this->canViewDeal($deal)) {
+            if (! app(DealPolicy::class)->update($request->user(), $deal)) {
                 return $this->dealStageErrorResponse($request, $id, "You don't have access to this deal.", 403);
             }
 
@@ -957,7 +1090,20 @@ class DealController extends Controller
                 return $this->dealStageErrorResponse($request, $id, 'This deal cannot be moved because stage tracking is not configured yet.', 500);
             }
 
-            $deal->update($updates);
+            $deal = DB::transaction(function () use ($deal, $request, $updates): ?Deal {
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if (! app(DealPolicy::class)->update($request->user(), $lockedDeal)) {
+                    return null;
+                }
+
+                $lockedDeal->update($updates);
+
+                return $lockedDeal;
+            });
+
+            if (! $deal) {
+                return $this->dealStageErrorResponse($request, $id, "You don't have access to this deal.", 403);
+            }
 
             $stages = collect($this->dealStages())->values();
             $currentStage = $stage
@@ -1037,6 +1183,10 @@ class DealController extends Controller
     public function saveDraft(Request $request): RedirectResponse
     {
         $draft = $request->except('_token');
+        if (isset($draft['deal_id']) && is_numeric($draft['deal_id'])) {
+            $deal = Deal::query()->findOrFail((int) $draft['deal_id']);
+            abort_unless(app(DealPolicy::class)->update($request->user(), $deal), 403);
+        }
         $request->session()->put('deals.preview_payload', $draft);
 
         return redirect()->route('deals.index')->with('success', 'Deal draft saved to mock session.');
@@ -1060,6 +1210,11 @@ class DealController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $this->validateDealPayload($request);
+        if (($validated['assigned_finance_user_id'] ?? null) !== null
+            && ! $request->user()?->hasPermission('manage_deals_finance_settings')) {
+            throw new AuthorizationException('You are not authorized to assign Deal Finance settings.');
+        }
+
         $validated = $this->applyInternalApprovalDefaults($validated, $request);
         $validated = $this->applyCalculatedTimeline($validated);
 
@@ -1122,6 +1277,9 @@ class DealController extends Controller
         $existingDeal = null;
         if (Schema::hasTable('deals')) {
             $existingDeal = Deal::query()->find($id);
+            if ($existingDeal) {
+                abort_unless(app(DealPolicy::class)->update($request->user(), $existingDeal), 403);
+            }
 
             if (! $request->filled('contact_id') && filled($existingDeal?->contact_id)) {
                 $request->merge([
@@ -1159,40 +1317,59 @@ class DealController extends Controller
                     ->with('error', 'The deal you are trying to update could not be found.');
             }
 
-            if (! $this->canViewDeal($deal)) {
-                return redirect()
-                    ->route('deals.index')
-                    ->with('deal_access_denied', "You don't have access to this deal.");
-            }
+            $deal = DB::transaction(function () use ($deal, $request, $validated, $contact): Deal {
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if (! app(DealPolicy::class)->update($request->user(), $lockedDeal)) {
+                    throw new \Illuminate\Auth\Access\AuthorizationException("You don't have access to this deal.");
+                }
 
-            $validated['deal_code'] = Deal::hasValidDealCode($deal->deal_code)
-                ? $deal->deal_code
-                : Deal::generateNextDealCode(
-                    year: optional($deal->created_at)->year ?: (int) now()->format('Y'),
-                    ignoreDealId: $deal->id
-                );
-            $validated['deal_name'] = $validated['deal_code'];
-            $deal->fill([
-                ...$this->dealPersistencePayload($validated),
-                ...(Schema::hasColumn('deals', 'stage_id') ? ['stage_id' => $this->resolveStageIdByName((string) ($validated['stage'] ?? ''))] : []),
-                'customer_type' => $validated['customer_type'] ?? $contact->customer_type,
-                'salutation' => $validated['salutation'] ?? $contact->salutation,
-                'first_name' => $validated['first_name'] ?? $contact->first_name,
-                'middle_name' => $validated['middle_name'] ?? $contact->middle_name,
-                'last_name' => $validated['last_name'] ?? $contact->last_name,
-                'email' => $validated['email'] ?? $contact->email,
-                'mobile' => $validated['mobile'] ?? $contact->phone,
-                'address' => $validated['address'] ?? $contact->contact_address,
-                'company_name' => $validated['company_name'] ?? $contact->company_name,
-                'company_address' => $validated['company_address'] ?? $contact->company_address,
-                'position' => $validated['position'] ?? $contact->position,
-            ]);
-            $this->applyFeePersistence($deal, $validated);
-            $this->ensureDealCodeAssigned($deal, $contact);
-            $this->syncDealNameToCode($deal);
-            $deal->save();
+                if (array_key_exists('assigned_finance_user_id', $validated)) {
+                    $requestedFinanceUserId = $validated['assigned_finance_user_id'] === null
+                        ? null
+                        : (int) $validated['assigned_finance_user_id'];
+                    $currentFinanceUserId = $lockedDeal->assigned_finance_user_id === null
+                        ? null
+                        : (int) $lockedDeal->assigned_finance_user_id;
+
+                    if ($requestedFinanceUserId !== $currentFinanceUserId
+                        && ! $request->user()?->hasPermission('manage_deals_finance_settings')) {
+                        throw new AuthorizationException('You are not authorized to change Deal Finance settings.');
+                    }
+                }
+
+                $validated['deal_code'] = Deal::hasValidDealCode($lockedDeal->deal_code)
+                    ? $lockedDeal->deal_code
+                    : Deal::generateNextDealCode(
+                        year: optional($lockedDeal->created_at)->year ?: (int) now()->format('Y'),
+                        ignoreDealId: $lockedDeal->id
+                    );
+                $validated['deal_name'] = $validated['deal_code'];
+                $lockedDeal->fill([
+                    ...$this->dealPersistencePayload($validated),
+                    ...(Schema::hasColumn('deals', 'stage_id') ? ['stage_id' => $this->resolveStageIdByName((string) ($validated['stage'] ?? ''))] : []),
+                    'customer_type' => $validated['customer_type'] ?? $contact->customer_type,
+                    'salutation' => $validated['salutation'] ?? $contact->salutation,
+                    'first_name' => $validated['first_name'] ?? $contact->first_name,
+                    'middle_name' => $validated['middle_name'] ?? $contact->middle_name,
+                    'last_name' => $validated['last_name'] ?? $contact->last_name,
+                    'email' => $validated['email'] ?? $contact->email,
+                    'mobile' => $validated['mobile'] ?? $contact->phone,
+                    'address' => $validated['address'] ?? $contact->contact_address,
+                    'company_name' => $validated['company_name'] ?? $contact->company_name,
+                    'company_address' => $validated['company_address'] ?? $contact->company_address,
+                    'position' => $validated['position'] ?? $contact->position,
+                ]);
+                $this->applyFeePersistence($lockedDeal, $validated);
+                $this->ensureDealCodeAssigned($lockedDeal, $contact);
+                $this->syncDealNameToCode($lockedDeal);
+                $lockedDeal->save();
+
+                return $lockedDeal;
+            });
 
             return redirect()->route('deals.show', $deal->id)->with('success', 'Deal updated and resubmitted for approval.');
+        } catch (AuthorizationException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             report($exception);
 
@@ -1225,15 +1402,24 @@ class DealController extends Controller
                 ->with('error', 'The deal you are trying to approve could not be found.');
         }
 
+        if ($deal->isArchived()) {
+            return redirect()->route('deals.show', $id)->with('error', 'Archived Deals cannot be approved.');
+        }
+
         try {
             DB::transaction(function () use ($deal, $request): void {
-                $deal->forceFill([
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if ($lockedDeal->isArchived()) {
+                    throw new \RuntimeException('Archived Deals cannot be approved.');
+                }
+
+                $lockedDeal->forceFill([
                     'qualification_result' => 'qualified',
                     'deal_status' => 'approved',
-                    'stage' => $this->resolveQualifiedStage('qualified', (string) ($deal->stage ?? 'Qualification')),
+                    'stage' => $this->resolveQualifiedStage('qualified', (string) ($lockedDeal->stage ?? 'Qualification')),
                     'stage_id' => Schema::hasColumn('deals', 'stage_id')
-                        ? $this->resolveStageIdByName($this->resolveQualifiedStage('qualified', (string) ($deal->stage ?? 'Qualification')))
-                        : $deal->stage_id,
+                        ? $this->resolveStageIdByName($this->resolveQualifiedStage('qualified', (string) ($lockedDeal->stage ?? 'Qualification')))
+                        : $lockedDeal->stage_id,
                     'approved_at' => now(),
                     'approved_by_name' => $request->user()?->name ?? 'System User',
                     'reviewed_by' => $request->user()?->name ?? 'System User',
@@ -1285,12 +1471,20 @@ class DealController extends Controller
         }
 
         $deal = Deal::query()->findOrFail($id);
+        if ($deal->isArchived()) {
+            return redirect()->route('deals.show', $id)->with('error', 'Archived Deals cannot be approved.');
+        }
 
         try {
             DB::transaction(function () use ($deal, $request): void {
-                $deal->forceFill([
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if ($lockedDeal->isArchived()) {
+                    throw new \RuntimeException('Archived Deals cannot be approved.');
+                }
+
+                $lockedDeal->forceFill([
                     'stage' => 'Consultation',
-                    'stage_id' => Schema::hasColumn('deals', 'stage_id') ? $this->resolveStageIdByName('Consultation') : $deal->stage_id,
+                    'stage_id' => Schema::hasColumn('deals', 'stage_id') ? $this->resolveStageIdByName('Consultation') : $lockedDeal->stage_id,
                 ])->save();
             });
         } catch (Throwable $exception) {
@@ -1330,20 +1524,31 @@ class DealController extends Controller
                 ->with('error', 'The deal you are trying to reject could not be found.');
         }
 
+        if ($deal->isArchived()) {
+            return redirect()->route('deals.show', $id)->with('error', 'Archived Deals cannot be rejected.');
+        }
+
         try {
-            $deal->forceFill([
-                'qualification_result' => 'not_qualified',
-                'deal_status' => 'rejected',
-                'stage' => 'Closed Lost',
-                'stage_id' => Schema::hasColumn('deals', 'stage_id')
-                    ? $this->resolveStageIdByName('Closed Lost')
-                    : $deal->stage_id,
-                'approved_at' => null,
-                'approved_by_name' => null,
-                'rejected_at' => now(),
-                'rejected_by_name' => $request->user()?->name ?? 'System User',
-                'rejection_reason' => trim((string) ($validated['reason'] ?? '')) ?: 'Not qualified for engagement.',
-            ])->save();
+            DB::transaction(function () use ($deal, $request, $validated): void {
+                $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+                if ($lockedDeal->isArchived()) {
+                    throw new \RuntimeException('Archived Deals cannot be rejected.');
+                }
+
+                $lockedDeal->forceFill([
+                    'qualification_result' => 'not_qualified',
+                    'deal_status' => 'rejected',
+                    'stage' => 'Closed Lost',
+                    'stage_id' => Schema::hasColumn('deals', 'stage_id')
+                        ? $this->resolveStageIdByName('Closed Lost')
+                        : $lockedDeal->stage_id,
+                    'approved_at' => null,
+                    'approved_by_name' => null,
+                    'rejected_at' => now(),
+                    'rejected_by_name' => $request->user()?->name ?? 'System User',
+                    'rejection_reason' => trim((string) ($validated['reason'] ?? '')) ?: 'Not qualified for engagement.',
+                ])->save();
+            });
         } catch (Throwable $exception) {
             report($exception);
 
@@ -1373,7 +1578,7 @@ class DealController extends Controller
                 if (Schema::hasColumn('deals', 'stage_id')) {
                     if (! $storedDeal->stage_id && filled($storedDeal->stage)) {
                         $mappedStageId = $this->resolveStageIdByName((string) $storedDeal->stage);
-                        if ($mappedStageId) {
+                        if ($mappedStageId && ! $storedDeal->isArchived()) {
                             $storedDeal->stage_id = $mappedStageId;
                             $storedDeal->save();
                             $storedDeal->refresh();
@@ -1397,12 +1602,17 @@ class DealController extends Controller
                     abort(500, 'Deal stage is missing from the stage list. Create deal stages first.');
                 }
 
-                if (Schema::hasColumn('deals', 'stage_id') && (int) ($storedDeal->stage_id ?? 0) !== (int) $currentStage['id']) {
+                        if (! $storedDeal->isArchived()
+                            && (Auth::user()?->hasPermission('manage_deal_stages') ?? false)
+                            && Schema::hasColumn('deals', 'stage_id')
+                            && (int) ($storedDeal->stage_id ?? 0) !== (int) $currentStage['id']) {
                     $storedDeal->stage_id = $currentStage['id'];
                     $storedDeal->save();
                 }
 
-                $this->ensureDealCodeAssigned($storedDeal);
+                if (! $storedDeal->isArchived()) {
+                    $this->ensureDealCodeAssigned($storedDeal);
+                }
 
                 $resolvedStageName = $currentStage['name'];
                 $deal = [
@@ -1727,13 +1937,41 @@ class DealController extends Controller
     {
         $user ??= Auth::user();
 
-        return $deal->userCanAccess($user);
+        return $user ? app(DealPolicy::class)->view($user, $deal) : false;
+    }
+
+    public function assignMembership(Request $request, Deal $deal, DealMembershipService $memberships): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'membership_role' => ['required', 'string', 'in:consultant,associate,lead_consultant,lead_associate'],
+        ]);
+
+        $membership = $memberships->assign($deal, $request->user(), (int) $validated['user_id'], $validated['membership_role']);
+
+        return response()->json(['membership_id' => $membership->id], 201);
+    }
+
+    public function revokeMembership(Request $request, Deal $deal, int $membership, DealMembershipService $memberships): JsonResponse
+    {
+        $revoked = $memberships->revoke($deal, $request->user(), $membership);
+
+        return response()->json(['membership_id' => $revoked->id, 'assignment_status' => $revoked->assignment_status]);
+    }
+
+    private function hasIssuedProposalVersions(Deal $deal): bool
+    {
+        if (! Schema::hasTable('deal_proposal_versions')) {
+            return false;
+        }
+
+        return DealProposalVersion::query()
+            ->whereHas('proposal', fn ($query) => $query->where('deal_id', $deal->id))
+            ->exists();
     }
 
     private function dealStages(): array
     {
-        $this->ensureDealStagesInfrastructure();
-
         $defaults = [
             ['id' => null, 'name' => 'Inquiry', 'order' => 1, 'color' => '#2563eb'],
             ['id' => null, 'name' => 'Qualification', 'order' => 2, 'color' => '#4f46e5'],
@@ -1745,6 +1983,17 @@ class DealController extends Controller
             ['id' => null, 'name' => 'Closed Won', 'order' => 8, 'color' => '#16a34a'],
             ['id' => null, 'name' => 'Closed Lost', 'order' => 9, 'color' => '#dc2626'],
         ];
+
+        // Reading Deals must not initialize stage tables or seed stage rows for
+        // an actor who lacks the dedicated stage-management permission.
+        $canInitializeStages = Auth::user()?->hasPermission('manage_deal_stages') ?? false;
+        if ($canInitializeStages) {
+            $this->ensureDealStagesInfrastructure();
+        }
+
+        if (! Schema::hasTable('deal_stages')) {
+            return array_map(static fn (array $stage): array => [...$stage, 'position' => $stage['order']], $defaults);
+        }
 
         $stages = DealStage::query()
             ->orderBy('order')
@@ -1760,6 +2009,10 @@ class DealController extends Controller
 
         if ($stages !== []) {
             return $stages;
+        }
+
+        if (! $canInitializeStages) {
+            return array_map(static fn (array $stage): array => [...$stage, 'position' => $stage['order']], $defaults);
         }
 
         foreach ($defaults as $stage) {
@@ -2046,6 +2299,7 @@ class DealController extends Controller
             'owners' => $owners,
             'defaultOwnerId' => $defaultOwnerId,
             'dealDraft' => $draft,
+            'catalogPreviewIds' => $this->catalogPreviewIds(),
         ];
     }
 
@@ -3125,6 +3379,7 @@ class DealController extends Controller
         }
 
         Deal::query()
+            ->active()
             ->with('contact')
             ->where(function ($query) {
                 $query->whereNull('deal_code')
@@ -3139,6 +3394,7 @@ class DealController extends Controller
             });
 
         Deal::query()
+            ->active()
             ->with('contact')
             ->whereNotNull('deal_code')
             ->where('deal_code', '!=', '')
@@ -3152,6 +3408,7 @@ class DealController extends Controller
             });
 
         Deal::query()
+            ->active()
             ->whereNotNull('deal_code')
             ->whereColumn('deal_name', '!=', 'deal_code')
             ->orderBy('id')

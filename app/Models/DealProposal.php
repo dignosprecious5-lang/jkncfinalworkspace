@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Deal;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DealProposal extends Model
 {
@@ -75,5 +76,10 @@ class DealProposal extends Model
     public function deal(): BelongsTo
     {
         return $this->belongsTo(Deal::class);
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(DealProposalVersion::class, 'deal_proposal_id');
     }
 }

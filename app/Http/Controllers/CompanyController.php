@@ -696,6 +696,7 @@ class CompanyController extends Controller
 
         if (Schema::hasTable('deals')) {
             $deals = Deal::query()
+                ->active()
                 ->where('company_name', (string) ($companyData['company_name'] ?? ''))
                 ->latest('updated_at')
                 ->get()

@@ -39,6 +39,8 @@ class RolePermissionController extends Controller
         'access_finance_arf',
     ];
 
+    private array $dealPermissionColumns = ['manage_deal_stages', 'manage_deals_finance_settings'];
+
     private array $humanCapitalPermissionColumns = [
         'access_hc_organizational',
         'access_hc_payroll',
@@ -101,6 +103,7 @@ class RolePermissionController extends Controller
                 ...array_fill_keys($this->humanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, true),
+                ...array_fill_keys($this->dealPermissionColumns, false),
             ]
         );
 
@@ -138,6 +141,7 @@ class RolePermissionController extends Controller
                 ...array_fill_keys($this->humanCapitalPermissionColumns, true),
 
                 ...array_fill_keys($this->financePermissionColumns, true),
+                ...array_fill_keys($this->dealPermissionColumns, false),
             ]
         );
 
@@ -175,6 +179,7 @@ class RolePermissionController extends Controller
                 ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
+                ...array_fill_keys($this->dealPermissionColumns, false),
             ]
         );
 
@@ -212,6 +217,7 @@ class RolePermissionController extends Controller
                 ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
+                ...array_fill_keys($this->dealPermissionColumns, false),
             ]
         );
 
@@ -275,7 +281,7 @@ class RolePermissionController extends Controller
                 'access_sales_marketing',
 
                 'access_human_capital',
-            ], $this->accountManagementPermissionColumns, $this->humanCapitalPermissionColumns, $this->financePermissionColumns) as $column
+            ], $this->accountManagementPermissionColumns, $this->humanCapitalPermissionColumns, $this->financePermissionColumns, $this->dealPermissionColumns) as $column
         ) {
             if (Schema::hasColumn('role_permissions', $column)) {
                 $updates[$column] = $request->has($column);

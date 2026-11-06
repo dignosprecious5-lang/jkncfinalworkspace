@@ -42,6 +42,8 @@ class AdminUserPermissionController extends Controller
         'access_finance_arf',
     ];
 
+    private array $dealPermissionColumns = ['manage_deal_stages', 'manage_deals_finance_settings'];
+
     private array $humanCapitalPermissionColumns = [
         'access_hc_organizational',
         'access_hc_payroll',
@@ -124,6 +126,7 @@ class AdminUserPermissionController extends Controller
                 ...array_fill_keys($this->humanCapitalPermissionColumns, false),
 
                 ...array_fill_keys($this->financePermissionColumns, false),
+                ...array_fill_keys($this->dealPermissionColumns, false),
             ]
         );
 
@@ -183,7 +186,7 @@ class AdminUserPermissionController extends Controller
                 'finance_treasurer',
                 'finance_president',
                 'finance_approver',
-            ], $this->accountManagementPermissionColumns, $this->humanCapitalPermissionColumns, $this->financePermissionColumns) as $column
+            ], $this->accountManagementPermissionColumns, $this->humanCapitalPermissionColumns, $this->financePermissionColumns, $this->dealPermissionColumns) as $column
         ) {
             if (Schema::hasColumn('user_permissions', $column)) {
                 $updates[$column] = $request->has($column);

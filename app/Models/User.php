@@ -6,6 +6,7 @@ use App\Notifications\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -78,6 +79,11 @@ class User extends Authenticatable
         return $this->hasOne(UserPermission::class);
     }
 
+    public function dealMemberships(): HasMany
+    {
+        return $this->hasMany(DealMembership::class);
+    }
+
     public function employeeProfile()
     {
         return $this->hasOne(Employee::class, 'user_id');
@@ -141,6 +147,17 @@ class User extends Authenticatable
     public function isFinanceApprover(): bool
     {
         return (bool) data_get($this->userPermission, 'finance_approver', false);
+    }
+
+    public function isEligibleDealFinanceUser(): bool
+    {
+        return ! $this->isDisabled()
+            && ! $this->isClient()
+            && (
+                $this->hasPermission('finance_treasurer')
+                || $this->hasPermission('finance_president')
+                || $this->hasPermission('finance_approver')
+            );
     }
 
     public function isDisabled(): bool

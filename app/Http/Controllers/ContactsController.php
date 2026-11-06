@@ -22,10 +22,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Validator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ContactsController extends Controller
@@ -435,9 +437,21 @@ class ContactsController extends Controller
             'selected_contacts.*' => ['required', 'integer'],
         ]);
 
-        $deletedCount = Contact::query()
-            ->whereIn('id', $validated['selected_contacts'])
-            ->delete();
+        $deletedCount = DB::transaction(function () use ($validated): int {
+            $contacts = Contact::query()
+                ->whereIn('id', array_values(array_unique($validated['selected_contacts'])))
+                ->lockForUpdate()
+                ->get(['id']);
+            $contactIds = $contacts->modelKeys();
+
+            if ($contactIds !== [] && Deal::query()->whereIn('contact_id', $contactIds)->lockForUpdate()->exists()) {
+                throw ValidationException::withMessages([
+                    'selected_contacts' => 'Contacts linked to Deals cannot be deleted. Archive or retain the related Deals first.',
+                ]);
+            }
+
+            return Contact::query()->whereIn('id', $contactIds)->delete();
+        });
 
         return redirect()
             ->route('contacts.index')

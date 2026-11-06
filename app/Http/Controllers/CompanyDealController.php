@@ -92,6 +92,7 @@ class CompanyDealController extends Controller
         }
 
         return Deal::query()
+            ->active()
             ->where('company_name', $companyName)
             ->latest('updated_at')
             ->get()

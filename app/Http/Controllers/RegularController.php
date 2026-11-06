@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -261,6 +262,7 @@ class RegularController extends Controller
         $templatePayload = (array) ($selectedTemplate?->payload ?? []);
 
         $linkedDeal = ! empty($validated['deal_id']) ? Deal::query()->find($validated['deal_id']) : null;
+        abort_if($linkedDeal?->isArchived(), 422, 'Archived Deals cannot be used to create a regular engagement.');
         $linkedContact = ! empty($validated['contact_id']) ? Contact::query()->find($validated['contact_id']) : null;
         $linkedCompany = ! empty($validated['company_id']) ? Company::query()->find($validated['company_id']) : null;
 
@@ -277,6 +279,12 @@ class RegularController extends Controller
         if (! $linkedCompany && $linkedContact && filled($linkedContact->company_name)) {
             $linkedCompany = Company::query()->where('company_name', $linkedContact->company_name)->first();
         }
+
+        $regular = DB::transaction(function () use ($validated, $linkedDeal, $linkedContact, $linkedCompany, $selectedTemplate, $templatePayload): Project {
+            if ($linkedDeal) {
+                $linkedDeal = Deal::query()->lockForUpdate()->findOrFail($linkedDeal->id);
+                abort_if($linkedDeal->isArchived(), 422, 'Archived Deals cannot be used to create a regular engagement.');
+            }
 
         $regular = Project::query()->create([
             'deal_id' => $linkedDeal?->id,
@@ -372,6 +380,9 @@ class RegularController extends Controller
                 'date_submitted_for_transmittal' => null,
             ],
         ]);
+
+            return $regular;
+        });
 
         return redirect()
             ->route('regular.show', ['regular' => $regular, 'tab' => 'rsat'])

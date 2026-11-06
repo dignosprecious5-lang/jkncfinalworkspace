@@ -682,6 +682,7 @@
     'openDealModal' => $openDealModal ?? false,
     'formAction' => route('deals.update', $deal['id']),
     'formMethod' => 'PUT',
+    'catalogPreviewDealId' => $deal['id'],
     'panelTitle' => 'Edit Deal',
     'panelSubtitle' => 'Update the selected deal details.',
     'submitLabel' => 'Update Deal',

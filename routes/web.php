@@ -456,6 +456,9 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
+    Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
+    Route::post('/deals/{deal}/memberships', [DealController::class, 'assignMembership'])->name('deals.memberships.store');
+    Route::delete('/deals/{deal}/memberships/{membership}', [DealController::class, 'revokeMembership'])->name('deals.memberships.destroy');
     Route::post('/deals/preview', [DealController::class, 'preview'])->name('deals.preview');
     Route::get('/deals/preview', [DealController::class, 'previewPage'])->name('deals.preview.show');
     Route::post('/deals/draft', [DealController::class, 'saveDraft'])->name('deals.draft');

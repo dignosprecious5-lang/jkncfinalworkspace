@@ -5,22 +5,32 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\GeneratesPdfPreview;
 use App\Models\Deal;
 use App\Models\DealProposal;
+use App\Models\DealProposalApprovalEvent;
+use App\Models\DealProposalVersion;
 use App\Models\DealStage;
 use App\Models\Company;
 use App\Models\FormTemplate;
 use App\Models\Product;
 use App\Models\Service;
+use App\Models\User;
+use App\Policies\DealPolicy;
 use App\Services\DealProposalTemplateService;
+use App\Services\DealProposalIssuanceService;
 use App\Services\ProjectProvisioner;
+use DateTimeImmutable;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\View as ViewFacade;
 use Illuminate\View\View;
+use Throwable;
 
 class DealProposalController extends Controller
 {
@@ -294,19 +304,20 @@ class DealProposalController extends Controller
 
     public function show(Deal $deal): View
     {
-        $deal->loadMissing('contact', 'proposal');
+        $actor = request()->user();
+        $this->assertDealRead($actor, $deal);
+        $deal->loadMissing('contact');
 
-        $proposal = $deal->proposal;
+        $proposal = $this->proposalForAuthorizedRead($actor, $deal);
         $readOnlyPreview = $proposal
             && (strtolower((string) $proposal->status) === 'approved' || filled($proposal->client_approved_at));
-
-        $proposal ??= DealProposal::create($this->defaultProposalPayload($deal));
 
         return $this->renderProposalPage($deal, $proposal, (bool) $readOnlyPreview);
     }
 
     public function previewPage(Deal $deal): View
     {
+        $this->assertDealRead(request()->user(), $deal);
         $deal->loadMissing('contact', 'proposal');
 
         $proposal = $deal->proposal ?: new DealProposal($this->defaultProposalPayload($deal));
@@ -342,14 +353,35 @@ class DealProposalController extends Controller
 
     public function update(Request $request, Deal $deal): RedirectResponse
     {
-        $deal->loadMissing('contact', 'proposal');
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $this->assertDealEdit($request->user(), $deal);
+        $deal->loadMissing('contact');
 
         $validated = $this->validatedPayload($request);
 
-        $proposal->fill($validated);
-        $proposal->status = $proposal->status === 'approved' ? 'approved' : 'saved';
-        $proposal->save();
+        $proposal = DB::transaction(function () use ($deal, $request, $validated): ?DealProposal {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertDealEdit($request->user(), $lockedDeal);
+            $lockedProposal = DealProposal::query()
+                ->where('deal_id', $lockedDeal->id)
+                ->lockForUpdate()
+                ->first();
+            if (! $lockedProposal) {
+                $lockedProposal = DealProposal::query()->create($this->defaultProposalPayload($lockedDeal));
+            }
+            if ($this->isApprovedProposal($lockedProposal)) {
+                return null;
+            }
+
+            $lockedProposal->fill($validated);
+            $lockedProposal->status = 'saved';
+            $lockedProposal->save();
+
+            return $lockedProposal;
+        });
+
+        if (! $proposal) {
+            return $this->approvedProposalReadOnlyResponse($deal);
+        }
 
         if ($request->boolean('submit_global_template')) {
             $this->storePendingGlobalProposalTemplate($this->documentData($deal, $proposal), (string) ($validated['document_html'] ?? ''));
@@ -430,100 +462,374 @@ class DealProposalController extends Controller
 
     public function download(Deal $deal): RedirectResponse
     {
-        $deal->loadMissing('contact', 'proposal');
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $actor = request()->user();
+        $this->assertDealRead($actor, $deal);
+        $deal->loadMissing('contact');
+        $proposal = $this->proposalForAuthorizedRead($actor, $deal);
 
         return $this->proposalPdfDownloadResponse($deal, $proposal);
     }
 
+    private function isApprovedProposal(DealProposal $proposal): bool
+    {
+        return filled($proposal->client_approved_at)
+            || strtolower(trim((string) $proposal->status)) === 'approved';
+    }
+
+    private function approvedProposalReadOnlyResponse(Deal $deal): RedirectResponse
+    {
+        return redirect()
+            ->route('deals.proposal.show', $deal)
+            ->with('error', 'Approved proposals are read-only and cannot be edited or resent.');
+    }
+
     public function sendClientProposal(Request $request, Deal $deal): RedirectResponse
     {
-        $deal->loadMissing('contact', 'proposal');
+        $this->assertDealEdit($request->user(), $deal);
+        $deal->loadMissing('contact');
 
-        $validated = $request->validate([
+        $versionedIssuanceEnabled = (bool) config('deals.versioned_proposal_issuance', false);
+        $rules = [
             'recipient_email' => ['required', 'email', 'max:255'],
-        ]);
+        ];
+        if ($versionedIssuanceEnabled) {
+            $rules['issuance_request_key'] = ['required', 'uuid'];
+        }
+        $validated = $request->validate($rules);
 
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        $token = Str::random(64);
-        $expiresAt = now()->addDays(self::CLIENT_LINK_TTL_DAYS);
+        if ($versionedIssuanceEnabled) {
+            return $this->sendVersionedClientProposal(
+                $request,
+                $deal,
+                trim((string) $validated['recipient_email']),
+                strtolower(trim((string) $validated['issuance_request_key'])),
+            );
+        }
+
         $recipientEmail = trim((string) $validated['recipient_email']);
 
-        $proposal->update([
-            'status' => 'sent',
-            'client_access_token' => $token,
-            'client_access_expires_at' => $expiresAt,
-            'client_form_sent_to_email' => $recipientEmail,
-            'client_form_sent_at' => now(),
-        ]);
+        $result = DB::transaction(function () use ($request, $deal, $recipientEmail): ?array {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertDealEdit($request->user(), $lockedDeal);
+            $lockedDeal->loadMissing('contact');
+            $lockedProposal = $this->lockedProposalForDeal($lockedDeal);
+            if ($this->isApprovedProposal($lockedProposal)) {
+                return null;
+            }
 
-        $clientUrl = route('deals.proposal.client.show', ['token' => $token]);
-        $clientName = $this->clientNameForDeal($deal);
+            $token = Str::random(64);
+            $expiresAt = now()->addDays(self::CLIENT_LINK_TTL_DAYS);
+            $lockedProposal->update([
+                'status' => 'sent',
+                'client_access_token' => $token,
+                'client_access_expires_at' => $expiresAt,
+                'client_form_sent_to_email' => $recipientEmail,
+                'client_form_sent_at' => now(),
+            ]);
 
-        $emailHtml = view('emails.deals.proposal-client-link', [
-            'deal' => $deal,
-            'proposal' => $proposal,
-            'clientName' => $clientName,
-            'clientUrl' => $clientUrl,
-            'expiresAt' => $expiresAt,
-        ])->render();
+            $clientUrl = route('deals.proposal.client.show', ['token' => $token]);
+            $clientName = $this->clientNameForDeal($lockedDeal);
+            $emailHtml = view('emails.deals.proposal-client-link', [
+                'deal' => $lockedDeal,
+                'proposal' => $lockedProposal,
+                'clientName' => $clientName,
+                'clientUrl' => $clientUrl,
+                'expiresAt' => $expiresAt,
+            ])->render();
+            Mail::html($emailHtml, function ($message) use ($recipientEmail, $lockedDeal): void {
+                $message
+                    ->from(config('mail.from.address'), 'John Kelly & Company')
+                    ->to($recipientEmail)
+                    ->subject('Proposal for '.($lockedDeal->company_name ?: $lockedDeal->deal_name ?: $lockedDeal->deal_code));
+            });
 
-        Mail::html($emailHtml, function ($message) use ($recipientEmail, $deal): void {
-            $message
-                ->from(config('mail.from.address'), 'John Kelly & Company')
-                ->to($recipientEmail)
-                ->subject('Proposal for '.($deal->company_name ?: $deal->deal_name ?: $deal->deal_code));
+            return ['proposal' => $lockedProposal, 'token' => $token, 'client_url' => $clientUrl];
         });
+
+        if (! $result) {
+            return $this->approvedProposalReadOnlyResponse($deal);
+        }
 
         return redirect()
             ->route('deals.proposal.show', $deal)
             ->with('success', "Proposal saved link sent to {$recipientEmail}.")
-            ->with('proposal_client_link', $clientUrl);
+            ->with('proposal_client_link', $result['client_url']);
     }
 
-    public function clientProposal(Request $request, string $token): View
+    private function sendVersionedClientProposal(
+        Request $request,
+        Deal $routeDeal,
+        string $recipientEmail,
+        string $issuanceRequestKey,
+    ): RedirectResponse {
+        $actor = $request->user();
+        abort_unless($actor instanceof \App\Models\User, 403);
+
+        try {
+            $result = DB::transaction(function () use (
+                $actor,
+                $routeDeal,
+                $recipientEmail,
+                $issuanceRequestKey,
+            ): ?array {
+                // Keep source capture aligned with issuance's Deal -> proposal lock order.
+                $deal = Deal::query()->lockForUpdate()->findOrFail($routeDeal->id);
+                $this->assertDealEdit($actor, $deal);
+                $deal->load('contact');
+                $proposal = DealProposal::query()
+                    ->where('deal_id', $deal->id)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $proposal) {
+                    $proposal = DealProposal::query()->create($this->defaultProposalPayload($deal));
+                }
+
+                // Existing request keys reuse their frozen inputs even if live records changed.
+                $priorVersion = DealProposalVersion::query()
+                    ->where('issuance_request_key', $issuanceRequestKey)
+                    ->lockForUpdate()
+                    ->first();
+                if ($priorVersion && (int) $priorVersion->deal_proposal_id !== (int) $proposal->id) {
+                    throw new DomainException('This issuance request key was already used for another proposal.');
+                }
+
+                if (! $priorVersion && (
+                    $this->isApprovedProposal($proposal)
+                    || filled($proposal->quotation_approved_at)
+                    || strtolower(trim((string) $proposal->quotation_status)) === 'approved'
+                )) {
+                    return null;
+                }
+
+                if ($priorVersion) {
+                    $sourceMetadata = (array) $priorVersion->source_metadata;
+                    $issueDateValue = $sourceMetadata['issuance_issue_date'] ?? null;
+                    if (! is_string($issueDateValue) || trim($issueDateValue) === '') {
+                        throw new DomainException('The original issuance inputs are unavailable for a safe retry.');
+                    }
+                    $issueDate = new DateTimeImmutable($issueDateValue);
+                    $documentData = (array) $priorVersion->resolved_proposal_data;
+                    $proposalHtml = (string) $priorVersion->rendered_html;
+                    $commercialValues = (array) $priorVersion->commercial_values;
+                    $documentIdentifiers = (array) $priorVersion->document_identifiers;
+                } else {
+                    $issueDate = $proposal->proposal_date
+                        ? DateTimeImmutable::createFromInterface($proposal->proposal_date)
+                        : DateTimeImmutable::createFromInterface(now());
+                    $documentData = $this->documentData($deal, $proposal);
+                    $documentData['date'] = $issueDate->format('F d, Y');
+                    $documentData['year'] = $issueDate->format('Y');
+                    $proposalHtml = $this->resolveProposalDocumentHtml(
+                        $documentData,
+                        $proposal->document_html,
+                        false,
+                    );
+                    $commercialValues = $this->proposalCommercialSnapshotValues($documentData);
+                    $sourceMetadata = [
+                        'capture_source' => 'deal_proposal_send_workflow',
+                        'captured_at' => now()->toIso8601String(),
+                        'issuance_issue_date' => $issueDate->format(DateTimeImmutable::ATOM),
+                        'deal_id' => (string) $deal->id,
+                        'deal_updated_at' => $deal->updated_at?->toIso8601String(),
+                        'proposal_id' => (string) $proposal->id,
+                        'proposal_updated_at' => $proposal->updated_at?->toIso8601String(),
+                        'contact_id' => (string) $deal->contact?->id,
+                        'contact_updated_at' => $deal->contact?->updated_at?->toIso8601String(),
+                        'service_catalog_ids' => collect($documentData['service_fee_rows'] ?? [])
+                            ->pluck('service_id')->filter()->unique()->values()->all(),
+                        'product_catalog_ids' => collect($documentData['product_fee_rows'] ?? [])
+                            ->pluck('service_id')->filter()->unique()->values()->all(),
+                        'proposal_html_source' => filled($proposal->document_html)
+                            ? 'proposal_record'
+                            : 'approved_global_or_builtin_template',
+                        'proposal_html_sha256' => hash('sha256', $proposalHtml),
+                    ];
+                    $documentIdentifiers = [
+                        'reference_id' => (string) ($documentData['reference_id'] ?? ''),
+                        'crud_id' => (string) ($documentData['crud_id'] ?? ''),
+                    ];
+                }
+
+                return app(DealProposalIssuanceService::class)->issue(
+                    $actor,
+                    (int) $deal->id,
+                    (int) $proposal->id,
+                    $issuanceRequestKey,
+                    $recipientEmail,
+                    $documentData,
+                    $proposalHtml,
+                    $commercialValues,
+                    $sourceMetadata,
+                    $documentIdentifiers,
+                    $issueDate,
+                );
+            });
+        } catch (DomainException $exception) {
+            return redirect()
+                ->route('deals.proposal.show', $routeDeal)
+                ->withInput($request->except(['_token']))
+                ->with('error', $exception->getMessage());
+        } catch (\InvalidArgumentException) {
+            return redirect()
+                ->route('deals.proposal.show', $routeDeal)
+                ->withInput($request->except(['_token']))
+                ->with('error', 'The proposal issuance request could not be validated.');
+        } catch (\RuntimeException) {
+            return redirect()
+                ->route('deals.proposal.show', $routeDeal)
+                ->withInput($request->except(['_token']))
+                ->with('error', 'Unable to issue the proposal. No new client link was activated.');
+        }
+
+        if ($result === null) {
+            return $this->approvedProposalReadOnlyResponse($routeDeal);
+        }
+
+        $response = redirect()
+            ->route('deals.proposal.show', $routeDeal)
+            ->with('success', $result['replayed']
+                ? 'The existing proposal version was reused. No new version or email was created.'
+                : 'Proposal version issued and queued for email delivery.');
+
+        if (
+            $result['access_token'] !== null
+            && $result['is_current']
+            && $result['version']->client_access_expires_at
+            && $result['version']->client_access_expires_at->isFuture()
+        ) {
+            $response->with('proposal_client_link', route('deals.proposal.client.show', [
+                'token' => $result['access_token'],
+            ]));
+        }
+
+        return $response;
+    }
+
+    private function proposalCommercialSnapshotValues(array $documentData): array
+    {
+        $fields = [
+            'service_total' => 'price_regular',
+            'product_total' => 'price_products',
+            'discount' => 'price_discount',
+            'subtotal' => 'price_subtotal',
+            'tax' => 'price_tax',
+            'total' => 'price_total',
+            'down_payment' => 'price_down',
+            'balance' => 'price_balance',
+        ];
+        $values = [];
+        foreach ($fields as $name => $field) {
+            $values[$name] = number_format((float) ($documentData[$field] ?? 0), 2, '.', '');
+        }
+
+        return $values;
+    }
+
+    public function clientProposal(Request $request, string $token): Response
     {
         $proposal = $this->findProposalByClientToken($token);
         $this->abortExpiredClientProposal($proposal);
+        $issuedVersion = $this->currentIssuedVersionForClient($proposal, $token);
         $deal = $proposal->deal()->with('contact')->firstOrFail();
-        $documentData = $this->documentData($deal, $proposal);
+        $proposalDocumentHtml = $issuedVersion
+            ? (string) $issuedVersion->rendered_html
+            : $this->resolveProposalDocumentHtml($this->documentData($deal, $proposal), $proposal->document_html, false);
 
-        return view('deals.proposal.client-form', [
+        return response()->view('deals.proposal.client-form', [
             'deal' => $deal,
             'proposal' => $proposal,
-            'proposalDocumentHtml' => $this->resolveProposalDocumentHtml($documentData, $proposal->document_html, false),
+            'proposalDocumentHtml' => $proposalDocumentHtml,
             'downloadUrl' => route('deals.proposal.client.download', ['token' => $token]),
             'approveUrl' => route('deals.proposal.client.approve', ['token' => $token]),
-        ]);
+        ])->withHeaders($this->privateNoStoreHeaders());
     }
 
     public function approveClientProposal(Request $request, string $token): RedirectResponse
     {
         $proposal = $this->findProposalByClientToken($token);
         $this->abortExpiredClientProposal($proposal);
+        $this->currentIssuedVersionForClient($proposal, $token);
 
         $validated = $request->validate([
             'client_name' => ['nullable', 'string', 'max:255'],
             'approval_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $deal = $proposal->deal;
-        $clientName = trim((string) ($validated['client_name'] ?? '')) ?: $this->clientNameForDeal($deal);
+        $proposalId = (int) $proposal->id;
+        $dealId = (int) $proposal->deal_id;
+        DB::transaction(function () use ($token, $validated, $proposalId, $dealId): void {
+            $deal = Deal::query()->lockForUpdate()->findOrFail($dealId);
+            abort_if($deal->isArchived(), 403, 'Archived Deals cannot be approved.');
+            $proposal = DealProposal::query()
+                ->whereKey($proposalId)
+                ->where('deal_id', $deal->id)
+                ->where('client_access_token', $token)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $proposal->update([
-            'status' => 'approved',
-            'client_approved_at' => now(),
-            'client_approved_by_name' => $clientName,
-            'client_approval_note' => trim((string) ($validated['approval_note'] ?? '')) ?: null,
-        ]);
+            $this->abortExpiredClientProposal($proposal);
+            $issuedVersion = null;
+            if ($proposal->versions()->exists()) {
+                $issuedVersion = $proposal->versions()
+                    ->where('issued_token_sha256', hash('sha256', $token))
+                    ->lockForUpdate()
+                    ->first();
+                abort_unless($issuedVersion, 403, 'This proposal link is invalid or no longer current.');
+                abort_if(
+                    ! $issuedVersion->client_access_expires_at || $issuedVersion->client_access_expires_at->isPast(),
+                    403,
+                    'This proposal link has expired.'
+                );
+            }
 
-        $deal?->update([
-            'proposal_decision' => 'Approved',
-        ]);
+            // Serialize submissions on the proposal row. Once the first approval
+            // commits, later submissions preserve its audit fields and side effects.
+            if ($proposal->client_approved_at) {
+                return;
+            }
 
-        if ($deal) {
+            $clientName = trim((string) ($validated['client_name'] ?? '')) ?: $this->clientNameForDeal($deal);
+            $approvalNote = trim((string) ($validated['approval_note'] ?? '')) ?: null;
+            $approvedAt = now();
+
+            if ($issuedVersion) {
+                $idempotencyKey = 'client-approval-version-'.$issuedVersion->id;
+                $event = DealProposalApprovalEvent::query()
+                    ->where('idempotency_key', $idempotencyKey)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($event) {
+                    if ((int) $event->deal_proposal_version_id !== (int) $issuedVersion->id) {
+                        abort(409, 'The proposal approval event conflicts with this issued version.');
+                    }
+                    abort(409, 'An approval event already exists for this issued version.');
+                } else {
+                    DealProposalApprovalEvent::query()->create([
+                        'deal_proposal_version_id' => $issuedVersion->id,
+                        'event_type' => 'client_approved',
+                        'idempotency_key' => $idempotencyKey,
+                        'occurred_at' => $approvedAt,
+                        'actor_type' => 'client',
+                        'actor_name' => $clientName,
+                        'note' => $approvalNote,
+                    ]);
+                }
+            }
+
+            $proposal->update([
+                'status' => 'approved',
+                'client_approved_at' => $approvedAt,
+                'client_approved_by_name' => $clientName,
+                'client_approval_note' => $approvalNote,
+            ]);
+
+            $deal->update([
+                'proposal_decision' => 'Approved',
+            ]);
+
             $this->moveDealToStage($deal, 'Negotiation');
-        }
+        });
 
         return redirect()
             ->route('deals.proposal.client.show', ['token' => $token])
@@ -532,46 +838,64 @@ class DealProposalController extends Controller
 
     public function approveProposalAdmin(Request $request, Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal;
-        if (! $proposal) {
+        $this->abortUnlessAdminReviewer();
+
+        $approved = DB::transaction(function () use ($deal): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            abort_if($lockedDeal->isArchived(), 403, 'Archived Deals cannot be approved.');
+            $lockedProposal = DealProposal::query()->where('deal_id', $lockedDeal->id)->lockForUpdate()->first();
+            if (! $lockedProposal) {
+                return false;
+            }
+
+            $lockedProposal->update(['status' => 'approved']);
+            $lockedDeal->update(['proposal_decision' => 'Approved']);
+            $this->moveDealToStage($lockedDeal, 'Negotiation');
+
+            return true;
+        });
+
+        if (! $approved) {
             return back()->with('error', 'Proposal not found.');
         }
-
-        $proposal->update([
-            'status' => 'approved',
-        ]);
-
-        $deal->update([
-            'proposal_decision' => 'Approved',
-        ]);
-
-        $this->moveDealToStage($deal, 'Negotiation');
 
         return back()->with('success', 'Proposal approved internally. Deal moved to Negotiation stage.');
     }
 
     public function rejectProposalAdmin(Request $request, Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal;
-        if (! $proposal) {
+        $this->abortUnlessAdminReviewer();
+
+        $rejected = DB::transaction(function () use ($deal): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            abort_if($lockedDeal->isArchived(), 403, 'Archived Deals cannot be rejected.');
+            $lockedProposal = DealProposal::query()->where('deal_id', $lockedDeal->id)->lockForUpdate()->first();
+            if (! $lockedProposal) {
+                return false;
+            }
+
+            $lockedProposal->update(['status' => 'rejected']);
+            $lockedDeal->update(['proposal_decision' => 'Rejected']);
+
+            return true;
+        });
+
+        if (! $rejected) {
             return back()->with('error', 'Proposal not found.');
         }
-
-        $proposal->update([
-            'status' => 'rejected',
-        ]);
-
-        $deal->update([
-            'proposal_decision' => 'Rejected',
-        ]);
 
         return back()->with('success', 'Proposal rejected internally.');
     }
 
-    public function downloadClientProposal(string $token): RedirectResponse
+    public function downloadClientProposal(string $token): Response
     {
         $proposal = $this->findProposalByClientToken($token);
         $this->abortExpiredClientProposal($proposal);
+        $issuedVersion = $this->currentIssuedVersionForClient($proposal, $token);
+        if ($issuedVersion) {
+            return $this->privateIssuedPdfResponse($proposal, $issuedVersion);
+        }
+
         $deal = $proposal->deal()->with('contact')->firstOrFail();
 
         return $this->proposalPdfDownloadResponse($deal, $proposal);
@@ -579,30 +903,37 @@ class DealProposalController extends Controller
 
     public function sendClientQuotation(Request $request, Deal $deal): RedirectResponse
     {
-        $deal->loadMissing('contact', 'proposal');
+        $this->assertDealEdit($request->user(), $deal);
 
         $validated = $request->validate([
             'recipient_email' => ['required', 'email', 'max:255'],
         ]);
 
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        $token = $this->ensureClientAccessToken($proposal);
         $recipientEmail = trim((string) $validated['recipient_email']);
-        $clientUrl = route('deals.proposal.client.show', ['token' => $token]);
 
-        $emailHtml = view('emails.deals.quotation-client-link', [
-            'deal' => $deal,
-            'proposal' => $proposal,
-            'clientName' => $this->clientNameForDeal($deal),
-            'clientUrl' => $clientUrl,
-            'expiresAt' => $proposal->client_access_expires_at,
-        ])->render();
+        $clientUrl = DB::transaction(function () use ($request, $deal, $recipientEmail): string {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertDealEdit($request->user(), $lockedDeal);
+            $lockedDeal->loadMissing('contact');
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            $token = $this->ensureClientAccessToken($proposal);
+            $clientUrl = route('deals.proposal.client.show', ['token' => $token]);
+            $emailHtml = view('emails.deals.quotation-client-link', [
+                'deal' => $lockedDeal,
+                'proposal' => $proposal,
+                'clientName' => $this->clientNameForDeal($lockedDeal),
+                'clientUrl' => $clientUrl,
+                'expiresAt' => $proposal->client_access_expires_at,
+            ])->render();
 
-        Mail::html($emailHtml, function ($message) use ($recipientEmail, $deal): void {
-            $message
-                ->from(config('mail.from.address'), 'John Kelly & Company')
-                ->to($recipientEmail)
-                ->subject('Quotation for '.($deal->company_name ?: $deal->deal_name ?: $deal->deal_code));
+            Mail::html($emailHtml, function ($message) use ($recipientEmail, $lockedDeal): void {
+                $message
+                    ->from(config('mail.from.address'), 'John Kelly & Company')
+                    ->to($recipientEmail)
+                    ->subject('Quotation for '.($lockedDeal->company_name ?: $lockedDeal->deal_name ?: $lockedDeal->deal_code));
+            });
+
+            return $clientUrl;
         });
 
         return redirect()
@@ -613,35 +944,45 @@ class DealProposalController extends Controller
 
     public function sendFinanceQuotation(Request $request, Deal $deal): RedirectResponse
     {
-        $deal->loadMissing('contact', 'proposal', 'assignedFinance');
+        $this->assertDealEdit($request->user(), $deal);
 
         $validated = $request->validate([
             'recipient_email' => ['nullable', 'email', 'max:255'],
         ]);
 
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        $recipientEmail = trim((string) ($deal->assignedFinance?->email ?: ($validated['recipient_email'] ?? '')));
-        if ($recipientEmail === '') {
+        $sent = DB::transaction(function () use ($request, $deal, $validated): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertDealEdit($request->user(), $lockedDeal);
+            $lockedDeal->loadMissing('contact', 'assignedFinance');
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            $recipientEmail = trim((string) ($lockedDeal->assignedFinance?->email ?: ($validated['recipient_email'] ?? '')));
+            if ($recipientEmail === '') {
+                return false;
+            }
+            $proposalUrl = route('deals.quotation.finance', $lockedDeal);
+            $emailHtml = view('emails.deals.quotation-finance-link', [
+                'deal' => $lockedDeal,
+                'proposal' => $proposal,
+                'financeName' => $lockedDeal->assignedFinance?->name,
+                'clientName' => $this->clientNameForDeal($lockedDeal),
+                'proposalUrl' => $proposalUrl,
+            ])->render();
+
+            Mail::html($emailHtml, function ($message) use ($recipientEmail, $lockedDeal): void {
+                $message
+                    ->from(config('mail.from.address'), 'John Kelly & Company')
+                    ->to($recipientEmail)
+                    ->subject('Immediate Issuance of Quotation');
+            });
+
+            return true;
+        });
+
+        if (! $sent) {
             return redirect()
                 ->route('deals.show', $deal)
                 ->with('error', 'Assign a finance user or enter a finance email before sending the quotation.');
         }
-        $proposalUrl = route('deals.quotation.finance', $deal);
-
-        $emailHtml = view('emails.deals.quotation-finance-link', [
-            'deal' => $deal,
-            'proposal' => $proposal,
-            'financeName' => $deal->assignedFinance?->name,
-            'clientName' => $this->clientNameForDeal($deal),
-            'proposalUrl' => $proposalUrl,
-        ])->render();
-
-        Mail::html($emailHtml, function ($message) use ($recipientEmail, $deal): void {
-            $message
-                ->from(config('mail.from.address'), 'John Kelly & Company')
-                ->to($recipientEmail)
-                ->subject('Immediate Issuance of Quotation');
-        });
 
         return redirect()
             ->route('deals.show', $deal)
@@ -650,9 +991,11 @@ class DealProposalController extends Controller
 
     public function financeQuotation(Deal $deal): View
     {
-        $deal->loadMissing('contact', 'proposal', 'assignedFinance');
+        $actor = request()->user();
+        $this->assertDealRead($actor, $deal);
+        $deal->loadMissing('contact', 'assignedFinance');
 
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $proposal = $this->proposalForAuthorizedRead($actor, $deal);
         $documentData = $this->documentData($deal, $proposal);
 
         return view('deals.quotation.finance', [
@@ -666,24 +1009,35 @@ class DealProposalController extends Controller
 
     public function approveQuotation(Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+        $approved = DB::transaction(function () use ($deal, $actor): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertFinanceDealIsActive($lockedDeal);
+            $this->assertFinanceActor($actor, $lockedDeal);
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            if ($proposal->quotation_approved_at || $proposal->quotation_status === 'approved') {
+                return false;
+            }
 
-        if ($proposal->quotation_approved_at || $proposal->quotation_status === 'approved') {
+            $financeName = $actor->name ?: 'Finance';
+            $proposal->update([
+                'status' => 'approved',
+                'quotation_status' => 'approved',
+                'quotation_approved_at' => now(),
+                'quotation_approved_by_name' => $financeName,
+            ]);
+            $this->markDealApprovedByFinance($lockedDeal, $financeName);
+            $this->moveDealToStage($lockedDeal, 'Payment');
+
+            return true;
+        });
+
+        if (! $approved) {
             return redirect()
                 ->route('deals.quotation.finance', $deal)
                 ->with('success', 'Quotation is already approved.');
         }
-
-        $financeName = auth()->user()?->name ?: 'Finance';
-        $proposal->update([
-            'status' => 'approved',
-            'quotation_status' => 'approved',
-            'quotation_approved_at' => now(),
-            'quotation_approved_by_name' => $financeName,
-        ]);
-
-        $this->markDealApprovedByFinance($deal, $financeName);
-        $this->moveDealToStage($deal, 'Payment');
 
         return redirect()
             ->route('deals.quotation.finance', $deal)
@@ -692,13 +1046,24 @@ class DealProposalController extends Controller
 
     public function uploadFinanceQuotation(Request $request, Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        if ($proposal->quotation_approved_at || $proposal->quotation_status === 'approved') {
+        $uploaded = DB::transaction(function () use ($request, $deal): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertFinanceDealIsActive($lockedDeal);
+            $this->assertFinanceActor($request->user(), $lockedDeal);
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            if ($proposal->quotation_approved_at || $proposal->quotation_status === 'approved') {
+                return false;
+            }
+            $this->storeQuotationUpload($request, $proposal, 'finance');
+
+            return true;
+        });
+
+        if (! $uploaded) {
             return redirect()
                 ->route('deals.quotation.finance', $deal)
                 ->with('error', 'Approved quotations cannot be replaced unless the deal is renegotiated.');
         }
-        $this->storeQuotationUpload($request, $proposal, 'finance');
 
         return redirect()
             ->route('deals.quotation.finance', $deal)
@@ -707,9 +1072,11 @@ class DealProposalController extends Controller
 
     public function paymentInvoice(Deal $deal): View
     {
-        $deal->loadMissing('contact', 'proposal', 'assignedFinance');
+        $actor = request()->user();
+        $this->assertDealRead($actor, $deal);
+        $deal->loadMissing('contact', 'assignedFinance');
 
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $proposal = $this->proposalForAuthorizedRead($actor, $deal);
         $documentData = $this->documentData($deal, $proposal);
 
         return view('deals.invoice.payment', [
@@ -722,13 +1089,24 @@ class DealProposalController extends Controller
 
     public function uploadInvoice(Request $request, Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
-        if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
+        $uploaded = DB::transaction(function () use ($request, $deal): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertFinanceDealIsActive($lockedDeal);
+            $this->assertFinanceActor($request->user(), $lockedDeal);
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
+                return false;
+            }
+            $this->storeInvoiceUpload($request, $proposal);
+
+            return true;
+        });
+
+        if (! $uploaded) {
             return redirect()
                 ->route('deals.invoice.payment', $deal)
                 ->with('error', 'Invoices cannot be replaced after payment is confirmed.');
         }
-        $this->storeInvoiceUpload($request, $proposal);
 
         return redirect()
             ->route('deals.invoice.payment', $deal)
@@ -737,25 +1115,35 @@ class DealProposalController extends Controller
 
     public function confirmPayment(Deal $deal): RedirectResponse
     {
-        $proposal = $deal->proposal ?: DealProposal::create($this->defaultProposalPayload($deal));
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+        $confirmed = DB::transaction(function () use ($deal, $actor): bool {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertFinanceDealIsActive($lockedDeal);
+            $this->assertFinanceActor($actor, $lockedDeal);
+            $proposal = $this->lockedProposalForDeal($lockedDeal);
+            if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
+                return false;
+            }
 
-        if ($proposal->payment_confirmed_at || in_array($proposal->invoice_status, ['approved', 'payment_confirmed'], true)) {
+            $financeName = $actor->name ?: 'Finance';
+            $proposal->forceFill([
+                'status' => 'approved',
+                'invoice_status' => 'approved',
+                'payment_confirmed_at' => now(),
+                'payment_confirmed_by_name' => $financeName,
+            ])->save();
+            $this->markDealApprovedByFinance($lockedDeal, $financeName);
+            $this->moveDealToStage($lockedDeal, 'Closed Won');
+
+            return true;
+        });
+
+        if (! $confirmed) {
             return redirect()
                 ->route('deals.invoice.payment', $deal)
                 ->with('success', 'Payment / invoice is already approved.');
         }
-
-        $financeName = auth()->user()?->name ?: 'Finance';
-        $proposal->forceFill([
-            'status' => 'approved',
-            'invoice_status' => 'approved',
-            'payment_confirmed_at' => now(),
-            'payment_confirmed_by_name' => $financeName,
-        ])->save();
-
-        $this->markDealApprovedByFinance($deal, $financeName);
-
-        $this->moveDealToStage($deal, 'Closed Won');
 
         return redirect()
             ->route('deals.invoice.payment', $deal)
@@ -766,7 +1154,18 @@ class DealProposalController extends Controller
     {
         $proposal = $this->findProposalByClientToken($token);
         $this->abortExpiredClientProposal($proposal);
-        $this->storeQuotationUpload($request, $proposal, 'client');
+        DB::transaction(function () use ($request, $proposal, $token): void {
+            $deal = Deal::query()->lockForUpdate()->findOrFail($proposal->deal_id);
+            abort_if($deal->isArchived(), 403, 'Archived Deals cannot be changed.');
+            $lockedProposal = DealProposal::query()
+                ->whereKey($proposal->id)
+                ->where('deal_id', $deal->id)
+                ->where('client_access_token', $token)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->abortExpiredClientProposal($lockedProposal);
+            $this->storeQuotationUpload($request, $lockedProposal, 'client');
+        });
 
         return redirect()
             ->route('deals.proposal.client.show', ['token' => $token])
@@ -775,25 +1174,30 @@ class DealProposalController extends Controller
 
     public function preview(Request $request, Deal $deal): JsonResponse
     {
-        $deal->loadMissing('contact', 'proposal');
-        $proposal = $deal->proposal ?: new DealProposal($this->defaultProposalPayload($deal));
-
+        $this->assertDealEdit($request->user(), $deal);
         $validated = $this->validatedPayload($request);
-        $previewProposal = new DealProposal(array_merge(
-            $proposal->toArray(),
-            $validated,
-            ['deal_id' => $deal->id],
-        ));
 
-        $documentData = $this->documentData($deal, $previewProposal);
-        $baseName = Str::slug((string) ($deal->deal_code ?: 'deal-proposal')).'-proposal-preview.docx';
-        $pdfPath = $this->generateProposalPdf($documentData, $baseName);
+        return DB::transaction(function () use ($request, $deal, $validated): JsonResponse {
+            $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
+            $this->assertDealEdit($request->user(), $lockedDeal);
+            $lockedDeal->loadMissing('contact', 'proposal');
+            $proposal = $lockedDeal->proposal ?: new DealProposal($this->defaultProposalPayload($lockedDeal));
+            $previewProposal = new DealProposal(array_merge(
+                $proposal->toArray(),
+                $validated,
+                ['deal_id' => $lockedDeal->id],
+            ));
 
-        return response()->json([
-            'html' => $this->resolveProposalDocumentHtml($documentData, $validated['document_html'] ?? null, false),
-            'pdf_url' => $pdfPath ? route('uploads.show', ['path' => $pdfPath]) : null,
-            'pdf_download_url' => $pdfPath ? route('uploads.show', ['path' => $pdfPath, 'download' => 1]) : null,
-        ]);
+            $documentData = $this->documentData($lockedDeal, $previewProposal);
+            $baseName = Str::slug((string) ($lockedDeal->deal_code ?: 'deal-proposal')).'-proposal-preview.docx';
+            $pdfPath = $this->generateProposalPdf($documentData, $baseName);
+
+            return response()->json([
+                'html' => $this->resolveProposalDocumentHtml($documentData, $validated['document_html'] ?? null, false),
+                'pdf_url' => $pdfPath ? route('uploads.show', ['path' => $pdfPath]) : null,
+                'pdf_download_url' => $pdfPath ? route('uploads.show', ['path' => $pdfPath, 'download' => 1]) : null,
+            ]);
+        });
     }
 
     private function defaultProposalPayload(Deal $deal): array
@@ -1450,6 +1854,77 @@ class DealProposalController extends Controller
         abort_unless(in_array((string) (auth()->user()?->role ?? ''), ['Admin', 'SuperAdmin'], true), 403);
     }
 
+    private function assertDealRead(?User $actor, Deal $deal): void
+    {
+        abort_unless($actor instanceof User && app(DealPolicy::class)->view($actor, $deal), 403);
+    }
+
+    private function assertDealEdit(?User $actor, Deal $deal): void
+    {
+        abort_unless($actor instanceof User && app(DealPolicy::class)->update($actor, $deal), 403);
+    }
+
+    private function assertFinanceActor(?User $actor, Deal $deal): void
+    {
+        if ($actor instanceof User && ($actor->isAdmin() || $actor->isSuperAdmin())) {
+            return;
+        }
+
+        abort_unless(
+            $actor instanceof User
+                && $actor->isEligibleDealFinanceUser()
+                && $deal->assigned_finance_user_id !== null
+                && (int) $deal->assigned_finance_user_id === (int) $actor->id,
+            403,
+            'Only the assigned eligible Finance user or an Admin/SuperAdmin may perform this action.'
+        );
+    }
+
+    private function assertFinanceDealIsActive(Deal $deal): void
+    {
+        abort_if($deal->isArchived(), 403, 'Archived Deals cannot be changed.');
+    }
+
+    private function proposalForAuthorizedRead(?User $actor, Deal $routeDeal): DealProposal
+    {
+        $this->assertDealRead($actor, $routeDeal);
+
+        return DB::transaction(function () use ($actor, $routeDeal): DealProposal {
+            $deal = Deal::query()->lockForUpdate()->findOrFail($routeDeal->id);
+            $this->assertDealRead($actor, $deal);
+            $deal->loadMissing('contact');
+            $proposal = DealProposal::query()->where('deal_id', $deal->id)->lockForUpdate()->first();
+
+            if ($proposal) {
+                return $proposal;
+            }
+
+            $proposal = new DealProposal($this->defaultProposalPayload($deal));
+            if ($deal->isArchived()) {
+                return $proposal;
+            }
+
+            $proposal->save();
+
+            return $proposal;
+        });
+    }
+
+    private function lockedProposalForDeal(Deal $deal): DealProposal
+    {
+        $proposal = DealProposal::query()
+            ->where('deal_id', $deal->id)
+            ->lockForUpdate()
+            ->first();
+        if ($proposal) {
+            return $proposal;
+        }
+
+        $deal->loadMissing('contact');
+
+        return DealProposal::query()->create($this->defaultProposalPayload($deal));
+    }
+
     private function generateProposalPdf(array $documentData, string $docxFileName): ?string
     {
         $relativePdfPath = 'generated-proposals/deals/'.preg_replace('/\.docx$/i', '.pdf', $docxFileName);
@@ -1483,6 +1958,70 @@ class DealProposalController extends Controller
         return DealProposal::query()
             ->where('client_access_token', $token)
             ->firstOrFail();
+    }
+
+    private function currentIssuedVersionForClient(DealProposal $proposal, string $token): ?DealProposalVersion
+    {
+        if (! $proposal->versions()->exists()) {
+            return null;
+        }
+
+        $tokenHash = hash('sha256', $token);
+        $version = $proposal->versions()
+            ->where('issued_token_sha256', $tokenHash)
+            ->first();
+
+        abort_unless($version, 403, 'This proposal link is invalid or no longer current.');
+        abort_if(
+            ! $version->client_access_expires_at || $version->client_access_expires_at->isPast(),
+            403,
+            'This proposal link has expired.'
+        );
+
+        return $version;
+    }
+
+    private function privateIssuedPdfResponse(DealProposal $proposal, DealProposalVersion $version): Response
+    {
+        $path = (string) $version->artifact_private_path;
+        $expectedHash = strtolower((string) $version->artifact_sha256);
+        $validPath = preg_match(
+            '/\Adeal-proposal-versions\/'.preg_quote((string) $proposal->id, '/').'\/[A-Za-z0-9][A-Za-z0-9._-]*\.pdf\z/',
+            $path,
+        ) === 1 && ! str_contains($path, '..') && ! str_contains($path, '\\');
+        if (! $validPath || preg_match('/\A[a-f0-9]{64}\z/', $expectedHash) !== 1) {
+            abort(404, 'The issued proposal document is unavailable.');
+        }
+
+        try {
+            $disk = Storage::disk('local');
+            if (! $disk->exists($path)) {
+                abort(404, 'The issued proposal document is unavailable.');
+            }
+            $bytes = $disk->get($path);
+        } catch (Throwable) {
+            abort(404, 'The issued proposal document is unavailable.');
+        }
+
+        if (! hash_equals($expectedHash, hash('sha256', $bytes))) {
+            abort(404, 'The issued proposal document is unavailable.');
+        }
+
+        return response($bytes, 200, array_merge($this->privateNoStoreHeaders(), [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="proposal-v'.(int) $version->version_number.'.pdf"',
+            'Content-Length' => (string) strlen($bytes),
+        ]));
+    }
+
+    private function privateNoStoreHeaders(): array
+    {
+        return [
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
     }
 
     private function ensureClientAccessToken(DealProposal $proposal): string

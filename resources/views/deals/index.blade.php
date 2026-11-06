@@ -275,6 +275,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const addDealButton = document.getElementById('openCreateDealModalBtn');
     const modal = document.getElementById('createDealModal');
     const form = document.getElementById('createDealForm');
+    let catalogHydrationPending = false;
+    let catalogContextGeneration = 0;
+    const catalogContextReady = (dealId = null) => {
+        const record = dealId == null ? null : dealRecords[String(dealId)];
+        form?.dispatchEvent(new CustomEvent('deal-catalog:context-ready', { detail: {
+            dealId, unresolved: dealId != null && !record,
+            legacyNames: record ? {'service_options[]': record.service_options || [], 'product_options[]': record.product_options || []}
+                : {'service_options[]': @json(old('service_options', $dealDraft['service_options'] ?? [])), 'product_options[]': @json(old('product_options', $dealDraft['product_options'] ?? []))},
+        } }));
+    };
     const formTitle = document.getElementById('dealPanelTitle');
     const formSubtitle = document.getElementById('dealPanelSubtitle');
     const saveDealBtn = document.getElementById('saveDealBtn');
@@ -627,8 +637,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const openDealPanel = (options = {}) => {
+        const catalogGeneration = ++catalogContextGeneration;
+        catalogHydrationPending = true;
+        form?.dispatchEvent(new CustomEvent('deal-catalog:context-pending'));
         addDealButton?.click();
         window.setTimeout(() => {
+            if (catalogGeneration !== catalogContextGeneration) return;
             if (options.mode === 'edit' && options.card) {
                 const card = options.card;
                 setFormModeEdit(card);
@@ -662,6 +676,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     ensureStageOption(options.stage);
                     stageInput.value = options.stage;
                 }
+            }
+            catalogHydrationPending = false;
+            if (catalogGeneration === catalogContextGeneration) {
+                catalogContextReady(options.mode === 'edit' ? (options.card?.dataset.dealId || 'invalid') : null);
             }
         }, 80);
     };
@@ -1046,7 +1064,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     addDealButton?.addEventListener('click', () => {
+        if (!catalogHydrationPending) ++catalogContextGeneration;
         setFormModeCreate();
+        if (!catalogHydrationPending) catalogContextReady();
     });
 
     clearBtn?.addEventListener('click', () => {
@@ -1303,6 +1323,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('deal-drawer:closed', () => {
+        ++catalogContextGeneration;
+        catalogHydrationPending = false;
         stopLiveCreatedAt();
     });
 

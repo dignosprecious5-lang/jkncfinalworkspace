@@ -450,6 +450,7 @@ class AdminDashboardController extends Controller
     private function dealApprovalItems(): Collection
     {
         return Deal::query()
+            ->active()
             ->with('proposal')
             ->latest('updated_at')
             ->get()
@@ -545,6 +546,7 @@ class AdminDashboardController extends Controller
     private function dealDeletionApprovalItems(Collection $userNames): Collection
     {
         return Deal::query()
+            ->active()
             ->latest('delete_requested_at')
             ->get()
             ->filter(function (Deal $deal): bool {

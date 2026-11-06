@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use LogicException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,9 @@ class Deal extends Model
         'delete_request_status',
         'delete_requested_by',
         'delete_requested_at',
+        'archived_at',
+        'archived_by_user_id',
+        'archive_reason',
         'approved_at',
         'approved_by_name',
         'rejected_at',
@@ -98,6 +102,7 @@ class Deal extends Model
         'estimated_completion_date' => 'date',
         'client_preferred_completion_date' => 'date',
         'confirmed_delivery_date' => 'date',
+        'archived_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'delete_requested_at' => 'datetime',
@@ -118,6 +123,31 @@ class Deal extends Model
                 $deal->deal_code = static::generateNextDealCode();
             }
         });
+
+        static::deleting(function (Deal $deal): void {
+            throw new LogicException('Deals must be archived and cannot be permanently deleted.');
+        });
+
+        static::updating(function (Deal $deal): void {
+            if ($deal->getOriginal('archived_at') !== null) {
+                throw new LogicException('Archived Deals are immutable until a separately approved restoration workflow exists.');
+            }
+        });
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
     }
 
     public static function generateNextDealCode(?int $year = null, ?int $ignoreDealId = null): string
@@ -188,6 +218,16 @@ class Deal extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(DealMembership::class);
+    }
+
+    public function activeMemberships(): HasMany
+    {
+        return $this->memberships()->where('assignment_status', DealMembership::STATUS_ACTIVE);
     }
 
     public function proposal(): HasOne

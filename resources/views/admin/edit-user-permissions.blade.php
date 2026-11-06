@@ -71,6 +71,10 @@
             ['name' => 'access_finance_ibtf', 'label' => 'Finance: Interbank Transfer', 'description' => 'Show the Interbank Fund Transfer Form tab.'],
             ['name' => 'access_finance_arf', 'label' => 'Finance: Asset Registration', 'description' => 'Show the Asset Registration Form tab.'],
         ],
+        'Deals' => [
+            ['name' => 'manage_deal_stages', 'label' => 'Manage Deal Stages', 'description' => 'Create, rename, reorder, and delete global Deal stages.'],
+            ['name' => 'manage_deals_finance_settings', 'label' => 'Manage Deals Finance Settings', 'description' => 'Manage designated Finance settings for Deals.'],
+        ],
         'CRM / Operations' => [
             ['name' => 'access_activities', 'label' => 'Access Activities', 'description' => 'View activity records.'],
             ['name' => 'access_contacts', 'label' => 'Access Contacts', 'description' => 'View contact records.'],
