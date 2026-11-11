@@ -134,6 +134,11 @@ class Contact extends Model
         return $this->hasMany(Project::class);
     }
 
+    public function visitor(): HasOne
+    {
+        return $this->hasOne(Visitor::class);
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim(implode(' ', array_filter([

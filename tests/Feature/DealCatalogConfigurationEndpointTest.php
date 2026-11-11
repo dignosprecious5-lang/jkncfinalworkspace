@@ -214,7 +214,10 @@ class DealCatalogConfigurationEndpointTest extends DealsMysqlTestCase
         DB::connection()->flushQueryLog();
         $this->invoke($this->identity(), ['deal_id' => 8, 'product_ids' => [2]]);
         foreach (DB::connection()->getQueryLog() as $query) {
-            $this->assertMatchesRegularExpression('/^\s*(select|pragma)\b/i', $query['query']);
+            $sql = trim($query['query']);
+            $isReadOnly = preg_match('/^\s*(select|pragma)\b/i', $sql) === 1
+                || preg_match('/^\s*show\s+grants\s*;?\s*$/i', $sql) === 1;
+            $this->assertTrue($isReadOnly, 'Unexpected non-read query during catalog preview: '.$sql);
         }
         foreach ($before as $table => $rows) $this->assertSame($rows, DB::table($table)->orderBy('id')->get()->toJson());
         Mail::assertNothingSent();

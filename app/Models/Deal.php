@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class Deal extends Model
 {
@@ -245,6 +246,54 @@ class Deal extends Model
             return true;
         }
 
+        $membershipAccess = $this->membershipAccessDecision($user);
+        if ($membershipAccess !== null) {
+            return $membershipAccess;
+        }
+
+        return $this->matchesLegacyAssignments($user, includeFinance: true);
+    }
+
+    public function userCanUpdate(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSuperAdmin()) {
+            return true;
+        }
+
+        $membershipAccess = $this->membershipAccessDecision($user);
+        if ($membershipAccess !== null) {
+            return $membershipAccess;
+        }
+
+        // Finance assignment grants access to specific finance workflows, not
+        // ordinary Deal or proposal editing.
+        return $this->matchesLegacyAssignments($user, includeFinance: false);
+    }
+
+    private function membershipAccessDecision(User $user): ?bool
+    {
+        if (! $this->exists || ! Schema::hasTable('deal_memberships')) {
+            return null;
+        }
+
+        $memberships = $this->memberships()->where('user_id', $user->id);
+
+        if ((clone $memberships)->where('assignment_status', DealMembership::STATUS_ACTIVE)->exists()) {
+            return true;
+        }
+
+        // Revocation is an explicit denial that supersedes stale legacy
+        // assignment text; users with no normalized history retain access
+        // until their legacy assignments have been reconciled.
+        return $memberships->exists() ? false : null;
+    }
+
+    private function matchesLegacyAssignments(User $user, bool $includeFinance): bool
+    {
         $userTokens = collect([
             $user->name,
             $user->email,
@@ -263,10 +312,12 @@ class Deal extends Model
             $this->internal_name,
             $this->lead_consultant,
             $this->lead_associate_assigned,
-            $this->internal_finance,
-            $this->assignedFinance?->name,
-            $this->assignedFinance?->email,
-            $this->assigned_finance_user_id ? (string) $this->assigned_finance_user_id : null,
+            ...($includeFinance ? [
+                $this->internal_finance,
+                $this->assignedFinance?->name,
+                $this->assignedFinance?->email,
+                $this->assigned_finance_user_id ? (string) $this->assigned_finance_user_id : null,
+            ] : []),
         ])
             ->filter()
             ->map(fn ($value): string => mb_strtolower(trim((string) $value)))

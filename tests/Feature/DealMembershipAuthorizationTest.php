@@ -32,7 +32,7 @@ class DealMembershipAuthorizationTest extends DealsMysqlTestCase
         parent::tearDown();
     }
 
-    public function test_normalized_memberships_authorize_assigned_roles_but_text_assignments_do_not(): void
+    public function test_normalized_and_legacy_assignments_preserve_access_until_reconciliation(): void
     {
         $consultant = $this->makeUser();
         $associate = $this->makeUser();
@@ -49,13 +49,35 @@ class DealMembershipAuthorizationTest extends DealsMysqlTestCase
         $this->assertTrue($policy->update($consultant, $this->deal));
         $this->assertTrue($policy->update($associate, $this->deal));
         $this->assertTrue($policy->update($lead, $this->deal));
-        $this->assertFalse($policy->update($unassigned, $this->deal));
+        $this->assertTrue($policy->view($unassigned, $this->deal));
+        $this->assertTrue($policy->update($unassigned, $this->deal));
         $this->assertTrue($policy->update($this->makeUser(['role' => 'Admin']), $this->deal));
         $this->assertTrue($policy->update($this->makeUser(['role' => 'SuperAdmin']), $this->deal));
 
         $consultantMembership = DealMembership::query()->where('user_id', $consultant->id)->firstOrFail();
         $consultantMembership->update(['assignment_status' => DealMembership::STATUS_INACTIVE]);
+        $this->assertFalse($policy->view($consultant, $this->deal));
         $this->assertFalse($policy->update($consultant, $this->deal));
+    }
+
+    public function test_revoked_membership_overrides_stale_legacy_assignment_for_view_and_update(): void
+    {
+        $admin = $this->makeUser(['role' => 'Admin']);
+        $member = $this->makeUser();
+        $this->deal->forceFill([
+            'assigned_consultant' => $member->name,
+            'lead_consultant' => $member->name,
+        ])->save();
+
+        $membership = $this->memberships->assign($this->deal, $admin, $member->id, DealMembership::ROLE_CONSULTANT);
+        $policy = app(DealPolicy::class);
+        $this->assertTrue($policy->view($member, $this->deal));
+        $this->assertTrue($policy->update($member, $this->deal));
+
+        $this->memberships->revoke($this->deal, $admin, $membership->id);
+
+        $this->assertFalse($policy->view($member, $this->deal));
+        $this->assertFalse($policy->update($member, $this->deal));
     }
 
     public function test_assigned_lead_can_manage_nonlead_roles_but_cannot_assign_lead_roles(): void

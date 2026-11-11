@@ -33,10 +33,9 @@ class DealPolicy
             return false;
         }
 
-        return $deal->activeMemberships()
-            ->where('user_id', $user->id)
-            ->whereIn('membership_role', DealMembership::ROLES)
-            ->exists();
+        // Preserve authorized legacy assignment access during reconciliation,
+        // while keeping finance-only access limited to finance workflows.
+        return $deal->userCanUpdate($user);
     }
 
     public function manageMemberships(User $user, Deal $deal, string $role): bool

@@ -444,11 +444,13 @@ class DealArchivalTest extends DealsMysqlTestCase
 
     public function test_company_deal_page_applies_search_and_stage_filters_to_active_deals(): void
     {
+        $admin = $this->makeUser('Admin');
         $companyId = DB::table('companies')->insertGetId(['company_name' => 'Company A', 'created_at' => now(), 'updated_at' => now()]);
         $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Visible Won Deal', 'stage' => 'Won']);
         $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Visible Open Deal', 'stage' => 'Qualification']);
         $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Hidden Archived Won Deal', 'stage' => 'Won', 'archived_at' => now()]);
         $request = Request::create('/company/'.$companyId.'/deals', 'GET', ['search' => 'Visible', 'stage' => 'Won']);
+        $request->setUserResolver(fn () => $admin);
 
         $view = app(CompanyDealController::class)->index($request, $companyId);
         $deals = $view->getData()['deals'];
@@ -456,6 +458,32 @@ class DealArchivalTest extends DealsMysqlTestCase
         $this->assertCount(1, $deals);
         $this->assertSame('Visible Won Deal', $deals->first()['name']);
         $this->assertSame('Won', $deals->first()['status']);
+    }
+
+    public function test_company_deal_listing_excludes_unauthorized_and_revoked_members(): void
+    {
+        $companyId = DB::table('companies')->insertGetId(['company_name' => 'Company A', 'created_at' => now(), 'updated_at' => now()]);
+        $user = $this->makeUser();
+        $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Authorized legacy Deal', 'assigned_consultant' => $user->name]);
+        $revokedDeal = $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Stale assignment Deal', 'assigned_consultant' => $user->name]);
+        $this->makeDeal(['company_name' => 'Company A', 'deal_name' => 'Other user Deal', 'assigned_consultant' => $this->makeUser()->name]);
+        DB::table('deal_memberships')->insert([
+            'deal_id' => $revokedDeal->id,
+            'user_id' => $user->id,
+            'membership_role' => 'consultant',
+            'assignment_status' => 'inactive',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $request = Request::create('/company/'.$companyId.'/deals');
+        $request->setUserResolver(fn () => $user);
+        $view = app(CompanyDealController::class)->index($request, $companyId);
+        $deals = $view->getData()['deals'];
+
+        $this->assertCount(1, $deals);
+        $this->assertSame('Authorized legacy Deal', $deals->first()['name']);
+        $this->assertSame(1, $view->getData()['summary']['total']);
     }
 
     public function test_deals_dashboard_filters_out_archived_rows_and_applies_search(): void

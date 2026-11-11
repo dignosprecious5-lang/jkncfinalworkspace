@@ -38,6 +38,12 @@ return new class extends Migration
                     throw new RuntimeException("{$tableName}.{$permission} contains grants and cannot be removed safely.");
                 }
             }
+        }
+
+        foreach (['role_permissions', 'user_permissions'] as $tableName) {
+            if (! Schema::hasTable($tableName)) {
+                continue;
+            }
 
             Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
                 foreach (self::PERMISSIONS as $permission) {

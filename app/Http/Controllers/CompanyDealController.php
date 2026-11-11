@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\Deal;
+use App\Models\User;
+use App\Policies\DealPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -15,9 +17,11 @@ class CompanyDealController extends Controller
     public function index(Request $request, int $company): View
     {
         $companyData = $this->findCompany($company);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
         $search = trim((string) $request->query('search', ''));
         $stage = trim((string) $request->query('stage', 'all'));
-        $deals = $this->companyDeals($companyData, $search, $stage);
+        $deals = $this->companyDeals($companyData, $search, $stage, $user);
         $stages = $deals->pluck('stage')->filter()->unique()->sort()->values()->all();
 
         return view('company.deals', [
@@ -79,7 +83,7 @@ class CompanyDealController extends Controller
             ->with('deals_warning', 'Delete or update deals from the main Deals module. This company view is read-only and automatically reflects linked deal records.');
     }
 
-    private function companyDeals(array $companyData, string $search, string $stage): Collection
+    private function companyDeals(array $companyData, string $search, string $stage, User $user): Collection
     {
         if (! Schema::hasTable('deals')) {
             return collect();
@@ -91,11 +95,14 @@ class CompanyDealController extends Controller
             return collect();
         }
 
+        $policy = app(DealPolicy::class);
+
         return Deal::query()
             ->active()
             ->where('company_name', $companyName)
             ->latest('updated_at')
             ->get()
+            ->filter(fn (Deal $deal): bool => $policy->view($user, $deal))
             ->map(function (Deal $deal): array {
                 $stageName = trim((string) ($deal->stage ?: 'Qualification'));
                 $owner = $deal->assigned_consultant ?: $deal->lead_consultant ?: $deal->created_by ?: 'Unassigned';
