@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Providers;
+
+use App\Models\Transmittal;
+use App\Policies\TransmittalPolicy;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\ServiceProvider;
+
+/** Inactive V2 provider candidate; register only in an approved V2 activation batch. */
+final class TransmittalV2AuthorizationServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        Gate::policy(Transmittal::class, TransmittalPolicy::class);
+    }
+}

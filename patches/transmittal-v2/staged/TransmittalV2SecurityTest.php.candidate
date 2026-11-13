@@ -1,0 +1,135 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Models\Transmittal;
+use App\Models\User;
+use App\Policies\TransmittalPolicy;
+use PHPUnit\Framework\TestCase;
+
+require_once __DIR__.'/TransmittalPolicy.php.candidate';
+
+/**
+ * Inactive, synthetic-only security tests. Rename and integrate only after the
+ * V2 controller, policy, schema, routes, and isolated test fixtures are approved.
+ */
+final class TransmittalV2SecurityTest extends TestCase
+{
+    public function test_owner_and_approver_access_is_record_scoped(): void
+    {
+        $policy = new TransmittalPolicy();
+        $owner = $this->user(11, 'employee');
+        $other = $this->user(12, 'employee');
+        $admin = $this->user(13, 'admin');
+        $owned = $this->transmittal(101, 11, 'draft');
+        $foreign = $this->transmittal(202, 12, 'pending_approval');
+
+        self::assertTrue($policy->view($owner, $owned));
+        self::assertFalse($policy->view($owner, $foreign));
+        self::assertFalse($policy->uploadProof($owner, $foreign));
+        self::assertTrue($policy->approve($admin, $foreign));
+        self::assertFalse($policy->approve($admin, $this->transmittal(303, 13, 'pending_approval')));
+    }
+
+    public function test_guest_cannot_become_owner_of_a_null_prepared_by_record(): void
+    {
+        $record = $this->transmittal(404, null, 'draft');
+
+        self::assertNull($record->prepared_by);
+        self::assertFalse((new TransmittalPolicy())->view($this->user(1, 'employee'), $record));
+    }
+
+    public function test_cross_record_proof_denial_does_not_mutate_the_foreign_record(): void
+    {
+        $policy = new TransmittalPolicy();
+        $otherUser = $this->user(21, 'employee');
+        $foreignRecord = $this->transmittal(505, 22, 'pending_approval');
+        $before = $foreignRecord->getAttributes();
+
+        self::assertFalse($policy->uploadProof($otherUser, $foreignRecord));
+        self::assertSame($before, $foreignRecord->getAttributes());
+    }
+
+    public function test_proof_update_authorizes_parent_before_scoped_proof_lookup(): void
+    {
+        $source = file_get_contents(__DIR__.'/TransmittalController.php.candidate');
+        self::assertIsString($source);
+        $start = strpos($source, 'public function updateProof(');
+        self::assertNotFalse($start);
+        $end = strpos($source, 'public function download(', $start);
+        self::assertNotFalse($end);
+        $method = substr($source, $start, $end - $start);
+
+        self::assertLessThan(
+            strpos($method, '$transmittal->proofs()->findOrFail($proof)'),
+            strpos($method, "\$this->authorize('uploadProof', \$transmittal)")
+        );
+        self::assertStringContainsString('catch (\\Throwable $exception)', $method);
+        self::assertStringContainsString("reportRetainedV2DocumentFailure('proof_update'", $method);
+        self::assertStringNotContainsString('Storage::disk(', $method);
+    }
+
+    public function test_index_workspace_and_guest_analysis_do_not_expose_other_records(): void
+    {
+        $source = file_get_contents(__DIR__.'/TransmittalController.php.candidate');
+        self::assertIsString($source);
+        self::assertStringContainsString('$this->visibleTransmittalQuery($request)', $source);
+        self::assertStringContainsString('abort_unless($this->canManageLifecycle($request, $transmittal), 404);', $source);
+        self::assertStringContainsString('$canMatchExistingRecords = $this->canApproveTransmittals($request->user());', $source);
+        self::assertStringContainsString('$existingDoc = $canMatchExistingRecords', $source);
+        self::assertStringContainsString('$refMatch = $canMatchExistingRecords', $source);
+
+        $workspaceStart = strpos($source, 'public function workspace(Request $request, Transmittal $transmittal)');
+        self::assertNotFalse($workspaceStart);
+        $workspaceEnd = strpos($source, 'private function associateLegacyItemDocumentsForPreview(', $workspaceStart);
+        self::assertNotFalse($workspaceEnd);
+        $workspaceMethod = substr($source, $workspaceStart, $workspaceEnd - $workspaceStart);
+        $workspaceGuard = strpos($workspaceMethod, 'abort_unless($this->canManageLifecycle($request, $transmittal), 404);');
+        $workspaceLoad = strpos($workspaceMethod, '$transmittal->load(');
+        self::assertNotFalse($workspaceGuard);
+        self::assertNotFalse($workspaceLoad);
+        self::assertLessThan($workspaceLoad, $workspaceGuard);
+
+        $showStart = strpos($source, 'public function show(Request $request, Transmittal $transmittal)');
+        $showEnd = strpos($source, 'public function approve(', $showStart);
+        self::assertNotFalse($showStart);
+        self::assertNotFalse($showEnd);
+        $showMethod = substr($source, $showStart, $showEnd - $showStart);
+        $showGuard = strpos($showMethod, 'abort_unless($this->canManageLifecycle($request, $transmittal), 404);');
+        $sensitiveLoad = strpos($showMethod, '$transmittal->load(');
+        self::assertNotFalse($showGuard);
+        self::assertNotFalse($sensitiveLoad);
+        self::assertLessThan($sensitiveLoad, $showGuard);
+    }
+
+    public function test_proof_failure_retains_attempt_owned_files_and_v1_route_branch(): void
+    {
+        $source = file_get_contents(__DIR__.'/TransmittalController.php.candidate');
+        self::assertIsString($source);
+        self::assertStringContainsString('reportRetainedV2DocumentFailure(\'proof_update\', $exception)', $source);
+        self::assertStringContainsString("routeIs('transmittal.index')", $source);
+        self::assertStringContainsString("'action' => 'proof_updated'", $source);
+        self::assertStringContainsString("Gate::policy(Transmittal::class, TransmittalPolicy::class)", file_get_contents(__DIR__.'/TransmittalV2AuthorizationServiceProvider.php.candidate'));
+    }
+
+    private function user(int $id, string $role): User
+    {
+        $user = new User();
+        $user->setAttribute('id', $id);
+        $user->setAttribute('role', $role);
+
+        return $user;
+    }
+
+    private function transmittal(int $id, ?int $preparedBy, string $status): Transmittal
+    {
+        $transmittal = new Transmittal();
+        $transmittal->setAttribute('id', $id);
+        $transmittal->setAttribute('prepared_by', $preparedBy);
+        $transmittal->setAttribute('status', $status);
+
+        return $transmittal;
+    }
+}

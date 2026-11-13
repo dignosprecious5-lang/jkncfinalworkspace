@@ -1,0 +1,78 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Policies;
+
+use App\Models\Transmittal;
+use App\Models\User;
+
+/**
+ * Inactive V2 policy candidate. Keep this outside app/Policies until V2 routes,
+ * role schema, and authorization behavior are separately approved for integration.
+ */
+final class TransmittalPolicy
+{
+    public function view(User $user, Transmittal $transmittal): bool
+    {
+        return $this->canApproveTransmittals($user)
+            || ($user->id !== null
+                && $transmittal->prepared_by !== null
+                && (int) $transmittal->prepared_by === (int) $user->id);
+    }
+
+    public function viewAttachments(User $user, Transmittal $transmittal): bool
+    {
+        if ($this->view($user, $transmittal)) {
+            return true;
+        }
+
+        return is_string($user->email) && $user->email !== ''
+            && $transmittal->recipients()
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($user->email)])
+                ->exists();
+    }
+
+    public function approve(User $user, Transmittal $transmittal): bool
+    {
+        return $this->canApproveTransmittals($user)
+            && (int) $transmittal->prepared_by !== (int) $user->id
+            && $transmittal->status === 'pending_approval';
+    }
+
+    public function reject(User $user, Transmittal $transmittal): bool
+    {
+        return $this->canApproveTransmittals($user)
+            && $transmittal->status === 'pending_approval';
+    }
+
+    public function transmit(User $user, Transmittal $transmittal): bool
+    {
+        $isAuthorizedSender = $this->canApproveTransmittals($user)
+            || ($user->id !== null
+                && $transmittal->prepared_by !== null
+                && (int) $transmittal->prepared_by === (int) $user->id);
+
+        return $isAuthorizedSender
+            && in_array($transmittal->status, ['pending_approval', 'approved', 'sent'], true);
+    }
+
+    public function uploadProof(User $user, Transmittal $transmittal): bool
+    {
+        $isOwner = $user->id !== null
+            && $transmittal->prepared_by !== null
+            && (int) $transmittal->prepared_by === (int) $user->id;
+        $ownerMayEditProof = $isOwner && in_array($transmittal->status, ['draft', 'pending_approval'], true);
+        $approverMayEditProof = $this->canApproveTransmittals($user)
+            && in_array($transmittal->status, ['pending_approval', 'approved', 'sent', 'acknowledged'], true);
+
+        return $ownerMayEditProof || $approverMayEditProof;
+    }
+
+    private function canApproveTransmittals(User $user): bool
+    {
+        return strtolower((string) $user->getAttribute('transmittal_role')) === 'administrator'
+            || $user->isSuperAdmin()
+            || $user->isAdmin();
+    }
+}

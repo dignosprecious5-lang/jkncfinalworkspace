@@ -1,0 +1,161 @@
+--- a/app/Http/Controllers/TransmittalController.php
++++ b/app/Http/Controllers/TransmittalController.php
+@@ -1653,4 +1653,4 @@
+-        } catch (Throwable $exception) {
+-            Storage::disk('local')->delete($document->storage_path);
+-            throw $exception;
+-        }
++        } catch (\Throwable $exception) {
++            $this->reportRetainedV2DocumentFailure('proof_upload', $exception);
++            throw $exception;
++        }
+@@ -1668,1 +1668,1 @@
+-        // Tinanggal din natin ang abort_unless(..., 403) dito
++        $this->authorize('uploadProof', $transmittal);
+@@ -1792,6 +1792,4 @@
+-        } catch (Throwable $exception) {
+-            if ($document) {
+-                Storage::disk('local')->delete($document->storage_path);
+-            }
+-            throw $exception;
+-        }
++        } catch (\Throwable $exception) {
++            $this->reportRetainedV2DocumentFailure('proof_update', $exception);
++            throw $exception;
++        }
+@@ -2084,51 +2082,81 @@
+-private function storeDocument(
+-    Transmittal $transmittal,
+-    ?User $user,
+-    UploadedFile $file,
+-    string $category,
+-    ?array $ocrData
+-): TransmittalDocument {
+-    $directory = "transmittals/{$transmittal->id}";
+-    $extension = strtolower($file->guessExtension() ?: 'bin');
+-
+-    // Generate a unique filename for every stored document.
+-    $filename = (string) \Illuminate\Support\Str::uuid().'.'.$extension;
+-
+-    $path = $file->storeAs($directory, $filename, 'local');
+-
+-    if (! is_string($path) || $path === '') {
+-        throw new \RuntimeException('Unable to store the uploaded document.');
+-    }
+-
+-    $disk = Storage::disk('local');
+-    $realPath = $disk->path($path);
+-
+-    if (! is_file($realPath)) {
+-        $disk->delete($path);
+-
+-        throw new \RuntimeException('Unable to verify the uploaded file content.');
+-    }
+-
+-    try {
+-        return $transmittal->documents()->create([
+-            'uploaded_by' => $user?->id,
+-            'category' => $category,
+-            'original_name' => basename($file->getClientOriginalName()),
+-            'storage_path' => $path,
+-            'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
+-            'size_bytes' => $file->getSize(),
+-            'sha256' => hash_file('sha256', $realPath),
+-            'ocr_text' => $ocrData['text'] ?? null,
+-            'extracted_data' => $ocrData === null
+-                ? null
+-                : array_merge(
+-                    $ocrData['fields'],
+-                    ['_field_metadata' => $ocrData['field_metadata'] ?? []]
+-                ),
+-        ]);
+-    } catch (\Throwable $exception) {
+-        $disk->delete($path);
+-
+-        throw $exception;
+-    }
+-}
++private function storeDocument(
++    Transmittal $transmittal,
++    ?User $user,
++    UploadedFile $file,
++    string $category,
++    ?array $ocrData
++): TransmittalDocument {
++    $directory = "transmittals/{$transmittal->id}";
++    $extension = strtolower($file->guessExtension() ?: 'bin');
++    $attemptId = (string) Str::uuid();
++    $filename = $attemptId.'.'.$extension;
++    $path = $directory.'/'.$filename;
++    $journalPath = 'transmittal-attempts/'.$attemptId.'.json';
++    $disk = Storage::disk('local');
++    $inputPath = $file->getRealPath();
++    $expectedSize = $file->getSize();
++    $expectedHash = is_string($inputPath) && is_file($inputPath) ? hash_file('sha256', $inputPath) : false;
++    if (! is_int($expectedSize) || $expectedSize <= 0 || ! is_string($expectedHash)) {
++        throw new \RuntimeException('The uploaded document could not be verified.');
++    }
++    if ($disk->exists($path) || $disk->exists($journalPath)) {
++        throw new \RuntimeException('A unique document attempt path could not be reserved.');
++    }
++
++    // Persist reconciliation evidence BEFORE any document write or row creation.
++    // This is an intent journal, never a claim that the database rolled back.
++    // Successful and failed attempt journals remain private; no automatic deletion.
++    $journal = json_encode([
++        'version' => 1, 'attempt_reference' => $attemptId,
++        'transmittal_id' => $transmittal->id, 'storage_path' => $path,
++        'expected_size_bytes' => $expectedSize, 'expected_sha256' => $expectedHash,
++        'state' => 'write_intended_outcome_unverified', 'created_at' => now()->toIso8601String(),
++    ], JSON_THROW_ON_ERROR);
++    if (! $disk->put($journalPath, $journal)) {
++        throw new \RuntimeException('Document reconciliation evidence could not be recorded.');
++    }
++
++    try {
++        $storedPath = $file->storeAs($directory, $filename, 'local');
++        if (! is_string($storedPath) || $storedPath !== $path) {
++            throw new \RuntimeException('Unable to store the uploaded document.');
++        }
++        $realPath = $disk->path($path);
++        if (! is_file($realPath) || filesize($realPath) !== $expectedSize
++            || ! hash_equals($expectedHash, (string) hash_file('sha256', $realPath))) {
++            throw new \RuntimeException('Unable to verify the uploaded file content.');
++        }
++
++        return $transmittal->documents()->create([
++            'uploaded_by' => $user?->id,
++            'category' => $category,
++            'original_name' => basename($file->getClientOriginalName()),
++            'storage_path' => $path,
++            'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
++            'size_bytes' => $expectedSize,
++            'sha256' => $expectedHash,
++            'ocr_text' => $ocrData['text'] ?? null,
++            'extracted_data' => $ocrData === null
++                ? null
++                : array_merge($ocrData['fields'], ['_field_metadata' => $ocrData['field_metadata'] ?? []]),
++        ]);
++    } catch (\Throwable $exception) {
++        // A lost commit acknowledgment can leave referenced rows behind.
++        // Retain every attempt path and journal; do not query rows to justify deletion.
++        $this->reportRetainedV2DocumentFailure('document_record', $exception);
++        throw $exception;
++    }
++}
++
++    private function reportRetainedV2DocumentFailure(string $phase, \Throwable $exception): void
++    {
++        try {
++            Log::error('V2 document attempt retained after failure.', [
++                'phase' => $phase,
++                'exception_class' => $exception::class,
++                'reconciliation_directory' => 'transmittal-attempts',
++            ]);
++        } catch (\Throwable) {
++            // Logging must not mask the primary failure or remove durable intent journals.
++        }
++    }
+@@ -2198,1 +2226,1 @@
+-        if ($user?->canApproveTransmittals() || $transmittal->prepared_by === $user?->id) {
++        if ($user?->canApproveTransmittals() || ($user && $user->id !== null && $transmittal->prepared_by === $user->id)) {

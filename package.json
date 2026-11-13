@@ -15,5 +15,8 @@
         "pusher-js": "^8.5.0",
         "tailwindcss": "^4.2.1",
         "vite": "^7.0.7"
+    },
+    "dependencies": {
+        "@zip.js/zip.js": "2.24.0"
     }
 }

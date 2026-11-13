@@ -26,6 +26,7 @@ use App\Models\Correspondence;
 use App\Models\Legal;
 use App\Models\StockTransferCertificate;
 use App\Models\Transmittal;
+use App\Services\TransmittalWorkflowBoundary;
 use App\Models\TransmittalReceipt;
 use App\Mail\CorporateStatusNotificationMail;
 use App\Mail\TransmittalDeliveryMail;
@@ -754,7 +755,7 @@ class CorporateApprovalController extends Controller
             'operations' => Operation::findOrFail($id),
             'correspondence' => Correspondence::findOrFail($id),
             'legal' => Legal::findOrFail($id),
-            'transmittal' => Transmittal::with(['items', 'receipt'])->findOrFail($id),
+            'transmittal' => TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt'])->findOrFail($id),
             default => abort(404),
         };
     }
@@ -792,7 +793,7 @@ class CorporateApprovalController extends Controller
 
         if ($module === 'transmittal') {
             $this->generateTransmittalReceipt($record);
-            $record->refresh()->load(['items', 'receipt']);
+            $record = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt'])->findOrFail($record->id);
             $this->sendTransmittalDeliveryEmail($record);
         }
 

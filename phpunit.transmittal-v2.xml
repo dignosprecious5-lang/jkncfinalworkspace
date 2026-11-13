@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/Support/transmittal-v2-bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         processIsolation="false"
+         failOnEmptyTestSuite="true">
+    <testsuites>
+        <testsuite name="Transmittal V2 isolated workspace item service">
+            <file>tests/Feature/TransmittalWorkspaceItemSyncServiceDatabaseTest.php</file>
+            <file>tests/Feature/TransmittalWorkflowVersionClassificationTest.php</file>
+            <file>tests/Feature/TransmittalEmailDispatchDatabaseTest.php</file>
+            <file>tests/Feature/TransmittalV2HttpAcceptanceTest.php</file>
+            <file>tests/Unit/TransmittalV2AcknowledgmentContractTest.php</file>
+            <file>tests/Unit/TransmittalV2AuthorizationTest.php</file>
+            <file>tests/Unit/TransmittalV2DependencyContractTest.php</file>
+            <file>tests/Unit/TransmittalV2InterfaceContractTest.php</file>
+            <file>tests/Unit/TransmittalV2Phase9ContractTest.php</file>
+            <file>tests/Unit/TransmittalV2Phase10ContractTest.php</file>
+            <file>tests/Unit/TransmittalV2Phase11ContractTest.php</file>
+            <file>tests/Unit/TransmittalV2Phase12ContractTest.php</file>
+            <file>tests/Unit/TransmittalV2ReceiptNumberTest.php</file>
+            <file>tests/Unit/TransmittalV2SchemaCandidateContractTest.php</file>
+            <file>tests/Unit/TransmittalV2UploadBudgetTest.php</file>
+            <file>tests/Unit/TransmittalWorkspaceItemContractTest.php</file>
+            <file>tests/Unit/TransmittalWorkspaceItemSyncServiceTest.php</file>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include><directory>app</directory></include>
+    </source>
+</phpunit>

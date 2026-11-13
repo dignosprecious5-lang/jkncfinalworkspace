@@ -1,0 +1,45 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * NON-EXECUTABLE candidate. Stores only normalized, authenticated event
+ * evidence and fingerprints; raw provider bodies and bearer tokens are never
+ * persisted. Provider-specific webhook signatures remain unverified.
+ */
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (! Schema::hasTable('transmittal_email_dispatches')) {
+            throw new RuntimeException('The V2 email dispatch table prerequisite is absent.');
+        }
+        if (Schema::hasTable('transmittal_provider_events')) {
+            throw new RuntimeException('Provider event table exists; reconcile schema and migration history first.');
+        }
+
+        Schema::create('transmittal_provider_events', function (Blueprint $table): void {
+            $table->bigIncrements('id');
+            $table->string('provider', 40);
+            $table->string('provider_event_id', 191);
+            $table->uuid('dispatch_uuid');
+            $table->string('provider_message_id', 255)->nullable();
+            $table->string('normalized_type', 32);
+            $table->timestamp('provider_occurred_at')->nullable();
+            $table->timestamp('received_at');
+            $table->char('body_fingerprint', 64);
+            $table->char('signature_fingerprint', 64);
+            $table->unique(['provider', 'provider_event_id'], 'transmittal_provider_event_identity_unique');
+            $table->index('dispatch_uuid', 'transmittal_provider_event_dispatch_idx');
+            $table->foreign('dispatch_uuid', 'transmittal_provider_event_dispatch_fk')
+                ->references('dispatch_uuid')->on('transmittal_email_dispatches')->restrictOnDelete();
+        });
+    }
+
+    public function down(): void
+    {
+        throw new LogicException('Provider event evidence is retained; rollback requires a separate approved preservation plan.');
+    }
+};

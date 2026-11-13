@@ -103,6 +103,8 @@ use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\AssessmentQuestionController;
 
+require __DIR__.'/transmittal-v2.php';
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC / AUTH-ENTRY ROUTES
@@ -1267,6 +1269,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+
+    Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
+        ->middleware('throttle:5,1,transmittal-ocr:')
+        ->name('transmittal.ocr.analyze');
 
     Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
         ->name('admin.transmittal.dashboard');

@@ -18,10 +18,19 @@ class TransmittalItem extends Model
         'description',
         'remarks',
         'attachment_path',
+        // V2 fields stay independent; do not coerce or synchronize V1 qty/indexes.
+        'document_id',
+        'position',
+        'quantity',
     ];
 
     public function transmittal()
     {
         return $this->belongsTo(Transmittal::class);
+    }
+
+    public function document()
+    {
+        return $this->belongsTo(TransmittalDocument::class);
     }
 }

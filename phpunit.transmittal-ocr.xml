@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mocked lane only. Use the fixed launcher and dedicated INI; never Artisan/Pest. -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/Support/transmittal-ocr-bootstrap.php"
+         colors="true" cacheResult="false" processIsolation="false"
+         failOnEmptyTestSuite="true" failOnWarning="true" failOnRisky="true">
+    <testsuites>
+        <testsuite name="Transmittal OCR mocked isolated backend">
+            <file>tests/Feature/TransmittalOcrTest.php</file>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_DEBUG" value="false" force="true" verbatim="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

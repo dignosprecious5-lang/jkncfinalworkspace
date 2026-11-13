@@ -29,15 +29,28 @@ class TransmittalReceipt extends Model
         'received_by',
         'received_at',
         'generated_by',
+        'recipient_id',
+        'signed_name',
+        'comments',
+        'receipt_code',
+        'snapshot',
+        'ip_address',
+        'user_agent',
     ];
 
     protected $casts = [
         'receipt_date' => 'date',
         'received_at' => 'datetime',
+        'snapshot' => 'array',
     ];
 
     public function transmittal()
     {
         return $this->belongsTo(Transmittal::class);
+    }
+
+    public function recipient()
+    {
+        return $this->belongsTo(TransmittalRecipient::class, 'recipient_id');
     }
 }

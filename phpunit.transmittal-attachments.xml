@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixed synthetic attachment suite. Run only through its restricted launcher and V1 isolated ini. -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/Support/transmittal-attachment-bootstrap.php"
+         colors="true"
+         cacheResult="false"
+         processIsolation="false"
+         failOnEmptyTestSuite="true">
+    <testsuites>
+        <testsuite name="Transmittal attachment isolated regression">
+            <file>tests/Feature/TransmittalAttachmentTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

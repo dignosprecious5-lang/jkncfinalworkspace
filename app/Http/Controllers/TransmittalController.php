@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Transmittal;
+use App\Services\TransmittalWorkflowBoundary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,13 +56,13 @@ class TransmittalController extends Controller
         $activeTab = array_key_exists($activeTab, $statusMap) ? $activeTab : 'submitted';
 
         $counts = [
-            'submitted' => Transmittal::where('workflow_status', 'Submitted')->count(),
-            'accepted' => Transmittal::where('workflow_status', 'Accepted')->count(),
-            'reverted' => Transmittal::where('workflow_status', 'Reverted')->count(),
-            'archived' => Transmittal::where('workflow_status', 'Archived')->count(),
+            'submitted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Submitted')->count(),
+            'accepted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Accepted')->count(),
+            'reverted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Reverted')->count(),
+            'archived' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Archived')->count(),
         ];
 
-        $transmittals = Transmittal::with(['items', 'receipt', 'attachments'])
+        $transmittals = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])
             ->where('workflow_status', $workflowStatus)
             ->latest()
             ->paginate(10)
@@ -117,7 +118,7 @@ class TransmittalController extends Controller
 
         $workflowStatus = $workflowMap[$workflow] ?? 'Uploaded';
 
-        $paginator = Transmittal::with(['items', 'receipt', 'attachments'])
+        $paginator = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])
             ->where('workflow_status', $workflowStatus)
             ->latest()
             ->paginate($perPage);
@@ -194,47 +195,62 @@ class TransmittalController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'transmittal_date' => ['nullable', 'date'],
-            'mode' => ['required', 'in:SEND,RECEIVE'],
-            'party_name' => ['nullable', 'string', 'max:255'],
-            'office_name' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string'],
-            'delivery_type' => ['nullable', 'string', 'max:255'],
-            'by_person_who' => ['nullable', 'string', 'max:255'],
-            'registered_mail_provider' => ['nullable', 'string', 'max:255'],
-            'electronic_method' => ['nullable', 'string', 'max:255'],
-            'recipient_email' => ['nullable', 'email', 'max:255'],
-            'action_delivery' => ['nullable'],
-            'action_pick_up' => ['nullable'],
-            'action_drop_off' => ['nullable'],
-            'action_email' => ['nullable'],
-            'approved_by_name' => ['nullable', 'string', 'max:255'],
-            'approved_position' => ['nullable', 'string', 'max:255'],
-            'document_custodian' => ['nullable', 'string', 'max:255'],
-            'delivered_by' => ['nullable', 'string', 'max:255'],
-            'received_by' => ['nullable', 'string', 'max:255'],
-            'receiver_affiliation' => ['nullable', 'string', 'max:255'],
-            'received_at' => ['nullable', 'date'],
-            'items' => ['nullable'],
-            'item_files.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
-            'attachments.*' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,txt,csv', 'max:20480'],
-        ]);
-
-        if (empty($validated['party_name']) || empty($validated['office_name'])) {
-            return response()->json(['message' => 'Party name and office name are required.'], 422);
-        }
-
-        $items = $request->input('items', []);
-        if (is_string($items)) {
-            $decodedItems = json_decode($items, true);
-            $items = is_array($decodedItems) ? $decodedItems : [];
-        }
-
-        DB::beginTransaction();
-
+        $reference = (string) Str::uuid();
+        $phase = 'validation';
+        $attempt = null;
+        $connection = null;
+        $pdo = null;
+        $began = false;
+        $committed = false;
         try {
-            $transmittal = Transmittal::create([
+            if (array_key_exists('workflow_version', $request->all())) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'workflow_version' => 'Workflow version is assigned by the server.',
+                ]);
+            }
+            $uploads = app(\App\Services\TransmittalAttachmentService::class);
+            $payload = $uploads->validate($request);
+            $validated = $request->validate([
+                'transmittal_date' => ['nullable', 'date'],
+                'mode' => ['required', 'in:SEND,RECEIVE'],
+                'party_name' => ['nullable', 'string', 'max:255'],
+                'office_name' => ['nullable', 'string', 'max:255'],
+                'address' => ['nullable', 'string'],
+                'delivery_type' => ['nullable', 'string', 'max:255'],
+                'by_person_who' => ['nullable', 'string', 'max:255'],
+                'registered_mail_provider' => ['nullable', 'string', 'max:255'],
+                'electronic_method' => ['nullable', 'string', 'max:255'],
+                'recipient_email' => ['nullable', 'email', 'max:255'],
+                'action_delivery' => ['nullable'],
+                'action_pick_up' => ['nullable'],
+                'action_drop_off' => ['nullable'],
+                'action_email' => ['nullable'],
+                'approved_by_name' => ['nullable', 'string', 'max:255'],
+                'approved_position' => ['nullable', 'string', 'max:255'],
+                'document_custodian' => ['nullable', 'string', 'max:255'],
+                'delivered_by' => ['nullable', 'string', 'max:255'],
+                'received_by' => ['nullable', 'string', 'max:255'],
+                'receiver_affiliation' => ['nullable', 'string', 'max:255'],
+                'received_at' => ['nullable', 'date'],
+            ]);
+
+            if (empty($validated['party_name']) || empty($validated['office_name'])) {
+                return response()->json(['message' => 'Party name and office name are required.', 'reference' => $reference], 422);
+            }
+
+            $items = $payload['items'];
+            $attempt = $uploads->attempt($reference);
+            $phase = 'begin';
+            $connection = DB::connection();
+            if ($connection->transactionLevel() !== 0) throw new \RuntimeException('An existing transaction cannot own this upload attempt.');
+            $pdo = $connection->getPdo();
+            $connection->beginTransaction();
+            $began = true;
+            $phase = 'write';
+            if ($connection->transactionLevel() !== 1 || $connection->getRawPdo() !== $pdo || ! $pdo->inTransaction()) {
+                throw new \RuntimeException('The upload transaction could not be verified.');
+            }
+            $transmittal = Transmittal::createForWorkflowVersion('v1', [
                 'transmittal_date' => $validated['transmittal_date'] ?? now()->toDateString(),
                 'mode' => $validated['mode'],
                 'party_name' => $validated['party_name'] ?? null,
@@ -263,27 +279,28 @@ class TransmittalController extends Controller
                 'submitted_by' => Auth::id(),
             ]);
 
-            $transmittal->update([
+            if (! $transmittal->update([
                 'transmittal_no' => 'TRN-' . str_pad((string) $transmittal->id, 5, '0', STR_PAD_LEFT),
-            ]);
+            ])) throw new \RuntimeException('The transmittal reference was not persisted.');
+
+            if (! $transmittal->exists || ! $transmittal->getKey()) throw new \RuntimeException('The transmittal was not persisted.');
 
             foreach (($items ?? []) as $index => $item) {
                 $hasContent =
                     !empty($item['particular']) || !empty($item['unique_id']) ||
-                    !empty($item['qty']) || !empty($item['description']) ||
-                    !empty($item['remarks']) || $request->hasFile("item_files.$index");
+                    ($item['qty'] ?? null) !== null || !empty($item['description']) ||
+                    !empty($item['remarks']) || isset($payload['item_files'][$index]);
 
                 if (! $hasContent) {
                     continue;
                 }
 
                 $attachmentPath = null;
-                if ($request->hasFile("item_files.$index")) {
-                    $attachmentPath = $request->file("item_files.$index")
-                        ->store('transmittal/item-attachments', 'public');
+                if (isset($payload['item_files'][$index])) {
+                    $attachmentPath = $attempt->store($payload['item_files'][$index], 'item-attachments');
                 }
 
-                $transmittal->items()->create([
+                $createdItem = $transmittal->items()->create([
                     'item_no' => $item['no'] ?? ($index + 1),
                     'particular' => $item['particular'] ?? null,
                     'unique_id' => $item['unique_id'] ?? null,
@@ -292,39 +309,78 @@ class TransmittalController extends Controller
                     'remarks' => $item['remarks'] ?? null,
                     'attachment_path' => $attachmentPath,
                 ]);
+                if (! $createdItem->exists) throw new \RuntimeException('The attachment item was not persisted.');
             }
 
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $uploadedFile) {
-                    if (! $uploadedFile) {
-                        continue;
-                    }
+            if ($payload['attachments'] !== []) {
+                foreach ($payload['attachments'] as $uploadedFile) {
+                    $path = $attempt->store($uploadedFile, 'attachments');
 
-                    $path = $uploadedFile->store('transmittal/attachments', 'public');
-
-                    $transmittal->attachments()->create([
+                    $createdAttachment = $transmittal->attachments()->create([
                         'file_path' => $path,
                         'original_name' => $uploadedFile->getClientOriginalName(),
-                        'mime_type' => $uploadedFile->getClientMimeType(),
+                        'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
                         'uploaded_by' => Auth::id(),
                     ]);
+                    if (! $createdAttachment->exists) throw new \RuntimeException('The supporting attachment was not persisted.');
                 }
             }
 
-            DB::commit();
+            // After any commit attempt, never delete files based on a guessed outcome.
+            if ($connection->transactionLevel() !== 1 || $connection->getRawPdo() !== $pdo || ! $pdo->inTransaction()) {
+                throw new \RuntimeException('The upload transaction changed before commit.');
+            }
+            $attempt->retain();
+            $phase = 'commit';
+            $connection->commit();
+            $committed = true;
+            $phase = 'committed';
 
             return response()->json(['message' => 'Transmittal saved successfully.', 'id' => $transmittal->id]);
         } catch (\Throwable $e) {
-            DB::rollBack();
-
-            return response()->json(['message' => 'Failed to save transmittal.', 'error' => $e->getMessage()], 500);
+            if ($phase === 'validation' && $e instanceof \Illuminate\Validation\ValidationException) {
+                return response()->json(['message' => 'Please check the transmittal and selected uploads.',
+                    'errors' => $e->errors(), 'reference' => $reference], 422);
+            }
+            $rollbackAcknowledged = false;
+            if (! $committed && $began && $connection !== null && $pdo instanceof \PDO) {
+                try {
+                    // Do not reconnect or mistake an already-ended transaction for an acknowledged rollback.
+                    if ($connection->transactionLevel() === 1 && $connection->getRawPdo() === $pdo && $pdo->inTransaction()) {
+                        $connection->rollBack();
+                        $rollbackAcknowledged = $connection->transactionLevel() === 0
+                            && $connection->getRawPdo() === $pdo && ! $pdo->inTransaction();
+                    }
+                } catch (\Throwable) { $rollbackAcknowledged = false; }
+            }
+            // No post-rollback queries: Laravel can reconnect, and row absence cannot
+            // establish transactional participation of every table/model. An acknowledgement
+            // is diagnostic only. No independently verified deletion prerequisites exist.
+            $retention = ['deleted' => 0, 'failed' => 0, 'retained' => 0, 'policy' => 'retain_for_reconciliation'];
+            if ($attempt !== null) {
+                try { $retention = $attempt->retainForReconciliation(); }
+                catch (\Throwable) { $retention['failed']++; }
+            }
+            // Do not claim every business write was undone merely because PDO acknowledged rollback.
+            $status = $committed ? 'saved' : ($began ? 'unknown' : 'not_saved');
+            try {
+                // No exception text/trace, SQL bindings, request bodies, filenames, or document contents.
+                Log::error('Transmittal attachment save failed.', ['reference' => $reference, 'phase' => $phase,
+                    'exception_class' => get_class($e), 'save_status' => $status,
+                    'rollback_acknowledged' => $rollbackAcknowledged,
+                    'transaction_guarantees' => 'not_independently_verified', 'file_retention' => $retention]);
+            } catch (\Throwable) { /* A logging failure must not change the transaction or delete more files. */ }
+            $message = $status === 'not_saved'
+                ? 'The transmittal could not be saved. Your selected files remain in this form.'
+                : 'The save outcome needs verification. Check the transmittal list before trying again; contact support if uncertain.';
+            return response()->json(['message' => $message, 'reference' => $reference, 'save_status' => $status], 500);
         }
     }
 
     public function submit($id)
     {
-        $transmittal = Transmittal::findOrFail($id);
+        $transmittal = TransmittalWorkflowBoundary::v1Query()->findOrFail($id);
 
         if (! in_array($transmittal->workflow_status, ['Uploaded', 'Reverted'], true)) {
             return response()->json(['message' => 'Only uploaded or reverted transmittals can be submitted.'], 422);
@@ -341,7 +397,7 @@ class TransmittalController extends Controller
 
     public function preview($id)
     {
-        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
+        $transmittal = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])->findOrFail($id);
 
         $transmittalPdfUrl = route('transmittal.preview.pdf', $transmittal->id);
         $receiptPdfUrl = $transmittal->receipt
@@ -355,7 +411,7 @@ class TransmittalController extends Controller
 
     public function previewPdf($id)
     {
-        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
+        $transmittal = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])->findOrFail($id);
 
         $approvedByDisplay = $this->resolveApprovedByName($transmittal);
         $corporateContext = $this->transmittalCorporateContext();
@@ -373,7 +429,7 @@ class TransmittalController extends Controller
 
     public function sendEmail($id)
     {
-        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
+        $transmittal = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])->findOrFail($id);
 
         $recipient = trim((string) $transmittal->recipient_email);
         if ($recipient === '') {
@@ -524,7 +580,7 @@ class TransmittalController extends Controller
 
     public function receiptPdf($id)
     {
-        $transmittal = Transmittal::with(['receipt'])->findOrFail($id);
+        $transmittal = TransmittalWorkflowBoundary::v1Query()->with(['receipt'])->findOrFail($id);
 
         if (! $transmittal->receipt) {
             abort(404, 'Receipt not found.');

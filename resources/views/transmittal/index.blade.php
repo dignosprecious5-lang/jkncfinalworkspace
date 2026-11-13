@@ -433,6 +433,45 @@
                     </div>
 
                     <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                        {{-- OCR SMART UPLOAD PANEL START --}}
+                        @if(auth()->user() instanceof \App\Models\User && (auth()->user()->isAdmin() || auth()->user()->isSuperAdmin()))
+                        <section x-data="transmittalOcrReview()" class="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3" :aria-busy="busy" aria-labelledby="transmittal-ocr-title">
+                            <h3 id="transmittal-ocr-title" class="text-sm font-semibold text-gray-800">OCR Smart Upload</h3>
+                            <p class="text-xs text-gray-600">Analyze one PDF, JPEG or PNG, up to 10 MB. Review suggestions before applying them. Nothing is saved or submitted by this panel; the source is not added as an attachment.</p>
+                            <label for="transmittal-ocr-document" class="block text-xs font-semibold text-gray-700">Document to analyze</label>
+                            <input id="transmittal-ocr-document" x-ref="document" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" @change="fileChanged()" :disabled="busy" class="w-full text-xs">
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" @click="analyze()" :disabled="busy" class="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50" x-text="busy ? 'Analyzing...' : 'Analyze document'"></button>
+                                <button type="button" @click="reset()" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs" x-text="busy ? 'Cancel analysis' : 'Clear review'"></button>
+                            </div>
+                            <p x-show="message" x-text="message" role="status" aria-live="polite" class="text-xs text-gray-700 whitespace-pre-line"></p>
+                            <div x-show="fields.length" x-cloak class="space-y-3">
+                                <p class="text-xs font-medium text-gray-700">Edit values and tick only the suggestions you want to apply.</p>
+                                <template x-for="field in fields" :key="field.key">
+                                    <div class="space-y-1">
+                                        <label class="flex items-center gap-2 text-xs text-gray-700">
+                                            <input type="checkbox" x-model="field.selected" class="rounded border-gray-300">
+                                            <span x-text="field.label"></span>
+                                        </label>
+                                        <input :id="'transmittal-ocr-' + field.key" :aria-label="field.label + ' suggestion'" :type="field.type" :maxlength="field.limit" x-model="field.value" class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm">
+                                    </div>
+                                </template>
+                                <div x-show="fields.some(field => field.item)">
+                                    <label for="transmittal-ocr-target" class="block text-xs font-semibold text-gray-700">Apply item suggestions to</label>
+                                    <select id="transmittal-ocr-target" x-model="itemTarget" class="mt-1 w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm">
+                                        <option value="" disabled>Select an item destination</option>
+                                        <option value="new">New item row</option>
+                                        <template x-for="(item, index) in previewItems" :key="itemKey(item)">
+                                            <option :value="itemKey(item)" x-text="'Existing item ' + (index + 1)"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <button type="button" @click="applySelected()" :disabled="busy" class="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Apply selected suggestions</button>
+                                <p class="text-xs text-gray-600">Populated fields require confirmation before replacement. Use the existing Save button when you are ready.</p>
+                            </div>
+                        </section>
+                        @endif
+                        {{-- OCR SMART UPLOAD PANEL END --}}
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Ref #</label>
                             <input type="text" value="AUTO-INCREMENT" readonly class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-600">
@@ -601,6 +640,7 @@
                         
                         <div class="border-t border-gray-200 pt-4">
                             <h3 class="text-sm font-semibold text-gray-800 mb-3">Supporting Attachments</h3>
+                            <p class="mb-2 text-xs text-gray-600">Up to 50 files and 100 MiB combined per save. Each item file may be up to 10 MiB; each supporting file up to 20 MiB.</p>
                             <input type="file" multiple @change="extraAttachments = Array.from($event.target.files)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
                             <template x-if="extraAttachments.length">
                                 <ul class="mt-2 text-xs text-gray-500 list-disc pl-5">
@@ -689,7 +729,7 @@
                             Cancel
                         </button>
 
-                        <button type="button" onclick="saveTransmittal()" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition">
+                        <button id="transmittal-save-button" type="button" onclick="saveTransmittal()" class="flex-1 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
                             Save
                         </button>
                     </div>
@@ -946,6 +986,186 @@
 
 @push('scripts')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+{{-- OCR SMART UPLOAD SCRIPT START --}}
+@if(auth()->user() instanceof \App\Models\User && (auth()->user()->isAdmin() || auth()->user()->isSuperAdmin()))
+<script>
+function transmittalOcrReview() {
+    // Only these OCR keys may update the existing V1 Alpine form state.
+    const headerFields = [
+        ['transmittal_date', 'Date', 'previewDate', 'date', 10],
+        ['party_name', 'Party name', 'partyName', 'text', 255],
+        ['office_name', 'Office name', 'officeName', 'text', 255],
+        ['address', 'Address', 'previewAddress', 'text', 500],
+        ['recipient_email', 'Recipient email', 'recipientEmail', 'email', 255],
+    ];
+    const itemFields = [
+        ['particular', 'Item: Particular', 'text', 255],
+        ['unique_id', 'Item: Unique ID', 'text', 120],
+        ['qty', 'Item: Quantity', 'text', 40],
+        ['description', 'Item: Description', 'text', 500],
+        ['remarks', 'Item: Remarks', 'text', 255],
+    ];
+    let pendingRequest = null;
+    let generation = 0;
+    // OCR-only identity: never add properties to V1 items or their save payload.
+    const itemKeys = new WeakMap();
+    let nextItemKey = 0;
+    return {
+        busy: false,
+        message: '',
+        fields: [],
+        itemTarget: 'new',
+        itemKey(item) {
+            const original = Alpine.raw(item);
+            if (!itemKeys.has(original)) itemKeys.set(original, 'ocr-item-' + (++nextItemKey));
+            return itemKeys.get(original);
+        },
+        init() {
+            // Closing or reopening the form discards stale suggestions and requests.
+            this.$watch('showSlideOver', () => this.reset());
+        },
+        reset(clearFile = true) {
+            generation++;
+            if (pendingRequest) pendingRequest.abort();
+            pendingRequest = null;
+            this.busy = false;
+            this.fields = [];
+            this.message = '';
+            this.itemTarget = 'new';
+            if (clearFile) this.$refs.document.value = '';
+        },
+        validFile(file) {
+            return file && file.size > 0 && file.size <= 10 * 1024 * 1024
+                && /\.(pdf|jpe?g|png)$/i.test(file.name)
+                && (!file.type || ['application/pdf', 'image/jpeg', 'image/png'].includes(file.type));
+        },
+        fileChanged() {
+            this.reset(false);
+            const file = this.$refs.document.files[0];
+            if (file && !this.validFile(file)) {
+                this.message = 'Choose one non-empty PDF, JPEG or PNG file no larger than 10 MB.';
+                this.$refs.document.value = '';
+            }
+        },
+        async analyze() {
+            if (this.busy) return;
+            const file = this.$refs.document.files[0];
+            this.reset(false);
+            if (!this.validFile(file)) {
+                this.message = 'Choose one non-empty PDF, JPEG or PNG file no larger than 10 MB.';
+                this.$refs.document.value = '';
+                return;
+            }
+            const requestGeneration = generation;
+            const controller = new AbortController();
+            pendingRequest = controller;
+            let timedOut = false;
+            const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 105000);
+            this.busy = true;
+            this.message = 'Analyzing document. Please wait...';
+            try {
+                const body = new FormData();
+                body.append('document', file);
+                const response = await fetch(@js(route('transmittal.ocr.analyze')), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': @js(csrf_token()) },
+                    body,
+                    signal: controller.signal,
+                });
+                if (requestGeneration !== generation) return;
+                if (response.redirected || response.status === 401 || response.status === 419) {
+                    throw new Error('Your session expired or a password change is required. Refresh and sign in again.');
+                }
+                if (response.status === 403) throw new Error('Access denied. OCR is available only to Admin and SuperAdmin users.');
+                if (response.status === 413 || response.status === 422) throw new Error('Invalid document. Use one PDF, JPEG or PNG file no larger than 10 MB.');
+                if (response.status === 429) throw new Error('Too many OCR requests. Wait at least one minute before trying again.');
+                if (response.status >= 500) throw new Error('OCR is currently unavailable. Enter the details manually or try again later.');
+                if (!response.ok) throw new Error('The document could not be analyzed. Please try again.');
+                const payload = await response.json().catch(() => null);
+                if (requestGeneration !== generation) return;
+                const suggestions = payload && payload.suggestions;
+                if (!suggestions || typeof suggestions !== 'object' || (Array.isArray(suggestions) && suggestions.length)) {
+                    throw new Error('OCR returned an unexpected response. Enter details manually or try again.');
+                }
+                const review = [];
+                headerFields.forEach(([key, label, target, type, limit]) => {
+                    if (typeof suggestions[key] === 'string' && suggestions[key].trim()) {
+                        review.push({ key, label, target, type, limit, value: suggestions[key].slice(0, limit), selected: false, item: false });
+                    }
+                });
+                const item = Array.isArray(suggestions.items) ? suggestions.items[0] : null;
+                itemFields.forEach(([key, label, type, limit]) => {
+                    if (item && typeof item[key] === 'string' && item[key].trim()) {
+                        review.push({ key: 'item_' + key, label, target: key, type, limit, value: item[key].slice(0, limit), selected: false, item: true });
+                    }
+                });
+                this.fields = review;
+                this.message = review.length ? 'Analysis complete. Review and select suggestions below.' : 'No supported suggestions were found. Enter the details manually.';
+            } catch (error) {
+                if (requestGeneration !== generation) return;
+                this.message = timedOut ? 'Analysis timed out. Please try again later.'
+                    : error instanceof TypeError ? 'Network failure. Check your connection and try again.'
+                    : error.message || 'Analysis failed. Please try again later.';
+            } finally {
+                clearTimeout(timeout);
+                if (requestGeneration === generation) {
+                    this.busy = false;
+                    pendingRequest = null;
+                    this.$refs.document.value = '';
+                }
+            }
+        },
+        applySelected() {
+            if (this.busy) return;
+            const selected = this.fields.filter(field => field.selected);
+            if (!selected.length) { this.message = 'Select at least one suggestion to apply.'; return; }
+            for (const field of selected) {
+                const input = document.getElementById('transmittal-ocr-' + field.key);
+                if (!input || !input.reportValidity()) { this.message = 'Correct the selected suggestion before applying it.'; return; }
+                if (field.key === 'item_qty' && String(field.value).trim() !== '' && !/^-?\d+(?:\.\d+)?$/.test(String(field.value))) {
+                    this.message = 'Review the item quantity and enter a number before applying it.'; return;
+                }
+            }
+            const form = getAlpineData();
+            if (!form || !Array.isArray(form.previewItems)) { this.message = 'The form is unavailable. Reopen it and try again.'; return; }
+            const hasItem = selected.some(field => field.item);
+            let item = null;
+            if (hasItem) {
+                if (this.itemTarget === 'new') item = defaultTransmittalItem(form.previewItems.length);
+                else {
+                    const matches = form.previewItems.filter(row => this.itemKey(row) === this.itemTarget);
+                    if (matches.length !== 1) {
+                        this.itemTarget = '';
+                        this.message = 'The selected item is no longer available. Nothing was changed. Select an item destination again or choose a new row.'; return;
+                    }
+                    item = matches[0];
+                }
+            }
+            const changes = selected.map(field => ({ field, target: field.item ? item : form, value: String(field.value).slice(0, field.limit) }));
+            const replacements = changes.filter(change => {
+                const current = String(change.target[change.field.target] ?? '');
+                return current.trim() !== '' && current !== change.value;
+            });
+            if (replacements.length && !window.confirm('Replace these populated fields with your reviewed suggestions?\n\n' + replacements.map(change => change.field.label).join('\n'))) {
+                this.message = 'Nothing was changed. Deselect fields you want to keep, then apply again.';
+                return;
+            }
+            changes.forEach(change => { change.target[change.field.target] = change.value; });
+            if (hasItem && this.itemTarget === 'new') {
+                form.previewItems.push(item);
+                this.itemTarget = this.itemKey(item);
+            }
+            selected.forEach(field => { field.selected = false; });
+            this.message = 'Selected suggestions applied to the form. Nothing has been saved or submitted. Review the form and use Save when ready.';
+        },
+    };
+}
+</script>
+@endif
+{{-- OCR SMART UPLOAD SCRIPT END --}}
 
 <script>
 let currentWorkflowFilter = 'uploaded';
@@ -1210,11 +1430,58 @@ async function renderTable() {
     });
 }
 
+// Attachment Stage A: OCR state and its upload/review lifecycle are independent.
+const transmittalAttachmentLimits = @json(config('transmittal_attachments'));
+let transmittalSaveInFlight = false;
+let transmittalSaveNeedsReview = false;
+
+function prepareTransmittalUploads(alpineData) {
+    const limits = transmittalAttachmentLimits;
+    if (!limits || limits.max_files !== 50 || limits.max_total_bytes !== 104857600
+        || limits.item_max_kib !== 10240 || limits.supporting_max_kib !== 20480) {
+        throw new Error('Attachment limits are unavailable. Refresh this page or contact support.');
+    }
+    const manifest = { version: 1, item_files: [], attachments: [] };
+    const files = [];
+    let totalBytes = 0;
+    const add = (group, index, file, limit) => {
+        if (!(file instanceof File) || !Number.isSafeInteger(file.size) || file.size <= 0) {
+            throw new Error('Remove empty or unreadable uploads before saving.');
+        }
+        if (file.size > limit) throw new Error(group === 'item_files'
+            ? 'Each item file must be 10 MiB or smaller.' : 'Each supporting file must be 20 MiB or smaller.');
+        manifest[group].push({ index, size: file.size });
+        files.push({ group, index, file });
+        totalBytes += file.size;
+    };
+    alpineData.previewItems.forEach((item, index) => {
+        if (item.file) add('item_files', index, item.file, limits.item_max_kib * 1024);
+    });
+    (alpineData.extraAttachments || []).forEach((file, index) => {
+        add('attachments', index, file, limits.supporting_max_kib * 1024);
+    });
+    if (files.length > limits.max_files) throw new Error('Select no more than 50 files combined.');
+    if (totalBytes > limits.max_total_bytes) throw new Error('Combined upload size must not exceed 100 MiB.');
+    return { manifest, files };
+}
+
 async function saveTransmittal() {
+    if (transmittalSaveInFlight) return;
     const alpineData = getAlpineData();
     if (!alpineData) return;
-
+    let uploads;
+    try { uploads = prepareTransmittalUploads(alpineData); }
+    catch (error) { alert(error.message || 'Review the selected uploads.'); return; }
+    if (transmittalSaveNeedsReview && !window.confirm('The previous save may have completed. Confirm that you checked the transmittal list and want to try saving again. This could create a duplicate record.')) return;
+    transmittalSaveNeedsReview = false;
+    transmittalSaveInFlight = true;
+    const saveButton = document.getElementById('transmittal-save-button');
+    if (saveButton) { saveButton.disabled = true; saveButton.textContent = 'Saving...'; }
+    let requestSent = false;
+    let saved = false;
+    try {
     const formData = new FormData();
+    formData.append('upload_manifest', JSON.stringify(uploads.manifest));
 
     formData.append('transmittal_date', alpineData.previewDate);
     formData.append('mode', alpineData.transmittalMode);
@@ -1252,17 +1519,11 @@ async function saveTransmittal() {
 
     formData.append('items', JSON.stringify(itemsWithoutFile));
 
-    alpineData.previewItems.forEach((item, index) => {
-        if (item.file) {
-            formData.append(`item_files[${index}]`, item.file);
-        }
+    uploads.files.forEach(({ group, index, file }) => {
+        formData.append(`${group}[${index}]`, file);
     });
 
-    (alpineData.extraAttachments || []).forEach((file) => {
-        formData.append('attachments[]', file);
-    });
-
-    try {
+        requestSent = true;
         const res = await fetch('/transmittal', {
             method: 'POST',
             headers: {
@@ -1272,21 +1533,40 @@ async function saveTransmittal() {
             body: formData
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
         if (!res.ok) {
-            console.error('Transmittal save error:', data);
-            alert((data.message || 'Failed to save transmittal.') + (data.error ? '\n\nError: ' + data.error : ''));
+            let message = 'The transmittal could not be saved. Your selected files remain in the form.';
+            if (res.status === 413) message = 'The server rejected the request size. Nothing should be retried automatically; contact support about the upload limits.';
+            else if (res.status === 419 || res.status === 401 || res.redirected) message = 'Your session expired or access requires attention. Refresh and sign in again.';
+            else if (res.status === 422) {
+                const errors = data && data.errors && typeof data.errors === 'object' ? Object.values(data.errors).flat() : [];
+                message = errors.filter(value => typeof value === 'string').slice(0, 5).join('\n') || (data && data.message) || 'Review the form and selected uploads.';
+            } else if (data && typeof data.message === 'string') message = data.message;
+            transmittalSaveNeedsReview = res.status >= 500 && (!data || data.save_status !== 'not_saved');
+            if (data && typeof data.reference === 'string') message += '\nReference: ' + data.reference;
+            alert(message);
             return;
         }
-
+        if (res.redirected || !data || !Number.isInteger(data.id) || data.id <= 0) {
+            transmittalSaveNeedsReview = true;
+            alert('The save confirmation was incomplete. Check the transmittal list before trying again.');
+            return;
+        }
+        saved = true;
         alert(data.message || 'Transmittal saved successfully.');
         currentWorkflowFilter = 'uploaded';
         currentPage = 1;
         closeAddSection();
         await renderTable();
     } catch (error) {
-        alert('Something went wrong while saving the transmittal.');
+        transmittalSaveNeedsReview = requestSent && !saved;
+        alert(saved ? 'The transmittal was saved, but the list could not refresh. Refresh the page before saving another record.'
+            : requestSent ? 'The connection failed and the save outcome is unknown. Check the transmittal list before trying again. Your selected files remain in this form.'
+            : 'The form could not be prepared. Review the selected uploads.');
+    } finally {
+        transmittalSaveInFlight = false;
+        if (saveButton) { saveButton.disabled = false; saveButton.textContent = 'Save'; }
     }
 }
 
