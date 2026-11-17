@@ -1,38 +1,80 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /** @var array<string, string> */
+    private array $columns = [
+        'recipient_id' => 'BIGINT UNSIGNED NULL',
+        'signed_name' => 'VARCHAR(255) NULL',
+        'comments' => 'TEXT NULL',
+        'receipt_code' => 'VARCHAR(255) NULL',
+        'snapshot' => 'JSON NULL',
+        'ip_address' => 'VARCHAR(45) NULL',
+        'user_agent' => 'TEXT NULL',
+    ];
+
     public function up(): void
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            throw new RuntimeException('This online-DDL candidate is MySQL-specific; no changes were made.');
+        }
         if (! Schema::hasTable('transmittal_receipts') || ! Schema::hasTable('transmittal_recipients')) {
             throw new RuntimeException('Receipt or recipient prerequisites are absent.');
         }
-        $proposed = ['recipient_id', 'signed_name', 'comments', 'receipt_code', 'snapshot', 'ip_address', 'user_agent'];
-        $present = array_values(array_filter($proposed, fn (string $column): bool => Schema::hasColumn('transmittal_receipts', $column)));
-        if ($present !== []) {
-            throw new RuntimeException('Existing V2 receipt columns require definition, uniqueness, and row reconciliation: '.implode(', ', $present));
+
+        $engine = DB::selectOne("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transmittal_receipts'");
+        if (strtolower((string) ($engine->ENGINE ?? '')) !== 'innodb') {
+            throw new RuntimeException('transmittal_receipts must be InnoDB for this online-DDL candidate.');
         }
 
-        Schema::table('transmittal_receipts', function (Blueprint $table): void {
-            // Existing V1 receipt_no and its unique index are deliberately untouched.
-            // MySQL permits multiple NULL values in a unique nullable index, preserving legacy receipts.
-            $table->foreignId('recipient_id')->nullable()->unique('transmittal_receipts_recipient_id_unique')
-                ->constrained('transmittal_recipients')->restrictOnDelete();
-            $table->string('signed_name')->nullable();
-            $table->text('comments')->nullable();
-            $table->string('receipt_code')->nullable();
-            $table->json('snapshot')->nullable();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-        });
+        $names = array_keys($this->columns);
+        $placeholders = implode(',', array_fill(0, count($names), '?'));
+        $existing = DB::select(
+            "SELECT COLUMN_NAME, LOWER(COLUMN_TYPE) AS COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transmittal_receipts' AND COLUMN_NAME IN ({$placeholders})",
+            $names,
+        );
+
+        if ($existing !== []) {
+            $actual = [];
+            foreach ($existing as $column) {
+                $actual[$column->COLUMN_NAME] = [$column->COLUMN_TYPE, $column->IS_NULLABLE];
+            }
+            if (count($actual) !== count($this->columns)) {
+                throw new RuntimeException('Partial V2 receipt columns exist; stop and reconcile the schema before retrying.');
+            }
+            foreach ($this->columns as $name => $definition) {
+                $expectedType = strtolower((string) preg_replace('/\s+NULL$/i', '', $definition));
+                $actualType = strtolower((string) ($actual[$name][0] ?? ''));
+                if ($actualType !== $expectedType || ($actual[$name][1] ?? null) !== 'YES') {
+                    throw new RuntimeException("Existing receipt column {$name} does not match the nullable V2 definition.");
+                }
+            }
+
+            return;
+        }
+
+        $clauses = [];
+        foreach ($this->columns as $name => $definition) {
+            $clauses[] = "ADD COLUMN `{$name}` {$definition}";
+        }
+
+        // Existing V1 receipt_no and its unique index remain untouched.
+        // Nullable additions keep every historical V1 recipient_id NULL.
+        $lockWaitTimeout = max(1, (int) DB::selectOne('SELECT @@SESSION.lock_wait_timeout AS timeout')->timeout);
+        try {
+            DB::statement('SET SESSION lock_wait_timeout = 5');
+            DB::statement('ALTER TABLE `transmittal_receipts` '.implode(', ', $clauses).', ALGORITHM=INSTANT');
+        } finally {
+            DB::statement('SET SESSION lock_wait_timeout = '.$lockWaitTimeout);
+        }
     }
 
     public function down(): void
     {
-        // Intentionally retain receipt columns, unique constraints, and receipt data.
+        // Keep nullable V2 receipt fields and values on rollback.
     }
 };

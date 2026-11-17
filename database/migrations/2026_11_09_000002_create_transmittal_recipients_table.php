@@ -27,7 +27,7 @@ return new class extends Migration
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();
             $table->index(['transmittal_id', 'email'], 'transmittal_recipients_transmittal_email_idx');
-            // Supports the dispatch composite FK that proves recipient ownership.
+            // Required by the dispatch composite FK to prove the recipient belongs to the same parent.
             $table->unique(['id', 'transmittal_id'], 'transmittal_recipients_id_parent_unique');
         });
     }

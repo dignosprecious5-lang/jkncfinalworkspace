@@ -5,13 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Release-candidate migration.
+ * V2-only append-only dispatch-attempt migration.
  *
- * Deployment gate: verify target schema and migration history before execution.
- * Event UUID and per-attempt event identity constraints prevent
- * duplicate ledger events. A restrictive foreign key ties every append-only
- * attempt event to its dispatch. A submission start and outcome are separate
- * rows. No token, email, payload, or attachment content.
+ * A restrictive foreign key keeps every append-only attempt tied to its dispatch.\r\n * A submission start and outcome are separate rows. No token, email, payload,\r\n * or attachment content is stored.
  */
 return new class extends Migration
 {

@@ -5,16 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Release-candidate migration.
+ * V2-only durable outbox migration.
  *
- * Deployment gate: verify target schema and migration history before execution.
- * Dispatch UUID and dedupe fingerprint are unique to prevent
- * duplicate intents. Restrictive composite foreign keys enforce workflow v2
- * parent classification and recipient ownership. No backfill, update, delete,
- * file operation, or historical data change is performed.
- *
- * Sendable payload and attachment references are encrypted with a V2-only
- * envelope key. Payloads are retained; this candidate defines no purge policy.
+ * The restrictive foreign keys bind each dispatch to a V2 parent, the recipient\r\n * on that same parent, its requester, and any prior dispatch used for a resend.\r\n * Payloads are encrypted and retained without automatic deletion.
  */
 return new class extends Migration
 {
@@ -22,7 +15,8 @@ return new class extends Migration
     {
         if (! Schema::hasTable('transmittals')
             || ! Schema::hasColumn('transmittals', 'workflow_version')
-            || ! Schema::hasTable('transmittal_recipients')) {
+            || ! Schema::hasTable('transmittal_recipients')
+            || ! Schema::hasTable('users')) {
             throw new RuntimeException('The V2 parent classification and recipient prerequisites are absent.');
         }
 
@@ -58,8 +52,6 @@ return new class extends Migration
             $table->timestamp('failed_at')->nullable();
             $table->timestamp('unknown_at')->nullable();
             $table->index(['state', 'available_at'], 'transmittal_email_dispatch_claim_idx');
-            $table->index(['workflow_version', 'transmittal_id'], 'transmittal_email_dispatch_v2_parent_idx');
-            $table->index(['recipient_id', 'transmittal_id'], 'transmittal_email_dispatch_recipient_parent_idx');
             $table->index('resend_of_dispatch_id', 'transmittal_email_dispatch_resend_idx');
             $table->foreign(['workflow_version', 'transmittal_id'], 'transmittal_email_dispatch_v2_parent_fk')
                 ->references(['workflow_version', 'id'])->on('transmittals')->restrictOnDelete();

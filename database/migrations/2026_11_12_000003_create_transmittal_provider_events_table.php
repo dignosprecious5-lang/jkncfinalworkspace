@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Release-candidate migration. Stores only normalized, authenticated event
+ * V2-only normalized provider-event migration. Stores only authenticated event
  * evidence and fingerprints; raw provider bodies and bearer tokens are never
  * persisted. Provider-specific webhook signatures remain unverified.
  */
