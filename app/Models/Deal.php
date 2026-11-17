@@ -15,6 +15,11 @@ class Deal extends Model
 {
     protected $fillable = [
         'contact_id',
+        'account_id',
+        'company_id',
+        'pipeline_stage',
+        'stage_entered_at',
+        'inquiry_request_key',
         'deal_code',
         'stage_id',
         'created_by',
@@ -97,6 +102,11 @@ class Deal extends Model
     ];
 
     protected $casts = [
+        'service_areas' => 'array',
+        'services_products' => 'array',
+        'start_batches' => 'array',
+        'client_kyc_requirements' => 'array',
+        'stage_entered_at' => 'datetime',
         'date_of_birth' => 'date',
         'internal_date' => 'date',
         'planned_start_date' => 'date',
@@ -133,6 +143,57 @@ class Deal extends Model
             if ($deal->getOriginal('archived_at') !== null) {
                 throw new LogicException('Archived Deals are immutable until a separately approved restoration workflow exists.');
             }
+        });
+
+        static::created(function (Deal $deal): void {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('deal_stage_histories')) {
+                return;
+            }
+
+            $stage = trim((string) ($deal->pipeline_stage ?: $deal->stageNameFromId($deal->stage_id) ?: $deal->getAttribute('stage') ?: 'Inquiry'));
+            DealStageHistory::query()->create([
+                'deal_id' => $deal->id,
+                'stage' => $stage,
+                'started_at' => $deal->stage_entered_at ?: now(),
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name,
+            ]);
+        });
+
+        static::updated(function (Deal $deal): void {
+            if (! $deal->wasChanged(['stage_id', 'stage', 'pipeline_stage'])
+                || ! \Illuminate\Support\Facades\Schema::hasTable('deal_stage_histories')) {
+                return;
+            }
+
+            $oldStage = trim((string) ($deal->getOriginal('pipeline_stage') ?: $deal->stageNameFromId($deal->getOriginal('stage_id')) ?: $deal->getOriginal('stage') ?: ''));
+            $newStage = trim((string) ($deal->pipeline_stage ?: $deal->stageNameFromId($deal->stage_id) ?: $deal->getAttribute('stage') ?: ''));
+            if ($newStage === '' || $newStage === $oldStage) {
+                return;
+            }
+
+            $now = now();
+            $open = DealStageHistory::query()
+                ->where('deal_id', $deal->id)
+                ->whereNull('ended_at')
+                ->latest('id')
+                ->first();
+            if ($open) {
+                $open->ended_at = $now;
+                $open->duration_seconds = max(0, $open->started_at?->diffInSeconds($now) ?? 0);
+                $open->duration_formatted = gmdate('d\\d H\\h i\\m', $open->duration_seconds);
+                $open->save();
+            }
+
+            DealStageHistory::query()->create([
+                'deal_id' => $deal->id,
+                'stage' => $newStage,
+                'started_at' => $now,
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name,
+            ]);
+            $deal->stage_entered_at = $now;
+            $deal->saveQuietly();
         });
     }
 
@@ -188,10 +249,46 @@ class Deal extends Model
         return $this->belongsTo(Contact::class);
     }
 
+    private function stageNameFromId(mixed $stageId): ?string
+    {
+        if (! $stageId || ! Schema::hasTable('deal_stages') || ! Schema::hasColumn('deal_stages', 'name')) {
+            return null;
+        }
+
+        return DealStage::query()->whereKey($stageId)->value('name');
+    }
+
     public function stage(): BelongsTo
     {
         return $this->belongsTo(DealStage::class, 'stage_id');
     }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class, 'company_id');
+    }
+
+    public function dealContacts(): HasMany
+    {
+        return $this->hasMany(DealContact::class);
+    }
+
+    public function histories(): HasMany
+    {
+        return $this->hasMany(DealHistory::class)->orderByDesc('created_at');
+    }
+
+    public function stageHistories(): HasMany
+    {
+        return $this->hasMany(DealStageHistory::class)->orderByDesc('started_at');
+    }
+
+
 
     public function assignedFinance(): BelongsTo
     {

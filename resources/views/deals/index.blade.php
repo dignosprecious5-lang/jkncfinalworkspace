@@ -1,5 +1,8 @@
 @extends('layouts.app')
 @section('title', 'Deals')
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/deals-kanban.css') }}">
+@endpush
 
 @section('content')
 @php
@@ -12,9 +15,11 @@
             <h1 class="text-3xl font-semibold text-gray-900">Deals</h1>
             <p class="text-sm text-gray-500">Track and manage your sales pipeline</p>
         </div>
-        <button id="openCreateDealModalBtn" type="button" class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
-            <i class="fas fa-plus mr-1"></i> Add Deal
-        </button>
+        <div class="flex flex-wrap gap-2">
+            <button id="openCreateDealModalBtn" type="button" class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+                <i class="fas fa-plus mr-1"></i> Add Deal
+            </button>
+        </div>
     </div>
 
     @if (session('success'))

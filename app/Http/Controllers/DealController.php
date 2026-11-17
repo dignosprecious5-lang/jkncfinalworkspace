@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Contact;
 use App\Models\Company;
+use App\Models\Account;
 use App\Models\Deal;
+use App\Models\DealHistory;
 use App\Models\DealProposalVersion;
 use App\Models\DealMembership;
 use App\Models\DealStage;
@@ -494,7 +496,7 @@ class DealController extends Controller
             'serviceRequirementCatalog' => $serviceCatalog['serviceRequirementCatalog'],
             'productOptionsByServiceArea' => $productCatalog['productOptionsByServiceArea'],
             'productPricing' => $productCatalog['productPricing'],
-            'ownerLabel' => $defaultOwner['name'] ?? ($request->user()?->name ?? 'Unassigned'),
+            'ownerLabel' => $defaultOwner['name'] ?? (request()->user()?->name ?? 'Unassigned'),
             'owners' => $owners,
             'financeUsers' => $financeUsers,
             'employeeOptions' => $employeeOptions,
@@ -506,7 +508,43 @@ class DealController extends Controller
         ]);
     }
 
-    /** Preview metadata only: duplicate names (including inactive records) never resolve to an ID. */
+    public function create(Request $request): View
+    {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
+        $deal = $request->filled('deal') ? Deal::query()->findOrFail($request->integer('deal')) : null;
+        $owners = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $employees = User::query()->with('employeeProfile')->orderBy('name')->get();
+        $accounts = Schema::hasTable('accounts')
+            ? Account::query()->with(['company.primaryContact', 'individualContact'])->where('status', 'Active')->orderBy('account_name')->get()
+            : collect();
+        $companies = Company::query()->orderBy('company_name')->get();
+        $contacts = Contact::query()->with('companies')->orderBy('first_name')->get();
+        $clients = collect();
+        $catalogChoices = app(\App\Services\DealCatalogSelection::class)->choices($deal);
+        $regularDealServiceMap = [];
+        $regularServicePriceMap = [];
+        $unassignedDealServices = [];
+        foreach ($catalogChoices['services'] as $service) {
+            if (($service['service_area'] ?? []) === []) {
+                $unassignedDealServices[] = $service;
+            }
+            foreach (($service['service_area'] ?? []) as $area) {
+                $regularDealServiceMap[$area][] = $service;
+            }
+        }
+        ksort($regularDealServiceMap);
+        $regularServicePriceMap = $regularDealServiceMap;
+        $serviceAreaOptions = array_values(array_unique(array_merge(array_keys($regularDealServiceMap),
+            app(\App\Services\DealCatalogSelection::class)->areas($deal?->service_areas ?: $deal?->service_area))));
+        $dealProductCatalog = $catalogChoices['products'];
+        $legacyDealServices = $catalogChoices['legacy_services'];
+        $legacyDealProducts = $catalogChoices['legacy_products'];
+
+        return view('deals.create', compact('deal', 'owners', 'employees', 'clients', 'accounts', 'companies', 'contacts',
+            'regularDealServiceMap', 'regularServicePriceMap', 'serviceAreaOptions', 'dealProductCatalog', 'unassignedDealServices',
+            'legacyDealServices', 'legacyDealProducts'));
+    }
+
     private function catalogPreviewIds(): array
     {
         $result = ['services' => [], 'products' => []];
@@ -813,7 +851,6 @@ class DealController extends Controller
             'color' => ['nullable', 'string', 'max:20'],
         ]);
 
-        $originalName = $stage->name;
         $updates = [];
 
         if (array_key_exists('name', $validated) && filled($validated['name']) && $validated['name'] !== $stage->name) {
@@ -824,13 +861,43 @@ class DealController extends Controller
             $updates['color'] = $validated['color'] ?: null;
         }
 
-        if ($updates !== []) {
-            $stage->update($updates);
-        }
+        $stage = DB::transaction(function () use ($stage, $updates): DealStage {
+            $lockedStage = DealStage::query()->whereKey($stage->id)->lockForUpdate()->firstOrFail();
+            if ($updates !== []) {
+                $lockedStage->update($updates);
+            }
 
-        if (isset($updates['name']) && Schema::hasTable('deals')) {
-            Deal::query()->active()->where('stage', $originalName)->update(['stage' => $updates['name']]);
-        }
+            if (isset($updates['name']) && Schema::hasTable('deals') && Schema::hasColumn('deals', 'stage_id')) {
+                $dealIds = DB::table('deals')
+                    ->where('stage_id', $lockedStage->id)
+                    ->whereNull('archived_at')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                if ($dealIds->isNotEmpty()) {
+                    $dealUpdates = [];
+                    if (Schema::hasColumn('deals', 'stage')) {
+                        $dealUpdates['stage'] = $updates['name'];
+                    }
+                    if (Schema::hasColumn('deals', 'pipeline_stage')) {
+                        $dealUpdates['pipeline_stage'] = $updates['name'];
+                    }
+                    if ($dealUpdates !== []) {
+                        Deal::query()->whereIn('id', $dealIds)->update($dealUpdates);
+                    }
+
+                    if (Schema::hasTable('deal_stage_histories')) {
+                        DB::table('deal_stage_histories')
+                            ->whereIn('deal_id', $dealIds)
+                            ->whereNull('ended_at')
+                            ->update(['stage' => $updates['name']]);
+                    }
+                }
+            }
+
+            return $lockedStage;
+        });
 
         return response()->json([
             'stage' => [
@@ -1078,27 +1145,34 @@ class DealController extends Controller
                 $resolvedStageName = $stage->name;
             }
 
-            $updates = [];
-            if ($stage && Schema::hasColumn('deals', 'stage_id')) {
-                $updates['stage_id'] = $stage->id;
-            }
-            if (Schema::hasColumn('deals', 'stage')) {
-                $updates['stage'] = $resolvedStageName;
-            }
-
-            if ($updates === []) {
+            if (! Schema::hasColumn('deals', 'stage_id') && ! Schema::hasColumn('deals', 'stage') && ! Schema::hasColumn('deals', 'pipeline_stage')) {
                 return $this->dealStageErrorResponse($request, $id, 'This deal cannot be moved because stage tracking is not configured yet.', 500);
             }
 
-            $deal = DB::transaction(function () use ($deal, $request, $updates): ?Deal {
+            [$deal, $stage] = DB::transaction(function () use ($deal, $request, $stage, $stageInput): array {
+                // Keep the lock order consistent with updateStage(): stage row, then Deal row.
+                $lockedStage = $stage
+                    ? DealStage::query()->whereKey($stage->id)->lockForUpdate()->firstOrFail()
+                    : null;
                 $lockedDeal = Deal::query()->lockForUpdate()->findOrFail($deal->id);
                 if (! app(DealPolicy::class)->update($request->user(), $lockedDeal)) {
-                    return null;
+                    return [null, $lockedStage];
                 }
 
+                $resolvedStageName = $lockedStage?->name ?? $stageInput;
+                $updates = [];
+                if ($lockedStage && Schema::hasColumn('deals', 'stage_id')) {
+                    $updates['stage_id'] = $lockedStage->id;
+                }
+                if (Schema::hasColumn('deals', 'stage')) {
+                    $updates['stage'] = $resolvedStageName;
+                }
+                if (Schema::hasColumn('deals', 'pipeline_stage')) {
+                    $updates['pipeline_stage'] = $resolvedStageName;
+                }
                 $lockedDeal->update($updates);
 
-                return $lockedDeal;
+                return [$lockedDeal, $lockedStage];
             });
 
             if (! $deal) {
@@ -1209,6 +1283,7 @@ class DealController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
         $validated = $this->validateDealPayload($request);
         if (($validated['assigned_finance_user_id'] ?? null) !== null
             && ! $request->user()?->hasPermission('manage_deals_finance_settings')) {
@@ -1242,6 +1317,8 @@ class DealController extends Controller
             $createdDeal = Deal::query()->create([
                 ...$this->dealPersistencePayload($validated),
                 ...(Schema::hasColumn('deals', 'stage_id') ? ['stage_id' => $this->resolveStageIdByName((string) ($validated['stage'] ?? ''))] : []),
+                ...(Schema::hasColumn('deals', 'pipeline_stage') ? ['pipeline_stage' => (string) ($validated['stage'] ?? 'Inquiry')] : []),
+                ...(Schema::hasColumn('deals', 'stage_entered_at') ? ['stage_entered_at' => now()] : []),
                 ...(Schema::hasColumn('deals', 'created_by') ? ['created_by' => optional(Auth::user())->name ?: 'System'] : []),
                 'customer_type' => $validated['customer_type'] ?? $contact->customer_type,
                 'salutation' => $validated['salutation'] ?? $contact->salutation,
@@ -1347,6 +1424,7 @@ class DealController extends Controller
                 $lockedDeal->fill([
                     ...$this->dealPersistencePayload($validated),
                     ...(Schema::hasColumn('deals', 'stage_id') ? ['stage_id' => $this->resolveStageIdByName((string) ($validated['stage'] ?? ''))] : []),
+                    ...(Schema::hasColumn('deals', 'pipeline_stage') ? ['pipeline_stage' => (string) ($validated['stage'] ?? 'Inquiry')] : []),
                     'customer_type' => $validated['customer_type'] ?? $contact->customer_type,
                     'salutation' => $validated['salutation'] ?? $contact->salutation,
                     'first_name' => $validated['first_name'] ?? $contact->first_name,
@@ -1728,6 +1806,7 @@ class DealController extends Controller
                     ...$this->dealPanelContext($this->storedDealFormData($storedDeal)),
                     'financeUsers' => $this->financeUserOptions(),
                     'employeeOptions' => $this->employeeOptions(),
+                    'canManageFinanceDocuments' => false,
                     'openDealModal' => (bool) request()->boolean('edit_deal'),
                 ]);
             }
@@ -2013,7 +2092,7 @@ class DealController extends Controller
             'serviceRequirementCatalog' => $serviceCatalog['serviceRequirementCatalog'],
             'productOptionsByServiceArea' => $productCatalog['productOptionsByServiceArea'],
             'productPricing' => $productCatalog['productPricing'],
-            'ownerLabel' => $defaultOwner['name'] ?? ($request->user()?->name ?? 'Unassigned'),
+            'ownerLabel' => $defaultOwner['name'] ?? (request()->user()?->name ?? 'Unassigned'),
             'owners' => $owners,
             'defaultOwnerId' => $defaultOwnerId,
             'dealDraft' => $draft,

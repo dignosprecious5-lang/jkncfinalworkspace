@@ -561,6 +561,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
+    Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
     Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
     Route::post('/deals/{deal}/memberships', [DealController::class, 'assignMembership'])->name('deals.memberships.store');
     Route::delete('/deals/{deal}/memberships/{membership}', [DealController::class, 'revokeMembership'])->name('deals.memberships.destroy');
@@ -576,8 +577,8 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/deals/stages/{stage}', [DealController::class, 'destroyStage'])->name('deals.stages.destroy');
     Route::patch('/deals/{id}/stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update');
     Route::post('/deals/{id}/update-stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update.post');
-    Route::put('/deals/{id}', [DealController::class, 'update'])->name('deals.update');
-    Route::delete('/deals/{id}', [DealController::class, 'destroy'])->name('deals.destroy');
+    Route::put('/deals/{id}', [DealController::class, 'update'])->whereNumber('id')->name('deals.update');
+    Route::delete('/deals/{id}', [DealController::class, 'destroy'])->whereNumber('id')->name('deals.destroy');
     Route::post('/deals/{id}/approve-deletion', [DealController::class, 'approveDeletion'])->name('deals.approve-deletion');
     Route::post('/deals/{id}/reject-deletion', [DealController::class, 'rejectDeletion'])->name('deals.reject-deletion');
     Route::post('/deals/{id}/internal-approve', [DealController::class, 'approveInternalReview'])->name('deals.internal-approve');
@@ -599,7 +600,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::match(['put', 'patch'], '/deals/{deal}/proposal', [DealProposalController::class, 'update'])->name('deals.proposal.update');
     Route::get('/deals/{id}/download', [DealController::class, 'downloadPdf'])->name('deals.download');
     Route::get('/deals/{id}/download-pdf', [DealController::class, 'downloadPdf'])->name('deals.download-pdf');
-    Route::get('/deals/{id}', [DealController::class, 'show'])->name('deals.show');
+    Route::get('/deals/{id}', [DealController::class, 'show'])->whereNumber('id')->name('deals.show');
 
     /*
     |--------------------------------------------------------------------------
