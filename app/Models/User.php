@@ -63,14 +63,15 @@ class User extends Authenticatable
 
     public function setRoleAttribute($value): void
     {
-        $normalized = strtolower(trim((string) $value));
+        $raw = $value instanceof \BackedEnum ? (string) $value->value : (string) $value;
+        $normalized = strtolower(trim($raw));
 
         $this->attributes['role'] = match ($normalized) {
             'superadmin' => 'SuperAdmin',
             'admin' => 'Admin',
             'employee' => 'Employee',
             'client' => 'Client',
-            default => trim((string) $value),
+            default => trim($raw),
         };
     }
 
