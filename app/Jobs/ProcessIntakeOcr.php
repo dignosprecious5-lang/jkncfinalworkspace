@@ -99,6 +99,8 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
         $extractor = $this->extractor();
 
         foreach ($this->files() as $file) {
+            $claimToken = 'claim:' . bin2hex(random_bytes(16));
+
             // Atomic claim: only claim the file if it is in an unread or retryable state.
             // If another worker or process claimed it, skip to avoid double execution.
             $claimed = RecordFile::query()
@@ -108,7 +110,7 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
                 ->whereIn('ocr_status', [OcrStatus::Queued->value, OcrStatus::NeedsReview->value, OcrStatus::NotRead->value])
                 ->update([
                     'ocr_status' => OcrStatus::Reading->value,
-                    'ocr_error' => null,
+                    'ocr_error' => $claimToken,
                 ]);
 
             if ($claimed === 0) {
@@ -126,17 +128,18 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
                     // No text is not a success. Settling these to Ready — which is
                     // what the earlier stub did — made an unreadable document look
                     // like it had been read.
-                    $this->settleForReview($file, $result['reason']);
+                    $this->settleForReview($file, $result['reason'], $claimToken);
 
                     continue;
                 }
 
-                // Atomic settle: only transition to Ready if still currently in Reading state.
+                // Atomic settle: only transition to Ready if still currently in Reading state AND matching this attempt's claim token.
                 RecordFile::query()
                     ->where('id', $file->id)
                     ->where('tenant_id', $this->tenantId)
                     ->where('company_id', $this->companyId)
                     ->where('ocr_status', OcrStatus::Reading->value)
+                    ->where('ocr_error', $claimToken)
                     ->update([
                         'ocr_text' => $result['text'],
                         'ocr_status' => OcrStatus::Ready->value,
@@ -144,7 +147,7 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
                         'ocr_completed_at' => now(),
                     ]);
             } catch (Throwable $e) {
-                $this->settleForReview($file, $e->getMessage());
+                $this->settleForReview($file, $e->getMessage(), $claimToken);
             }
         }
 
@@ -263,7 +266,7 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
      * Move one file to Needs Review, recording why, without touching the stored
      * bytes so the document can still be filed manually.
      */
-    private function settleForReview(RecordFile $file, string $reason): void
+    private function settleForReview(RecordFile $file, string $reason, ?string $claimToken = null): void
     {
         Log::warning('Intake document reading failed.', [
             'record_file_id' => $file->id,
@@ -276,6 +279,7 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
             ->where('tenant_id', $this->tenantId)
             ->where('company_id', $this->companyId)
             ->where('ocr_status', OcrStatus::Reading->value)
+            ->when($claimToken !== null, fn ($query) => $query->where('ocr_error', $claimToken))
             ->update([
                 'ocr_status' => OcrStatus::NeedsReview->value,
                 'ocr_error' => $reason,

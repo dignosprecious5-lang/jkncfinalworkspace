@@ -213,4 +213,67 @@ class ProcessIntakeOcrSafetyTest extends TestCase
         $this->assertSame('OCR worker timeout after 900s', $refreshed->ocr_error);
         $this->assertNotNull($refreshed->ocr_completed_at);
     }
+
+    public function test_stale_worker_with_superseded_claim_cannot_overwrite_newer_attempt(): void
+    {
+        Queue::fake();
+
+        $company = $this->seedTenantAndCompany();
+        $this->actingInCompany($company);
+
+        $item = $this->intake->createIntakeItem([$this->fakePdf('doc.pdf', 64)]);
+        $file = $item->files->first()->refresh();
+
+        // 1. Worker 1 claims the file
+        $worker1Token = 'claim:worker1_' . bin2hex(random_bytes(8));
+        $file->forceFill([
+            'ocr_status' => OcrStatus::Reading,
+            'ocr_error' => $worker1Token,
+        ])->save();
+
+        // 2. Newer attempt (Worker 2) re-claims the file after a retry or re-read
+        $worker2Token = 'claim:worker2_' . bin2hex(random_bytes(8));
+        $file->forceFill([
+            'ocr_status' => OcrStatus::Reading,
+            'ocr_error' => $worker2Token,
+        ])->save();
+
+        // 3. Worker 1 finishes late and tries to settle with stale token
+        $staleSettle = RecordFile::query()
+            ->where('id', $file->id)
+            ->where('tenant_id', $company->tenant_id)
+            ->where('company_id', $company->id)
+            ->where('ocr_status', OcrStatus::Reading->value)
+            ->where('ocr_error', $worker1Token)
+            ->update([
+                'ocr_text' => 'Stale text from worker 1',
+                'ocr_status' => OcrStatus::Ready->value,
+                'ocr_error' => null,
+                'ocr_completed_at' => now(),
+            ]);
+
+        $this->assertSame(0, $staleSettle, 'Stale worker 1 must not overwrite record claimed by worker 2');
+        $this->assertSame($worker2Token, $file->refresh()->ocr_error);
+        $this->assertSame(OcrStatus::Reading, $file->ocr_status);
+
+        // 4. Worker 2 finishes and settles with current token
+        $validSettle = RecordFile::query()
+            ->where('id', $file->id)
+            ->where('tenant_id', $company->tenant_id)
+            ->where('company_id', $company->id)
+            ->where('ocr_status', OcrStatus::Reading->value)
+            ->where('ocr_error', $worker2Token)
+            ->update([
+                'ocr_text' => 'Fresh text from worker 2',
+                'ocr_status' => OcrStatus::Ready->value,
+                'ocr_error' => null,
+                'ocr_completed_at' => now(),
+            ]);
+
+        $this->assertSame(1, $validSettle, 'Current worker 2 should successfully settle');
+        $refreshed = $file->refresh();
+        $this->assertSame(OcrStatus::Ready, $refreshed->ocr_status);
+        $this->assertSame('Fresh text from worker 2', $refreshed->ocr_text);
+        $this->assertNull($refreshed->ocr_error);
+    }
 }

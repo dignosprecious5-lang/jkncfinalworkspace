@@ -155,7 +155,7 @@ class RecordFileReadingController extends Controller
             'ocrStatus' => $file->ocr_status->value,
             'ocrStatusLabel' => $file->ocr_status->label(),
             'ocrTerminal' => $file->ocr_status->isTerminal(),
-            'ocrError' => $file->ocr_error,
+            'ocrError' => str_starts_with((string) $file->ocr_error, 'claim:') ? null : $file->ocr_error,
             'ocrText' => $file->ocr_text,
             'ocrCompletedAt' => $file->ocr_completed_at?->format('Y-m-d H:i'),
         ]);
