@@ -91,7 +91,7 @@ class RecordIntakeService
         $item->load('files');
 
         DB::afterCommit(function () use ($item, $tenantId, $companyId): void {
-            ProcessIntakeOcr::dispatch($item->id, $tenantId, $companyId)->onQueue('records_ocr');
+            ProcessIntakeOcr::dispatch($item->id, $tenantId, $companyId)->onConnection('database')->onQueue('records_ocr');
         });
 
         return $item;

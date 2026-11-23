@@ -81,7 +81,7 @@ class RecordFileReadingController extends Controller
             $this->context->tenantId(),
             $this->context->id(),
             (string) $target->id,
-        )->onQueue('records_ocr');
+        )->onConnection('database')->onQueue('records_ocr');
 
         $this->log($target);
 

@@ -79,6 +79,7 @@ class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
         public readonly string $companyId,
         public readonly ?string $recordFileId = null,
     ) {
+        $this->onConnection('database');
         $this->onQueue('records_ocr');
     }
 

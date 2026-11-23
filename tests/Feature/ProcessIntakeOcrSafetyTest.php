@@ -39,6 +39,7 @@ class ProcessIntakeOcrSafetyTest extends TestCase
         $job = new ProcessIntakeOcr('item-123', 'tenant-456', 'company-789', 'file-001');
 
         $this->assertInstanceOf(ShouldBeUnique::class, $job);
+        $this->assertSame('database', $job->connection);
         $this->assertSame('records_ocr', $job->queue);
         $this->assertSame(1800, $job->uniqueFor);
         $this->assertSame('tenant-456:company-789:file-001', $job->uniqueId());
@@ -49,6 +50,7 @@ class ProcessIntakeOcrSafetyTest extends TestCase
         $job = new ProcessIntakeOcr('item-123', 'tenant-456', 'company-789');
 
         $this->assertSame('tenant-456:company-789:item-123', $job->uniqueId());
+        $this->assertSame('database', $job->connection);
     }
 
     public function test_intake_dispatch_routes_explicitly_to_records_ocr_queue(): void
@@ -64,6 +66,7 @@ class ProcessIntakeOcrSafetyTest extends TestCase
             return $job->recordIntakeItemId === (string) $item->id
                 && $job->tenantId === (string) $company->tenant_id
                 && $job->companyId === (string) $company->id
+                && $job->connection === 'database'
                 && $job->queue === 'records_ocr';
         });
     }
@@ -114,6 +117,7 @@ class ProcessIntakeOcrSafetyTest extends TestCase
                 && $job->tenantId === (string) $company->tenant_id
                 && $job->companyId === (string) $company->id
                 && $job->recordFileId !== null
+                && $job->connection === 'database'
                 && $job->queue === 'records_ocr';
         });
     }
