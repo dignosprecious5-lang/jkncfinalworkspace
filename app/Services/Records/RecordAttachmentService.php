@@ -156,7 +156,7 @@ class RecordAttachmentService
                     (string) $record->tenant_id,
                     (string) $record->company_id,
                     (string) $file->id,
-                );
+                )->onQueue('records_ocr');
             });
 
             return $file;

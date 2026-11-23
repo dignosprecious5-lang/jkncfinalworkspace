@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Enums\OcrStatus;
 use App\Models\RecordFile;
 use App\Services\Records\DocumentTextExtractor;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Queue\Queueable;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
-class ProcessIntakeOcr implements ShouldQueue
+class ProcessIntakeOcr implements ShouldQueue, ShouldBeUnique
 {
     use Queueable;
 
@@ -39,6 +40,24 @@ class ProcessIntakeOcr implements ShouldQueue
     public int $timeout = 900;
 
     /**
+     * The number of seconds after which the job's unique lock will be released.
+     */
+    public int $uniqueFor = 1800;
+
+    /**
+     * The unique ID of the job to prevent duplicate queueing.
+     */
+    public function uniqueId(): string
+    {
+        return sprintf(
+            '%s:%s:%s',
+            $this->tenantId,
+            $this->companyId,
+            $this->recordFileId ?? $this->recordIntakeItemId ?? 'global'
+        );
+    }
+
+    /**
      * The tenant and company travel with the job because it runs on a queue
      * worker, where there is no session to resolve a company context from. Every
      * query the job makes is scoped by them, the same as any request-side query.
@@ -59,7 +78,9 @@ class ProcessIntakeOcr implements ShouldQueue
         public readonly string $tenantId,
         public readonly string $companyId,
         public readonly ?string $recordFileId = null,
-    ) {}
+    ) {
+        $this->onQueue('records_ocr');
+    }
 
     /**
      * Document reading is queued asynchronously and must never block the original file
@@ -78,9 +99,23 @@ class ProcessIntakeOcr implements ShouldQueue
         $extractor = $this->extractor();
 
         foreach ($this->files() as $file) {
-            try {
-                $file->forceFill(['ocr_status' => OcrStatus::Reading])->save();
+            // Atomic claim: only claim the file if it is in an unread or retryable state.
+            // If another worker or process claimed it, skip to avoid double execution.
+            $claimed = RecordFile::query()
+                ->where('id', $file->id)
+                ->where('tenant_id', $this->tenantId)
+                ->where('company_id', $this->companyId)
+                ->whereIn('ocr_status', [OcrStatus::Queued->value, OcrStatus::NeedsReview->value, OcrStatus::NotRead->value])
+                ->update([
+                    'ocr_status' => OcrStatus::Reading->value,
+                    'ocr_error' => null,
+                ]);
 
+            if ($claimed === 0) {
+                continue;
+            }
+
+            try {
                 $result = $extractor->extract(
                     $this->absolutePath($file),
                     (string) $file->mime_type,
@@ -96,12 +131,18 @@ class ProcessIntakeOcr implements ShouldQueue
                     continue;
                 }
 
-                $file->forceFill([
-                    'ocr_text' => $result['text'],
-                    'ocr_status' => OcrStatus::Ready,
-                    'ocr_error' => null,
-                    'ocr_completed_at' => now(),
-                ])->save();
+                // Atomic settle: only transition to Ready if still currently in Reading state.
+                RecordFile::query()
+                    ->where('id', $file->id)
+                    ->where('tenant_id', $this->tenantId)
+                    ->where('company_id', $this->companyId)
+                    ->where('ocr_status', OcrStatus::Reading->value)
+                    ->update([
+                        'ocr_text' => $result['text'],
+                        'ocr_status' => OcrStatus::Ready->value,
+                        'ocr_error' => null,
+                        'ocr_completed_at' => now(),
+                    ]);
             } catch (Throwable $e) {
                 $this->settleForReview($file, $e->getMessage());
             }
@@ -152,7 +193,16 @@ class ProcessIntakeOcr implements ShouldQueue
         ]);
 
         foreach ($this->files() as $file) {
-            $this->settleForReview($file, $reason);
+            RecordFile::query()
+                ->where('id', $file->id)
+                ->where('tenant_id', $this->tenantId)
+                ->where('company_id', $this->companyId)
+                ->whereIn('ocr_status', [OcrStatus::Reading->value, OcrStatus::Queued->value])
+                ->update([
+                    'ocr_status' => OcrStatus::NeedsReview->value,
+                    'ocr_error' => $reason,
+                    'ocr_completed_at' => now(),
+                ]);
         }
     }
 
@@ -221,10 +271,15 @@ class ProcessIntakeOcr implements ShouldQueue
             'error' => $reason,
         ]);
 
-        $file->forceFill([
-            'ocr_status' => OcrStatus::NeedsReview,
-            'ocr_error' => $reason,
-            'ocr_completed_at' => now(),
-        ])->save();
+        RecordFile::query()
+            ->where('id', $file->id)
+            ->where('tenant_id', $this->tenantId)
+            ->where('company_id', $this->companyId)
+            ->where('ocr_status', OcrStatus::Reading->value)
+            ->update([
+                'ocr_status' => OcrStatus::NeedsReview->value,
+                'ocr_error' => $reason,
+                'ocr_completed_at' => now(),
+            ]);
     }
 }
