@@ -562,6 +562,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     */
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
     Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
+    Route::get('/deals/quick-purchase', [DealController::class, 'quickPurchase'])->name('deals.quick-purchase');
+    Route::post('/deals/quick-purchase', [DealController::class, 'storeQuickPurchase'])->name('deals.quick-purchase.store');
+    Route::post('/contacts/quick-store', [DealController::class, 'quickStoreContact'])->name('contacts.quick-store');
+    Route::post('/accounts/quick-store', [DealController::class, 'quickStoreAccount'])->name('accounts.quick-store');
     Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
     Route::post('/deals/{deal}/memberships', [DealController::class, 'assignMembership'])->name('deals.memberships.store');
     Route::delete('/deals/{deal}/memberships/{membership}', [DealController::class, 'revokeMembership'])->name('deals.memberships.destroy');

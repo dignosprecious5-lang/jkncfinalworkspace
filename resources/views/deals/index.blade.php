@@ -16,6 +16,9 @@
             <p class="text-sm text-gray-500">Track and manage your sales pipeline</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('deals.quick-purchase') }}" class="h-10 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50">
+                Add Inquiry
+            </a>
             <button id="openCreateDealModalBtn" type="button" class="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
                 <i class="fas fa-plus mr-1"></i> Add Deal
             </button>

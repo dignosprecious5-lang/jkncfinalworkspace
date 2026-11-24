@@ -3254,6 +3254,260 @@ class DealController extends Controller
         ];
     }
 
+    public function quickPurchase(Request $request): View
+    {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
+        abort_unless(Schema::hasTable('accounts'), 503, 'Account support is not available until the Deals schema is installed.');
+        $selectedAccountId = $request->query('account_id');
+        $selectedContactId = $request->query('contact_id');
+        $accounts = Account::query()->with(['company.primaryContact', 'company.contacts', 'individualContact'])
+            ->where('status', 'Active')->orderBy('account_name')->get();
+        $companies = Company::query()->orderBy('company_name')->get();
+        $contacts = Contact::query()->with('companies')->orderBy('first_name')->get();
+        $owners = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $employees = User::query()->with('employeeProfile')->orderBy('name')->get();
+        $inquiryRequestKey = (string) Str::uuid();
+
+        return view('deals.quick-purchase', compact('accounts', 'companies', 'contacts', 'owners', 'employees',
+            'selectedAccountId', 'selectedContactId', 'inquiryRequestKey'));
+    }
+
+
+    public function quickStoreContact(Request $request): JsonResponse
+    {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:255'], 'last_name' => ['required', 'string', 'max:255'],
+            'salutation' => ['nullable', 'string', 'max:50'], 'middle_name' => ['nullable', 'string', 'max:255'],
+            'name_extension' => ['nullable', 'string', 'max:50'], 'sex' => ['nullable', 'string', 'max:20'],
+            'date_of_birth' => ['nullable', 'date'], 'email' => ['nullable', 'email', 'max:255'],
+            'mobile_number' => ['nullable', 'string', 'max:50'], 'address' => ['nullable', 'string', 'max:2000'],
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'position' => ['nullable', 'string', 'max:255'], 'contact_type' => ['nullable', 'in:Business,Individual'],
+        ]);
+        abort_if(($data['contact_type'] ?? 'Individual') === 'Business' && empty($data['company_id']), 422, 'Pumili muna ng kumpanyang pag-uugnayan.');
+
+        $contact = DB::transaction(function () use ($data, $request) {
+            $company = ! empty($data['company_id']) ? Company::query()->lockForUpdate()->findOrFail($data['company_id']) : null;
+            $contactValues = [
+                'first_name' => $data['first_name'], 'last_name' => $data['last_name'],
+                'salutation' => $data['salutation'] ?? null, 'middle_name' => $data['middle_name'] ?? null,
+                'name_extension' => $data['name_extension'] ?? null, 'sex' => $data['sex'] ?? null,
+                'date_of_birth' => $data['date_of_birth'] ?? null, 'email' => $data['email'] ?? null,
+                'phone' => $data['mobile_number'] ?? null, 'contact_address' => $data['address'] ?? null,
+                'position' => $data['position'] ?? null, 'company_name' => $company?->company_name,
+                'company_address' => $company?->address, 'owner_name' => $request->user()->name,
+            ];
+            $contact = Contact::query()->create(array_intersect_key($contactValues, array_flip(Schema::getColumnListing('contacts'))));
+            if ($company && Schema::hasTable('company_contact')) {
+                $company->contacts()->syncWithoutDetaching([$contact->id]);
+                if (Schema::hasColumn('companies', 'primary_contact_id') && empty($company->primary_contact_id)) {
+                    $company->forceFill(['primary_contact_id' => $contact->id])->save();
+                }
+            }
+            return $contact;
+        });
+
+        return response()->json(['success' => true, 'contact' => [
+            'id' => $contact->id, 'company_id' => $data['company_id'] ?? null,
+            'first_name' => $contact->first_name, 'middle_name' => $contact->middle_name,
+            'middle_initial' => $contact->middle_initial, 'last_name' => $contact->last_name,
+            'salutation' => $contact->salutation, 'name_extension' => $contact->name_extension,
+            'sex' => $contact->sex, 'date_of_birth' => optional($contact->date_of_birth)->format('Y-m-d'),
+            'email' => $contact->email, 'phone' => $contact->phone, 'mobile' => $contact->phone,
+            'contact_address' => $contact->contact_address, 'address' => $contact->contact_address, 'position' => $contact->position,
+        ]], 201);
+    }
+
+
+    public function quickStoreAccount(Request $request): JsonResponse
+    {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
+        $type = $request->input('account_type');
+        $data = $request->validate([
+            'account_type' => ['required', 'in:Business,Individual'],
+            'company_name' => [Rule::requiredIf($type === 'Business'), 'nullable', 'string', 'max:255'],
+            'company_email' => ['nullable', 'email', 'max:255'], 'company_phone' => ['nullable', 'string', 'max:50'],
+            'company_address' => ['nullable', 'string', 'max:2000'],
+            'contact_address' => ['nullable', 'string', 'max:2000'],
+            'first_name' => [Rule::requiredIf($type === 'Individual'), 'nullable', 'string', 'max:255'],
+            'last_name' => [Rule::requiredIf($type === 'Individual'), 'nullable', 'string', 'max:255'],
+            'salutation' => ['nullable', 'string', 'max:50'], 'middle_name' => ['nullable', 'string', 'max:255'],
+            'name_extension' => ['nullable', 'string', 'max:50'], 'contact_email' => ['nullable', 'email', 'max:255'],
+            'contact_mobile' => ['nullable', 'string', 'max:50'], 'contact_position' => ['nullable', 'string', 'max:255'],
+        ]);
+        abort_unless(Schema::hasTable('accounts'), 503, 'Hindi pa naka-install ang Account schema.');
+        abort_if($type === 'Business' && (empty($data['first_name']) || empty($data['last_name'])), 422, 'Kailangan ang pangalan ng pangunahing contact upang makagawa ng Inquiry.');
+
+        $created = DB::transaction(function () use ($data, $type, $request) {
+            $company = null;
+            if ($type === 'Business') {
+                $company = Company::query()->create(array_intersect_key([
+                    'company_name' => $data['company_name'], 'email' => $data['company_email'] ?? null,
+                    'phone' => $data['company_phone'] ?? null, 'address' => $data['company_address'] ?? null,
+                    'owner_name' => $request->user()->name,
+                ], array_flip(Schema::getColumnListing('companies'))));
+            }
+            $contactValues = [
+                'first_name' => $type === 'Individual' ? $data['first_name'] : $data['first_name'],
+                'last_name' => $data['last_name'], 'salutation' => $data['salutation'] ?? null,
+                'middle_name' => $data['middle_name'] ?? null, 'name_extension' => $data['name_extension'] ?? null,
+                'email' => $data['contact_email'] ?? null,
+                'phone' => $data['contact_mobile'] ?? null, 'position' => $data['contact_position'] ?? null,
+                'contact_address' => $data['contact_address'] ?? null,
+                'company_name' => $company?->company_name, 'company_address' => $company?->address,
+                'owner_name' => $request->user()->name,
+            ];
+            $contact = Contact::query()->create(array_intersect_key($contactValues, array_flip(Schema::getColumnListing('contacts'))));
+            if ($company) {
+                if (Schema::hasTable('company_contact')) {
+                    $company->contacts()->syncWithoutDetaching([$contact->id]);
+                }
+                if (Schema::hasColumn('companies', 'primary_contact_id')) {
+                    $company->forceFill(['primary_contact_id' => $contact->id])->save();
+                }
+            }
+            $account = Account::query()->create([
+                'account_code' => 'ACC-'.Str::upper(Str::random(12)), 'account_type' => $type,
+                'account_name' => $type === 'Business' ? $data['company_name'] : trim($data['first_name'].' '.$data['last_name']),
+                'company_id' => $company?->id, 'individual_contact_id' => $type === 'Individual' ? $contact->id : null,
+                'status' => 'Active',
+            ]);
+            return compact('account', 'company', 'contact');
+        });
+
+        $contact = $created['contact'];
+        $company = $created['company'];
+        return response()->json(['success' => true,
+            'account' => ['id' => $created['account']->id, 'account_code' => $created['account']->account_code,
+                'account_type' => $type, 'account_name' => $created['account']->account_name, 'status' => 'Active',
+                'company_id' => $company?->id, 'individual_contact_id' => $type === 'Individual' ? $contact->id : null,
+                'company' => $company ? ['id' => $company->id, 'company_name' => $company->company_name,
+                    'address' => $company->address, 'primary_contact_id' => $contact->id] : null],
+            'company' => $company ? ['id' => $company->id, 'company_name' => $company->company_name,
+                'email' => $company->email, 'phone' => $company->phone, 'address' => $company->address,
+                'primary_contact_id' => $contact->id, 'contacts' => [$contact]] : null,
+            'contact' => ['id' => $contact->id, 'company_id' => $company?->id,
+                'first_name' => $contact->first_name, 'middle_name' => $contact->middle_name,
+                'last_name' => $contact->last_name, 'email' => $contact->email, 'phone' => $contact->phone,
+                'mobile' => $contact->phone, 'address' => $contact->contact_address, 'position' => $contact->position],
+        ], 201);
+    }
+
+    /** Preview metadata only: duplicate names (including inactive records) never resolve to an ID. */
+
+    public function storeQuickPurchase(Request $request): RedirectResponse
+    {
+        app(\App\Services\DealCatalogSelection::class)->authorize($request->user());
+        $data = $request->validate([
+            'inquiry_request_key' => ['required', 'uuid'],
+            'account_id' => ['required', 'integer', 'min:1', 'exists:accounts,id'],
+            'contact_id' => ['required', 'integer', 'min:1', 'exists:contacts,id'],
+            'customer_type' => ['required', 'in:Business,Individual'],
+            'service_area' => ['nullable'],
+            'services' => ['nullable'],
+            'service' => ['nullable', 'string', 'max:255'],
+            'scope_of_work' => ['nullable', 'string', 'max:20000'],
+            'estimated_professional_fee' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'discount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'expected_close' => ['nullable', 'date'],
+            'engagement_type' => ['nullable', 'string', 'max:100'],
+            'payment_terms' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $dealId = DB::transaction(function () use ($data, $request): int {
+            $account = Account::query()->whereKey($data['account_id'])->lockForUpdate()->firstOrFail();
+            $existing = Deal::query()->where('inquiry_request_key', $data['inquiry_request_key'])->first();
+            if ($existing) {
+                return (int) $existing->id;
+            }
+            abort_unless(strtolower((string) $account->status) === 'active', 422, 'Pumili ng aktibong account.');
+
+            $type = strtolower((string) $account->account_type);
+            $contact = Contact::query()->whereKey($data['contact_id'])->firstOrFail();
+            if ($type === 'business') {
+                abort_unless($data['customer_type'] === 'Business' && $account->company_id, 422, 'Hindi tugma ang account at uri ng kliyente.');
+                $company = Company::query()->whereKey($account->company_id)->firstOrFail();
+                $isPrimary = (int) $company->primary_contact_id === (int) $contact->id;
+                $isLinked = Schema::hasTable('company_contact')
+                    && DB::table('company_contact')->where('company_id', $company->id)->where('contact_id', $contact->id)->exists();
+                abort_unless($isPrimary || $isLinked, 422, 'Hindi kabilang ang contact sa kumpanyang pinili.');
+            } elseif ($type === 'individual') {
+                abort_unless($data['customer_type'] === 'Individual'
+                    && (int) $account->individual_contact_id === (int) $contact->id,
+                    422, 'Hindi naka-link ang contact sa indibidwal na account.');
+                $company = null;
+            } else {
+                abort(422, 'Hindi suportado ang uri ng account na ito.');
+            }
+
+            $areas = is_array($data['service_area'] ?? null) ? $data['service_area'] : array_filter([(string) ($data['service_area'] ?? '')]);
+            $services = is_array($data['services'] ?? null) ? $data['services'] : array_filter([(string) ($data['service'] ?? $data['services'] ?? '')]);
+            $fee = (float) ($data['estimated_professional_fee'] ?? $data['amount'] ?? 0);
+            $discount = (float) ($data['discount'] ?? 0);
+            abort_if($discount > $fee && $fee > 0, 422, 'Hindi maaaring lumampas ang diskuwento sa halaga.');
+            $title = implode(', ', $services) ?: 'Consulting Service';
+            $stageId = $this->resolveStageIdByName('Inquiry');
+            $columns = array_flip(Schema::getColumnListing('deals'));
+            $payload = array_intersect_key([
+                'contact_id' => $contact->id,
+                'account_id' => $account->id,
+                'company_id' => $company?->id,
+                'inquiry_request_key' => $data['inquiry_request_key'],
+                'deal_code' => Deal::generateNextDealCode(),
+                'deal_name' => $title.' — '.$account->account_name,
+                'stage' => 'Inquiry',
+                'stage_id' => $stageId,
+                'pipeline_stage' => 'Inquiry',
+                'stage_entered_at' => now(),
+                'created_by' => $request->user()->name,
+                'customer_type' => $data['customer_type'],
+                'first_name' => $contact->first_name,
+                'middle_name' => $contact->middle_name,
+                'last_name' => $contact->last_name,
+                'salutation' => $contact->salutation,
+                'email' => $contact->email,
+                'mobile' => $contact->phone,
+                'address' => $contact->contact_address,
+                'position' => $contact->position,
+                'company_name' => $company?->company_name,
+                'company_address' => $company?->address,
+                'service_area' => implode(', ', $areas),
+                'services' => implode(', ', $services),
+                'scope_of_work' => $data['scope_of_work'] ?? null,
+                'engagement_type' => $data['engagement_type'] ?? null,
+                'estimated_professional_fee' => $fee > 0 ? $fee : null,
+                'total_service_fee' => $fee > 0 ? $fee : null,
+                'deal_discount' => $discount > 0 ? $discount : null,
+                'total_estimated_engagement_value' => max(0, $fee - $discount),
+                'payment_terms' => $data['payment_terms'] ?? null,
+                'expected_close' => $data['expected_close'] ?? null,
+                'inquiry_source' => 'Add Inquiry',
+                'inquiry_date' => now()->toDateString(),
+            ], $columns);
+            $deal = Deal::query()->create($payload);
+            $deal->dealContacts()->create([
+                'contact_type' => 'Primary', 'salutation' => $contact->salutation,
+                'first_name' => $contact->first_name, 'middle_name' => $contact->middle_name,
+                'last_name' => $contact->last_name, 'name_extension' => $contact->name_extension,
+                'email' => $contact->email, 'mobile_number' => $contact->phone,
+                'address' => $contact->contact_address, 'position' => $contact->position, 'is_primary' => true,
+            ]);
+            $deal->histories()->create([
+                'user_id' => $request->user()->id, 'user_name' => $request->user()->name,
+                'activity_type' => DealHistory::TYPE_DEAL_CREATED, 'title' => 'Inquiry created',
+                'description' => 'Inquiry created through Add Inquiry.',
+                'new_stage' => 'Inquiry', 'metadata' => ['account_id' => $account->id, 'contact_id' => $contact->id],
+            ]);
+
+            return (int) $deal->id;
+        });
+
+        return redirect()->route('deals.show', $dealId)->with('success', 'Matagumpay na naitala ang Inquiry.');
+    }
+
+
     private function resolveStageIdByName(string $stageName): ?int
     {
         if (! Schema::hasTable('deal_stages') || trim($stageName) === '') {
