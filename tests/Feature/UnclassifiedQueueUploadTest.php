@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\RecordIntakeItem;
+use App\Services\Records\RecordIntakeService;
 use Illuminate\Http\UploadedFile;
 use Tests\Support\FakeUploads;
 use Tests\TestCase;
@@ -114,6 +115,42 @@ class UnclassifiedQueueUploadTest extends TestCase
             ->assertSee('x-on:drop.window="if (dragging)', false);
     }
 
+    public function test_the_details_drawer_uses_the_safe_renderer_for_word_files(): void
+    {
+        $item = $this->app->make(RecordIntakeService::class)
+            ->createIntakeItem([$this->fakeFile(
+                'meeting-notes.docx',
+                128,
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )]);
+
+        $response = $this->get(route('records.unclassified'));
+
+        $response->assertOk()
+            ->assertSee('currentFile?.renderedUrl', false)
+            ->assertSee('Extension', false)
+            ->assertSee('MIME type', false)
+            ->assertSee('humanSize(currentFile.sizeBytes)', false)
+            ->assertSee('text-[13px]', false)
+            ->assertSee('Extracted text (OCR)')
+            ->assertSee('Optical Character Recognition')
+            ->assertSee('Waiting for the OCR worker to process this document.', false)
+            ->assertDontSee('x-for="file in current.files"', false)
+            ->assertDontSee('>Files</h3>', false);
+
+        $file = $item->files()->firstOrFail();
+        $drawerItems = $response->viewData('drawerItems');
+
+        $this->assertSame(
+            route('records.files.rendered', ['file' => $file->id]),
+            $drawerItems[0]['files'][0]['renderedUrl'],
+        );
+        $this->assertSame(
+            route('records.files.preview', ['file' => $file->id]),
+            $drawerItems[0]['files'][0]['previewUrl'],
+        );
+    }
+
     // ---------------------------------------------------- camera capture
 
     /**
@@ -218,6 +255,22 @@ class UnclassifiedQueueUploadTest extends TestCase
         $this->assertArrayHasKey('files.0', $errors);
         $this->assertSame(
             'Each file must be a PDF, text, CSV, Word, Excel or image document.',
+            $errors['files.0'][0],
+        );
+    }
+
+    public function test_the_intake_file_size_limit_uses_the_configured_megabytes(): void
+    {
+        config(['ordo.uploads.intake_max_file_size_mb' => 1]);
+
+        $response = $this->postJson(route('records.intake.store'), [
+            'files' => [UploadedFile::fake()->create('oversized.pdf', 1025, 'application/pdf')],
+        ]);
+
+        $response->assertStatus(422);
+        $errors = $response->json('errors');
+        $this->assertSame(
+            'Each file must be 1 MB or smaller.',
             $errors['files.0'][0],
         );
     }

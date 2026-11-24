@@ -1,130 +1,314 @@
 {{--
     Records Management Setup → Records Classification.
 
-    The same tree and the same add-forms as the Classifications page, rendered
+    The same tree and the same forms as the Classifications page, rendered
     through the same browser component, so the two screens cannot drift apart.
-    The mock's "+ Add Classification" and "+ Add Index" open small modals here
-    too, through that component's own form handling.
 --}}
 <div x-data="classificationBrowser(@js($scheme))">
 
     @if ($canManage)
-        {{-- No "+ Add Index" here either: it opened the dialog with no parent
-             chosen, and that dialog's Save stays disabled until one is. An Index
-             is added from the Classification it belongs under, in the tree below. --}}
-        <div class="mb-3">
-            <x-ordo.button type="button" variant="primary"
-                           x-on:click="open('classification')">+ Add Classification</x-ordo.button>
+        <div class="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
+            <div>
+                <h4 class="text-sm font-bold text-gray-900">Records Classification Scheme</h4>
+                <p class="text-xs text-gray-500">Add, edit, and organize classifications and indexes.</p>
+            </div>
+            <button type="button"
+                    x-on:click="open('classification')"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-[#2563eb] px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1d4ed8] transition-colors">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                + Add Classification
+            </button>
         </div>
     @endif
 
-    <div class="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-ordo-line bg-[#fbfcfe] px-3 py-2.5">
+    <div class="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-[#fbfcfe] px-3 py-2.5">
         <input type="search" name="setup_scheme_q" x-model="query"
                placeholder="Search Classification Code, Index Code or name..."
                aria-label="Search the classification scheme"
-               class="min-w-[200px] flex-1 rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[11px] outline-none focus:border-ordo-blue" />
+               class="min-w-[200px] flex-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
 
-        <span class="text-[10px] text-ordo-muted" x-text="visibleCount() + ' shown'"></span>
+        <span class="text-xs font-medium text-gray-500" x-text="visibleCount + ' shown'"></span>
     </div>
 
-    {{-- The same tree the Classifications page renders, so the two copies of the
-         scheme cannot drift apart. It carries its own empty state. --}}
+    {{-- The tree component with Classification & Index rows --}}
     <x-ordo.classification-tree :classifications="$classifications" :can-manage="$canManage" />
 
-    {{-- ============ ADD FORMS ============
-         The component owns which form is open; the mock presents these in a
-         dialog, and this reuses the component's modal rather than a second one. --}}
-    <div class="fixed inset-0 z-[70] bg-[rgba(15,23,42,.28)]"
+    {{-- ============ ADD / EDIT FORMS MODAL ============ --}}
+    <div class="fixed inset-0 z-[70] bg-[rgba(15,23,42,.35)] backdrop-blur-sm"
          x-show="mode !== null" x-cloak
          x-on:keydown.escape.window="if (mode !== null) close()"
          x-on:click.self="close()">
 
-        <div class="grid h-full place-items-center overflow-auto p-2.5" x-on:click.stop>
-            <div class="w-full max-w-[640px] overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgba(15,23,42,.22)]"
+        <div class="grid h-full place-items-center overflow-auto p-3" x-on:click.self="close()">
+            <div class="w-full max-w-[620px] overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgba(15,23,42,.22)] border border-gray-200"
                  role="dialog" aria-modal="true"
-                 x-show="mode !== null" x-cloak>
+                 x-show="mode !== null" x-cloak
+                 x-on:click.stop>
 
-                <div class="flex items-start justify-between border-b border-ordo-line px-4 py-3.5">
-                    <h4 class="m-0 text-[13px] font-bold"
-                        x-text="mode === 'index' && parent
-                            ? 'Add Index — ' + parent
-                            : 'Add Classification'"></h4>
+                {{-- Modal Header --}}
+                <div class="flex items-start justify-between border-b border-gray-200 px-5 py-4 bg-gray-50">
+                    <div>
+                        <h4 class="m-0 text-base font-bold text-gray-900"
+                            x-text="mode === 'index' && parent
+                                ? 'Add Index — ' + parent
+                                : (mode === 'edit_classification'
+                                    ? 'Edit Classification — ' + editClassificationData.code
+                                    : (mode === 'edit_index'
+                                        ? 'Edit Index — ' + editIndexData.code
+                                        : 'Add Classification'))"></h4>
+                        <p class="mb-0 mt-0.5 text-xs text-gray-500"
+                           x-text="mode === 'classification'
+                               ? 'Define a top-level record classification category.'
+                               : (mode === 'index'
+                                   ? 'Add an index code under parent classification ' + parent + '.'
+                                   : 'Update details and settings for this scheme item.')"></p>
+                    </div>
                     <button type="button"
-                            class="-mr-1 flex h-7 w-7 items-center justify-center rounded-lg border-0 bg-transparent text-[20px] leading-none text-ordo-muted transition-colors hover:bg-[#f3f4f6] focus:outline-none"
+                            class="-mr-1 flex h-7 w-7 items-center justify-center rounded-lg border-0 bg-transparent text-xl leading-none text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus:outline-none"
                             x-on:click="close()" aria-label="Close">&times;</button>
                 </div>
 
-                <form method="POST"
-                      x-bind:action="mode === 'index' ? indexAction() : @js(route('records.classifications.store'))">
-                    @csrf
+                {{-- Form for Add Classification or Add Index --}}
+                <template x-if="mode === 'classification' || mode === 'index'">
+                    <form method="POST"
+                          x-bind:action="mode === 'index' ? indexAction() : @js(route('records.classifications.store'))">
+                        @csrf
+                        <input type="hidden" name="from_setup" value="1" />
 
-                    <div class="px-4 py-4">
-                        @if ($errors->any())
-                            <div class="mb-3 rounded-lg border border-[#f4cccc] bg-[#fff8f8] px-3 py-2 text-[11px] text-[#b42318]">
-                                <ul class="list-inside list-disc">
-                                    @foreach ($errors->all() as $message)
-                                        <li>{{ $message }}</li>
-                                    @endforeach
-                                </ul>
+                        <div class="px-5 py-4">
+                            @if ($errors->any())
+                                <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                    <ul class="list-inside list-disc">
+                                        @foreach ($errors->all() as $message)
+                                            <li>{{ $message }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
+                            {{-- ADD CLASSIFICATION --}}
+                            <template x-if="mode === 'classification'">
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                            Quick Fill from Standard Scheme (Optional)
+                                        </label>
+                                        <select x-on:change="selectStandardScheme($event.target.value)"
+                                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                            <option value="">-- Choose standard classification (or type manually below) --</option>
+                                            <option value="101">101 — Client Master File</option>
+                                            <option value="201">201 — Human Resources &amp; Personnel</option>
+                                            <option value="301">301 — Entity &amp; Ownership</option>
+                                            <option value="401">401 — BIR &amp; Tax</option>
+                                            <option value="601">601 — Regulatory &amp; Compliance</option>
+                                            <option value="701">701 — Finance</option>
+                                            <option value="801">801 — Banking</option>
+                                            <option value="901">901 — Legal</option>
+                                            <option value="1001">1001 — Operations</option>
+                                            <option value="1101">1101 — Real Property Records</option>
+                                            <option value="2001">2001 — Correspondence</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-700 mb-1">Classification Code <span class="text-red-500">*</span></label>
+                                            <input type="text" name="code" required x-model="newClassification.code"
+                                                   placeholder="e.g. 301"
+                                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-700 mb-1">Classification Name <span class="text-red-500">*</span></label>
+                                            <input type="text" name="name" required x-model="newClassification.name"
+                                                   placeholder="e.g. Entity &amp; Ownership"
+                                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+                                        <textarea name="description" rows="3" x-model="newClassification.description"
+                                                  placeholder="Scope and purpose of this classification..."
+                                                  class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
+                                    </div>
+                                </div>
+                            </template>
+
+                            {{-- ADD INDEX --}}
+                            <template x-if="mode === 'index'">
+                                <div class="space-y-3">
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Parent Classification</span>
+                                        <div class="text-xs font-semibold text-gray-800" x-text="parent + ' — ' + parentName(parent)"></div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-700 mb-1">Index Code <span class="text-red-500">*</span></label>
+                                            <input type="text" name="code" required
+                                                   x-bind:placeholder="'e.g. ' + (parent ? parent + '-1' : '301-1')"
+                                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-semibold text-gray-700 mb-1">Index Name <span class="text-red-500">*</span></label>
+                                            <input type="text" name="name" required
+                                                   placeholder="e.g. Incorporation Documents"
+                                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+                                        <textarea name="description" rows="3"
+                                                  placeholder="What documents belong under this index..."
+                                                  class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3.5 bg-gray-50">
+                            <button type="button" x-on:click="close()"
+                                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50">Cancel</button>
+                            <button type="submit"
+                                    class="rounded-lg bg-[#2563eb] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1d4ed8]">Save</button>
+                        </div>
+                    </form>
+                </template>
+
+                {{-- Form for Edit Classification --}}
+                <template x-if="mode === 'edit_classification'">
+                    <form method="POST" x-bind:action="updateClassificationAction()">
+                        @csrf
+                        <input type="hidden" name="from_setup" value="1" />
+
+                        <div class="px-5 py-4 space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Classification Code</label>
+                                    <input type="text" disabled x-bind:value="editClassificationData.code"
+                                           class="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-bold text-gray-600 cursor-not-allowed" />
+                                    <p class="mt-1 text-[10px] text-gray-400">Classification codes cannot be altered once created.</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Classification Name <span class="text-red-500">*</span></label>
+                                    <input type="text" name="name" required x-model="editClassificationData.name"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                </div>
                             </div>
-                        @endif
 
-                        <template x-if="mode === 'classification'">
-                            <div class="grid grid-cols-2 gap-2.5">
-                                <x-ordo.field label="Classification Code" required>
-                                    <input type="text" name="code" required
-                                           placeholder="e.g. 301"
-                                           class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-                                </x-ordo.field>
-
-                                <x-ordo.field label="Classification Name" required>
-                                    <input type="text" name="name" required
-                                           placeholder="e.g. Entity &amp; Ownership"
-                                           class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-                                </x-ordo.field>
-
-                                <x-ordo.field label="Description" full>
-                                    <textarea name="description" rows="4"
-                                              class="min-h-[88px] w-full resize-y rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue"></textarea>
-                                </x-ordo.field>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+                                <textarea name="description" rows="3" x-model="editClassificationData.description"
+                                          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
                             </div>
-                        </template>
 
-                        <template x-if="mode === 'index'">
-                            <div class="grid grid-cols-2 gap-2.5">
-                                <x-ordo.field label="Index Code" required>
-                                    <input type="text" name="code" required
-                                           placeholder="e.g. 301-1"
-                                           class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-                                </x-ordo.field>
-
-                                <x-ordo.field label="Index Name" required>
-                                    <input type="text" name="name" required
-                                           class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-                                </x-ordo.field>
-
-                                <x-ordo.field label="Parent Classification" full>
-                                    <input type="text" disabled
-                                           x-bind:value="parent + ' — ' + parentName(parent)"
-                                           class="w-full rounded-lg border border-ordo-line bg-[#f3f4f6] px-2.5 py-2 text-[12px] text-ordo-muted" />
-                                </x-ordo.field>
-
-                                <x-ordo.field label="Description" full>
-                                    <textarea name="description" rows="4"
-                                              class="min-h-[88px] w-full resize-y rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue"></textarea>
-                                </x-ordo.field>
+                            <div class="flex items-center gap-2 pt-1">
+                                <input type="hidden" name="is_active" value="0" />
+                                <input type="checkbox" id="setup_edit_class_active" name="is_active" value="1"
+                                       x-model="editClassificationData.is_active"
+                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <label for="setup_edit_class_active" class="text-xs font-medium text-gray-700">Active (available for record filing and indexing)</label>
                             </div>
-                        </template>
-                    </div>
+                        </div>
 
-                    <div class="flex justify-end gap-2 border-t border-ordo-line px-4 py-3">
-                        <x-ordo.button type="button" variant="default" x-on:click="close()">Cancel</x-ordo.button>
-                        {{-- One label for both modes: the title above already says
-                             which form this is, and a Save button that changes its
-                             own wording mid-dialog is harder to read. --}}
-                        <x-ordo.button type="submit" variant="primary">Save</x-ordo.button>
-                    </div>
-                </form>
+                        <div class="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3.5 bg-gray-50">
+                            <button type="button" x-on:click="close()"
+                                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    class="rounded-lg bg-[#2563eb] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1d4ed8]">
+                                Update Classification
+                            </button>
+                        </div>
+                    </form>
+                </template>
+
+                {{-- Form for Edit Index --}}
+                <template x-if="mode === 'edit_index'">
+                    <form method="POST" x-bind:action="updateIndexAction()">
+                        @csrf
+                        <input type="hidden" name="from_setup" value="1" />
+
+                        <div class="px-5 py-4 space-y-3">
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">Parent Classification</span>
+                                <div class="text-xs font-semibold text-gray-800" x-text="editIndexData.classification_code + ' — ' + parentName(editIndexData.classification_code)"></div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Index Code</label>
+                                    <input type="text" disabled x-bind:value="editIndexData.code"
+                                           class="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-xs font-bold text-gray-600 cursor-not-allowed" />
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-700 mb-1">Index Name <span class="text-red-500">*</span></label>
+                                    <input type="text" name="name" required x-model="editIndexData.name"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+                                <textarea name="description" rows="3" x-model="editIndexData.description"
+                                          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
+                            </div>
+
+                            <div class="rounded-lg border border-gray-200 bg-[#f9fafb] p-3">
+                                <label class="block text-xs font-semibold text-gray-800 mb-1.5">Advanced Details Configuration</label>
+                                <p class="text-[11px] text-gray-500 mb-2">Select which advanced drawer sections are exposed when filing documents under this Index:</p>
+                                <div class="grid grid-cols-2 gap-2 text-xs">
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" name="sections[]" value="identifiers" x-model="editIndexData.sections.identifiers"
+                                               class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span>Identifiers (TIN, SEC, etc.)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" name="sections[]" value="dates" x-model="editIndexData.sections.dates"
+                                               class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span>Dates (Filing, Expiry, etc.)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" name="sections[]" value="signatories" x-model="editIndexData.sections.signatories"
+                                               class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span>Signatories</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" name="sections[]" value="financials" x-model="editIndexData.sections.financials"
+                                               class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span>Financials (Amounts, VAT, etc.)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2 pt-1">
+                                <input type="hidden" name="is_active" value="0" />
+                                <input type="checkbox" id="setup_edit_idx_active" name="is_active" value="1"
+                                       x-model="editIndexData.is_active"
+                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <label for="setup_edit_idx_active" class="text-xs font-medium text-gray-700">Active (available for record filing)</label>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3.5 bg-gray-50">
+                            <button type="button" x-on:click="close()"
+                                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    class="rounded-lg bg-[#2563eb] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1d4ed8]">
+                                Update Index
+                            </button>
+                        </div>
+                    </form>
+                </template>
+
             </div>
         </div>
     </div>

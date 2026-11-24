@@ -9,6 +9,7 @@ Alpine.data('cameraCapture', () => ({
     stream: null,
     shot: null,
     deviceId: null,
+    facingMode: 'environment',
     devices: [],
     starting: false,
 
@@ -104,20 +105,37 @@ Alpine.data('cameraCapture', () => ({
         }
     },
 
-    async switchCamera(deviceId) {
-        if (!deviceId || deviceId === this.deviceId) {
+    async switchCamera(deviceId = null) {
+        if (deviceId && deviceId === this.deviceId) {
             return;
         }
 
-        this.deviceId = deviceId;
         this.stop();
 
-        try {
-            this.stream = await navigator.mediaDevices.getUserMedia({
+        let constraints;
+        if (deviceId) {
+            this.deviceId = deviceId;
+            constraints = {
                 video: { deviceId: { exact: deviceId } },
                 audio: false,
-            });
+            };
+        } else {
+            this.facingMode = this.facingMode === 'user' ? 'environment' : 'user';
+            constraints = {
+                video: { facingMode: { exact: this.facingMode } },
+                audio: false,
+            };
+        }
+
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const track = this.stream.getVideoTracks?.()?.[0];
+            const settings = track?.getSettings?.();
+            if (settings?.deviceId) {
+                this.deviceId = settings.deviceId;
+            }
             this.$nextTick(() => this.attach());
+            await this.loadDevices();
         } catch (e) {
             this.error = this.describe(e);
         }
@@ -469,7 +487,7 @@ Alpine.data('bulkClassify', (indexesByClassification) => ({
 }));
 
 /**
- * The seven workspaces offered by the record drawer.
+ * The workspaces offered by the record drawer.
  */
 const RECORD_TABS = [
     { key: 'overview', label: 'Overview' },
@@ -477,8 +495,6 @@ const RECORD_TABS = [
     { key: 'extracted', label: 'Extracted Data' },
     { key: 'links', label: 'Linked To' },
     { key: 'integration', label: 'Integration' },
-    { key: 'history', label: 'History' },
-    { key: 'system', label: 'System' },
 ];
 
 /**
@@ -535,6 +551,43 @@ function documentReading() {
         reReadStatus: '',
         reReadMessage: '',
         reReadPoll: null,
+        ocrSearchQuery: '',
+
+        escapeHtml(text) {
+            return String(text ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        },
+
+        escapeRegex(str) {
+            return String(str ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        },
+
+        get highlightedOcrText() {
+            const raw = this.master?.ocrText ?? '';
+            if (! raw) {
+                return '';
+            }
+            const q = (this.ocrSearchQuery || '').trim();
+            if (! q) {
+                return this.escapeHtml(raw);
+            }
+            const regex = new RegExp(`(${this.escapeRegex(q)})`, 'gi');
+            return this.escapeHtml(raw).replace(regex, '<mark class="bg-amber-200 text-slate-900 rounded px-0.5 font-bold">$1</mark>');
+        },
+
+        get ocrMatchCount() {
+            const raw = this.master?.ocrText ?? '';
+            const q = (this.ocrSearchQuery || '').trim();
+            if (! raw || ! q) {
+                return 0;
+            }
+            const matches = raw.match(new RegExp(this.escapeRegex(q), 'gi'));
+            return matches ? matches.length : 0;
+        },
 
         /**
          * The file this pane is showing, or null when there is nothing to read.
@@ -762,6 +815,7 @@ function documentReading() {
             this.reReadProgress = 0;
             this.reReadStatus = '';
             this.reReadMessage = '';
+            this.ocrSearchQuery = '';
         },
     };
 }
@@ -1038,6 +1092,10 @@ Alpine.data('recordDrawer', (records, pickerUrl, reReadUrl, statusUrl, supportin
             this.pickerHtml = await response.text();
 
             this.$nextTick(() => {
+                const modalEl = document.getElementById('recordPickerModal');
+                if (modalEl && window.Alpine) {
+                    window.Alpine.initTree(modalEl);
+                }
                 window.dispatchEvent(new CustomEvent('ordo:link-open', { detail: { id: String(id) } }));
             });
         } catch (e) {
@@ -1140,11 +1198,14 @@ Alpine.data('recordPicker', (payload) => ({
     linkedLabel: '',
     notes: '',
 
-    open_for(id) {
-        if (! this.sourceId || String(this.sourceId) !== String(id)) {
-            return;
-        }
+    openFor(id) {
+        this.open_for(id);
+    },
 
+    open_for(id) {
+        if (id) {
+            this.sourceId = String(id);
+        }
         this.open = true;
     },
 
@@ -1615,19 +1676,43 @@ Alpine.data('classificationBrowser', (scheme) => ({
     query: '',
     mode: null,
     parent: '',
-    // Bound as a property, not just captured by the closure. Every method below
-    // reads it back as `this.scheme`, and an argument that is only captured
-    // cannot be read that way — which made textFor() throw, which made the
-    // x-show on every scheme row evaluate falsy, which hid the whole tree while
-    // the page still reported "11 classifications" beside it.
     scheme,
+
+    // Helper state for Add Classification preset selection
+    newClassification: {
+        code: '',
+        name: '',
+        description: '',
+    },
+
+    // Edit classification state
+    editClassificationData: {
+        id: '',
+        code: '',
+        name: '',
+        description: '',
+        is_active: true,
+    },
+
+    // Edit index state
+    editIndexData: {
+        id: '',
+        classification_code: '',
+        code: '',
+        name: '',
+        description: '',
+        is_active: true,
+        advanced_field_config: null,
+        sections: {
+            identifiers: false,
+            dates: false,
+            signatories: false,
+            financials: false,
+        },
+    },
 
     /**
      * A block is visible when the term appears anywhere in its text.
-     *
-     * `text` holds the Classification's own code, name and description plus every
-     * Index beneath it, so the block is matched and hidden as a unit. That is what
-     * keeps an Index hit from leaving its parent Classification orphaned on screen.
      */
     matches(text) {
         if (this.query === '') {
@@ -1638,9 +1723,6 @@ Alpine.data('classificationBrowser', (scheme) => ({
     },
 
     textFor(code) {
-        // Falls back to an empty block rather than throwing. A search that cannot
-        // resolve a code should show everything; one that throws shows nothing,
-        // which turns a small mistake into a blank page.
         return (this.scheme ?? []).find((entry) => entry.code === code)?.text ?? '';
     },
 
@@ -1649,26 +1731,90 @@ Alpine.data('classificationBrowser', (scheme) => ({
     },
 
     get visibleCount() {
-        return this.scheme.filter((entry) => this.matches(entry.text)).length;
+        return (this.scheme ?? []).filter((entry) => this.matches(entry.text)).length;
     },
 
     open(mode, parent = '') {
         this.mode = mode;
         this.parent = parent;
+        if (mode === 'classification') {
+            this.newClassification = { code: '', name: '', description: '' };
+        }
+    },
+
+    openEditClassification(data) {
+        this.editClassificationData = {
+            id: data.id || '',
+            code: data.code || '',
+            name: data.name || '',
+            description: data.description || '',
+            is_active: Boolean(data.is_active),
+        };
+        this.mode = 'edit_classification';
+    },
+
+    openEditIndex(data) {
+        let sec = { identifiers: false, dates: false, signatories: false, financials: false };
+        if (data.advanced_field_config) {
+            if (Array.isArray(data.advanced_field_config.sections)) {
+                data.advanced_field_config.sections.forEach(s => sec[s] = true);
+            } else if (data.advanced_field_config === true) {
+                sec = { identifiers: true, dates: true, signatories: true, financials: true };
+            }
+        }
+        this.editIndexData = {
+            id: data.id || '',
+            classification_code: data.classification_code || '',
+            code: data.code || '',
+            name: data.name || '',
+            description: data.description || '',
+            is_active: Boolean(data.is_active),
+            sections: sec,
+        };
+        this.mode = 'edit_index';
+    },
+
+    selectStandardScheme(code) {
+        const presets = {
+            '101': { code: '101', name: 'Client Master File', description: 'Client master file and general client correspondence.' },
+            '201': { code: '201', name: 'Human Resources & Personnel', description: 'Employment memos, personnel notices, employee records.' },
+            '301': { code: '301', name: 'Entity & Ownership', description: 'Corporate entity documents, incorporation, GIS, minutes, board resolutions.' },
+            '401': { code: '401', name: 'BIR & Tax', description: 'BIR registrations, tax returns, assessments, Form 2303, Form 2307.' },
+            '601': { code: '601', name: 'Regulatory & Compliance', description: 'Permits, licenses, regulatory registrations and local government compliance.' },
+            '701': { code: '701', name: 'Finance', description: 'Financial statements, audits, management accounts, budgets.' },
+            '801': { code: '801', name: 'Banking', description: 'Bank statements, signatory cards, loan documents, banking agreements.' },
+            '901': { code: '901', name: 'Legal', description: 'Contracts, agreements, litigation records, legal opinions.' },
+            '1001': { code: '1001', name: 'Operations', description: 'Operational policies, procedures, SOP records, document control.' },
+            '1101': { code: '1101', name: 'Real Property Records', description: 'Property ownership, land titles, technical and cadastral records.' },
+            '2001': { code: '2001', name: 'Correspondence', description: 'Official written communications, memoranda, letters.' },
+        };
+        if (presets[code]) {
+            this.newClassification.code = presets[code].code;
+            this.newClassification.name = presets[code].name;
+            this.newClassification.description = presets[code].description;
+        }
     },
 
     close() {
         this.mode = null;
     },
 
-    /**
-     * The Add Index form is built from the parent code rather than a route
-     * rendered per row, so one copy of the modal serves the whole tree.
-     */
     indexAction() {
         const base = document.querySelector('base')?.getAttribute('href') ?? '/';
-
         return `${base.replace(/\/$/, '')}/records/classifications/${encodeURIComponent(this.parent)}/indexes`;
+    },
+
+    updateClassificationAction() {
+        const base = document.querySelector('base')?.getAttribute('href') ?? '/';
+        const target = this.editClassificationData.code || this.editClassificationData.id;
+        return `${base.replace(/\/$/, '')}/records/classifications/${encodeURIComponent(target)}/update`;
+    },
+
+    updateIndexAction() {
+        const base = document.querySelector('base')?.getAttribute('href') ?? '/';
+        const parent = this.editIndexData.classification_code;
+        const target = this.editIndexData.code || this.editIndexData.id;
+        return `${base.replace(/\/$/, '')}/records/classifications/${encodeURIComponent(parent)}/indexes/${encodeURIComponent(target)}/update`;
     },
 }));
 
@@ -1837,12 +1983,31 @@ Alpine.data('classifyDrawer', (items, classifications, indexesByClassification, 
     },
 
     canSubmit() {
-        return Boolean(
-            this.current
-            && this.form.record_classification_id
-            && this.form.record_index_id
-            && this.form.title.trim() !== ''
-        );
+        if (! this.current
+            || ! this.form.record_classification_id
+            || ! this.form.record_index_id
+            || this.form.title.trim() === ''
+        ) {
+            return false;
+        }
+
+        if (this.form.source === 'Others' && (! this.form.source_other || this.form.source_other.trim() === '')) {
+            return false;
+        }
+
+        const config = this.currentIndexConfig();
+        if (config && typeof config === 'object' && Array.isArray(config.required)) {
+            for (const section of config.required) {
+                if (ADVANCED_SECTIONS.includes(section)) {
+                    const value = this.form[section];
+                    if (! value || String(value).trim() === '') {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     },
 
     hasNext() {
@@ -1912,7 +2077,121 @@ Alpine.data('classifyDrawer', (items, classifications, indexesByClassification, 
             is_confidential: false,
         };
 
+        if (! this.form.record_classification_id || ! this.form.source) {
+            this.autoDetectFields(item);
+        }
+
         this.open = true;
+    },
+
+    autoDetectFields(item) {
+        const textToAnalyze = [
+            item.title || '',
+            item.files?.[0]?.name || '',
+            item.files?.[0]?.ocrText || '',
+        ].join(' ').toLowerCase();
+
+        if (! textToAnalyze.trim()) {
+            return;
+        }
+
+        let matchedClassId = '';
+        let matchedIndexId = '';
+
+        for (const [classId, indexes] of Object.entries(this.indexesByClassification || {})) {
+            for (const idx of (indexes || [])) {
+                const idxLabel = String(idx.label || idx.name || '').toLowerCase();
+                const idxCode = String(idx.code || '').toLowerCase();
+                if (textToAnalyze.includes(idxLabel) || (idxCode && textToAnalyze.includes(idxCode))) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if (idxLabel.includes('resolution') && textToAnalyze.includes('resolution')) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if (idxLabel.includes('minutes') && textToAnalyze.includes('minutes')) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if ((idxLabel.includes('gis') || idxLabel.includes('general information sheet')) &&
+                    (textToAnalyze.includes('gis') || textToAnalyze.includes('general information sheet'))) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if ((idxLabel.includes('2303') || idxLabel.includes('registration')) &&
+                    (textToAnalyze.includes('2303') || textToAnalyze.includes('registration'))) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if ((idxLabel.includes('2307') || idxLabel.includes('withholding')) &&
+                    (textToAnalyze.includes('2307') || textToAnalyze.includes('withholding'))) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+                if ((idxLabel.includes('operation') || idxLabel.includes('delivery')) &&
+                    (textToAnalyze.includes('operation') || textToAnalyze.includes('delivery'))) {
+                    matchedClassId = String(classId);
+                    matchedIndexId = String(idx.id);
+                    break;
+                }
+            }
+            if (matchedClassId) break;
+        }
+
+        if (! matchedClassId) {
+            for (const [classId, className] of Object.entries(this.classifications || {})) {
+                const nameLower = String(className).toLowerCase();
+                if (textToAnalyze.includes(nameLower) ||
+                    (nameLower.includes('operation') && textToAnalyze.includes('operation')) ||
+                    (nameLower.includes('bank') && textToAnalyze.includes('bank')) ||
+                    (nameLower.includes('entity') && (textToAnalyze.includes('board') || textToAnalyze.includes('incorporation') || textToAnalyze.includes('resolution')))) {
+                    matchedClassId = String(classId);
+                    const indexes = this.indexesByClassification[classId] || [];
+                    if (indexes.length > 0) {
+                        matchedIndexId = String(indexes[0].id);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (matchedClassId && ! this.form.record_classification_id) {
+            this.form.record_classification_id = matchedClassId;
+            if (matchedIndexId && ! this.form.record_index_id) {
+                this.form.record_index_id = matchedIndexId;
+            }
+        }
+
+        if (! this.form.source) {
+            let matchedSourceKey = '';
+            let targetSourceName = '';
+            if (textToAnalyze.includes('board') || textToAnalyze.includes('resolution') || textToAnalyze.includes('directors')) {
+                targetSourceName = 'Corporate Secretary';
+            } else if (textToAnalyze.includes('sec') || textToAnalyze.includes('gis') || textToAnalyze.includes('incorporation')) {
+                targetSourceName = 'SEC';
+            } else if (textToAnalyze.includes('bir') || textToAnalyze.includes('2303') || textToAnalyze.includes('2307') || textToAnalyze.includes('tax')) {
+                targetSourceName = 'BIR';
+            } else if (textToAnalyze.includes('bank')) {
+                targetSourceName = 'Bank';
+            } else if (textToAnalyze.includes('operation') || textToAnalyze.includes('delivery')) {
+                targetSourceName = 'Internal Operations';
+            } else if (textToAnalyze.includes('client')) {
+                targetSourceName = 'Client';
+            }
+
+            if (targetSourceName) {
+                const found = Object.entries(this.sources).find(([, name]) => String(name).toLowerCase() === targetSourceName.toLowerCase());
+                matchedSourceKey = found ? found[0] : targetSourceName;
+                this.form.source = matchedSourceKey;
+            }
+        }
     },
 
     nextId() {

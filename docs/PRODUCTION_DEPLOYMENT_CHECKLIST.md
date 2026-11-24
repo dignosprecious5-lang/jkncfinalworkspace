@@ -74,13 +74,25 @@ lands.** It is item 1 on the v2.1 roadmap for this reason.
       `REDIS_PORT`, `REDIS_PASSWORD` point at a real instance — `REDIS_PASSWORD` is
       currently set but Redis is unused, because both queue and cache are on `database`.
 - [ ] **Supervisor config must include `--tries`, `--timeout` and `--sleep`.** The job
-      declares `$tries = 3`, `$backoff = [10, 60, 300]` and `$timeout = 120`, so the worker
-      must allow **more than 120 seconds** per job or it will kill reads mid-extraction.
+      declares `$tries = 3`, `$backoff = [10, 60, 300]` and `$timeout = 900`, so the worker
+      must allow **at least 900 seconds** per job or it will kill reads mid-extraction.
 - [ ] **Ensure at least one worker is running before accepting uploads.** With the
       database driver and no worker, files sit at `ocr_status=queued` indefinitely.
 - [ ] **Monitor `failed_jobs`.** The job settles failures into `Needs Review` by design and
       does not retry forever, but a rising count means the extractor or storage is
       misconfigured.
+- [ ] **Install Tesseract OCR and Poppler on every queue worker host.** The worker invokes
+      `tesseract` for image recognition and `pdftoppm` to rasterize scanned PDFs. Set
+      `ORDO_TESSERACT_BINARY`, `ORDO_PDFTOPPM_BINARY`, and `ORDO_OCR_LANGUAGES` when the
+      binaries or language data are installed outside their defaults. `ORDO_OCR_MAX_PDF_PAGES`
+      defaults to 20 and `ORDO_OCR_TIMEOUT_SECONDS` to 30 seconds per command. Missing
+      binaries and OCR failures leave the original file intact and mark it Failed for
+      manual review.
+- [ ] **Allow the OCR job its full timeout.** `ProcessIntakeOcr` can run for 900 seconds;
+      configure the queue worker timeout to at least 900 seconds and
+      `DB_QUEUE_RETRY_AFTER` / `REDIS_QUEUE_RETRY_AFTER` to 960 seconds. This leaves room
+      for the configured 20-page PDF OCR limit and retries without redelivering a live job.
+      Restart workers after changing binaries or these environment variables.
 
 ### Deployment hazard — stale queue payloads
 Queued jobs are serialised PHP objects. **A worker running new code cannot process a job
@@ -129,10 +141,12 @@ queued before `ProcessIntakeOcr` gained `$recordFileId` failed with
 | `AWS_*` | only if S3 is used | all empty ✅ (unused) |
 | `MAIL_MAILER` | real transport in production | `log` |
 | `ORDO_DEFAULT_ROLE` | **see §0** | `system_admin` ⚠⚠ |
+| `ORDO_INTAKE_MAX_FILE_SIZE_MB` | intake per-file limit in MB | `20` |
+| `ORDO_RECORD_FILE_MAX_SIZE_MB` | record/supporting/version per-file limit in MB | `50` |
 
-- [ ] **File-size ceilings cannot be set here.** `max:20480` (intake, 20 MB) and
-      `max:51200` (supporting/versions, 50 MB) are hard-coded in the FormRequests. There
-      is no `.env` key. Changing them is a code change — roadmap item 5.
+- [ ] Set the two per-file ceilings above as needed, then run `php artisan config:cache`.
+      These application limits are in MB; also ensure PHP's `upload_max_filesize` and
+      `post_max_size` are high enough for the largest expected upload request.
 - [ ] Confirm no `.env` is deployed inside the release artefact.
 
 ## 5. Post-Deploy Verification

@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Records;
 use App\Http\Controllers\Controller;
 use App\Models\RecordActivityLog;
 use App\Services\CompanyContext;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -48,7 +50,7 @@ class RecordActivityLogController extends Controller
             'filters' => $filters,
             'drawerEntries' => $this->drawerEntries($filters),
             'csvUrl' => route('records.logs.export', array_merge($filters, ['format' => 'csv'])),
-            'jsonUrl' => route('records.logs.export', array_merge($filters, ['format' => 'json'])),
+            'pdfUrl' => route('records.logs.export', array_merge($filters, ['format' => 'pdf'])),
         ]);
     }
 
@@ -59,10 +61,12 @@ class RecordActivityLogController extends Controller
      * is evidence and has to be attributable on its own — a CSV of a trail says
      * nothing about whose trail it is.
      */
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): Response
     {
         $filters = $this->filters($request);
-        $format = $request->query('format') === 'json' ? 'json' : 'csv';
+        $format = in_array($request->query('format'), ['json', 'pdf'], true)
+            ? (string) $request->query('format')
+            : 'csv';
 
         // How many entries existed before the export was recorded. This is what
         // was actually taken out of the trail.
@@ -81,6 +85,18 @@ class RecordActivityLogController extends Controller
         // the whole trail includes the record of the pull; pulling one action
         // filters it straight back out, and a header that overcounts by one is
         // the kind of thing an auditor notices before anything else.
+        if ($format === 'pdf') {
+            $entries = $this->filtered($filters)
+                ->with(['record', 'intakeItem', 'user'])
+                ->get();
+
+            return Pdf::loadView('records.pdf.audit-log', [
+                'entries' => $entries,
+                'filters' => $filters,
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')->download('ORDO_Audit_Log_'.now()->format('Y-m-d').'.pdf');
+        }
+
         return $format === 'json'
             ? $this->json($filters, $this->filtered($filters)->count())
             : $this->csv($filters);

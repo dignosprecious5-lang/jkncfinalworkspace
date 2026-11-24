@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\RecordFile;
 use App\Models\RecordIntakeItem;
 use App\Services\Records\RecordIntakeService;
+use App\Services\Records\TesseractOcr;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\FakeUploads;
@@ -145,6 +146,23 @@ public function test_a_newly_uploaded_file_starts_queued(): void
         $this->assertSame('', (string) $file->ocr_text);
     }
 
+    public function test_a_scanned_pdf_uses_ocr_after_pdf_text_extraction_finds_no_layer(): void
+    {
+        $this->storeRaw($this->file, $this->minimalPdf(), 'scan.pdf');
+        $this->mock(TesseractOcr::class)
+            ->shouldReceive('extract')
+            ->once()
+            ->andReturn('Recognized text from the scanned page.');
+
+        $this->runJob();
+
+        $file = $this->file->fresh();
+
+        $this->assertSame(OcrStatus::Ready, $file->ocr_status);
+        $this->assertSame('Recognized text from the scanned page.', $file->ocr_text);
+        $this->assertNull($file->ocr_error);
+    }
+
     /**
      * AGENTS.md: an OCR failure must never cost us the original file.
      */
@@ -179,13 +197,19 @@ public function test_a_newly_uploaded_file_starts_queued(): void
         $this->assertSame(OcrStatus::NeedsReview, $this->file->fresh()->ocr_status);
     }
 
-    public function test_an_image_is_not_read_as_text(): void
+    public function test_an_image_is_sent_to_ocr_and_the_result_is_stored(): void
     {
+        $this->mock(TesseractOcr::class)
+            ->shouldReceive('extract')
+            ->once()
+            ->andReturn('Text recognized from the uploaded image.');
+
         $this->runJob();
 
-        // The fixture is a JPEG, which carries no text layer. It must settle as
-        // Needs Review rather than reporting empty text as a successful read.
-        $this->assertSame(OcrStatus::NeedsReview, $this->file->fresh()->ocr_status);
+        $file = $this->file->fresh();
+
+        $this->assertSame(OcrStatus::Ready, $file->ocr_status);
+        $this->assertSame('Text recognized from the uploaded image.', $file->ocr_text);
     }
 
     // ---------------------------------------------------------------------

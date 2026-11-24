@@ -173,9 +173,8 @@ class ProcessIntakeOcrTest extends TestCase
     }
 
     /**
-     * The retry ceiling has to be short. Retrying is about settling the file into
-     * a correct terminal state, not about rescuing the read, and a file sitting on
-     * Reading is invisible to whoever needs to review it.
+     * The retry ceiling is bounded, while the timeout allows the configured
+     * multi-page OCR limit to finish before the job is considered stuck.
      */
     public function test_it_retries_a_bounded_number_of_times_before_giving_up(): void
     {
@@ -183,7 +182,7 @@ class ProcessIntakeOcrTest extends TestCase
 
         $this->assertSame(3, $job->tries);
         $this->assertSame([10, 60, 300], $job->backoff);
-        $this->assertGreaterThan(0, $job->timeout);
+        $this->assertSame(900, $job->timeout);
     }
 
     private function jobFor(RecordIntakeItem $item, Company $company): ProcessIntakeOcr

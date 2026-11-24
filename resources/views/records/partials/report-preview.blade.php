@@ -70,7 +70,7 @@
 
             {{-- No font size: the reference sets none, so the box inherits a
                  readable size rather than the 10px the panel's prose runs at. --}}
-            <textarea x-model="comments" rows="4"
+            <textarea x-model="comments" rows="4" maxlength="5000"
                       placeholder="Optional management / consultant observations..."
                       class="mt-2.5 min-h-[100px] w-full resize-y rounded-lg border border-ordo-line bg-white px-2.5 py-2.5 outline-none focus:border-ordo-blue"></textarea>
         </div>
@@ -80,12 +80,16 @@
          has them: these are three ways to take the same report onward, not a
          primary action with two lesser ones beside it.
 
-         Present and Download both record the report first. Print is left out of
-         that: printing is a way of reading the report already on screen, and it
-         takes nothing new from the server. --}}
+         Present and downloads record the report first. PDF is generated server-side
+         so it downloads directly instead of opening the browser print dialog. --}}
     <div class="mt-3.5 flex flex-wrap items-center gap-2">
-        <x-ordo.button type="button" variant="default" x-on:click="present()">Present</x-ordo.button>
-        <x-ordo.button type="button" variant="default" x-on:click="$el.ownerDocument.defaultView.print()">Print / Save PDF</x-ordo.button>
-        <x-ordo.button type="button" variant="default" x-on:click="download()">Download CSV</x-ordo.button>
+         <x-ordo.button type="button" variant="default" x-on:click="present()">Present</x-ordo.button>
+         <details class="relative">
+             <summary class="inline-flex cursor-pointer list-none items-center justify-center rounded-lg border border-ordo-line bg-ordo-panel px-3 py-2 text-[12px] text-[#374151] hover:bg-[#f9fafb]">Export</summary>
+             <div class="absolute bottom-full left-0 z-10 mb-1 min-w-[150px] rounded-lg border border-ordo-line bg-white p-1 shadow-ordo">
+                 <button type="button" x-on:click="download()" class="block w-full rounded-md px-3 py-2 text-left text-[11px] text-ordo-ink hover:bg-[#f8fafc]">Export CSV</button>
+                 <button type="button" x-on:click="downloadPdf()" class="block w-full rounded-md px-3 py-2 text-left text-[11px] text-ordo-ink hover:bg-[#f8fafc]">Export PDF</button>
+             </div>
+         </details>
     </div>
 </div>

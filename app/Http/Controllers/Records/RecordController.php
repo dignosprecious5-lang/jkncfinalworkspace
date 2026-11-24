@@ -52,6 +52,7 @@ class RecordController extends Controller
             'indexesByClassification' => $this->lookups->indexesByClassification(),
             'indexes' => $this->lookups->indexes(),
             'sources' => $this->lookups->sources(),
+            'sourceOptions' => $this->lookups->documentSources(),
             'filters' => $filters,
             'workspaceRecords' => $this->workspace($records->getCollection()),
             'pickerUrl' => route('records.links.picker', ['record' => '__record__']),
@@ -87,9 +88,11 @@ class RecordController extends Controller
             'classificationLabel' => $record->classification
                 ? sprintf('%s — %s', $record->classification->code, $record->classification->name)
                 : '',
+            'classificationCode' => $record->classification?->code,
             'indexLabel' => $record->index
                 ? sprintf('%s — %s', $record->index->code, $record->index->name)
                 : '',
+            'indexCode' => $record->index?->code,
             'documentDate' => $record->document_date?->format('Y-m-d'),
             'source' => $record->source,
             'externalReference' => $record->external_reference_number,
@@ -167,6 +170,7 @@ class RecordController extends Controller
                 // resolves the current master, so sharing it across the payload
                 // left supporting files and versions unopenable.
                 'previewUrl' => route('records.files.preview', ['file' => $file->id]),
+                'downloadUrl' => route('records.files.download', ['file' => $file->id]),
             ])->all(),
         ])->all();
     }
@@ -177,7 +181,13 @@ class RecordController extends Controller
      */
     public function update(UpdateRecordRequest $request, Record $record): RedirectResponse
     {
-        $this->records->updateMetadata($record, $request->validated(), Auth::user());
+        $attributes = $request->validated();
+        $attributes['source'] = $request->input('source') === 'Others'
+            ? $request->input('source_other')
+            : $request->input('source');
+        unset($attributes['source_other']);
+
+        $this->records->updateMetadata($record, $attributes, Auth::user());
 
         return redirect()
             ->route('records.index')

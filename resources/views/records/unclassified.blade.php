@@ -102,7 +102,7 @@
                     <x-ordo.button type="submit" variant="default">Apply</x-ordo.button>
 
                     @if ($search !== '' || $type !== '')
-                        <a href="{{ route('records.unclassified') }}" class="text-[11px] text-ordo-blue">Clear</a>
+                        <a href="{{ route('records.unclassified') }}" class="text-[11px] text-ordo-blue">Reset</a>
                     @endif
                 </form>
 
@@ -184,7 +184,7 @@
                                             Classify
                                         </x-ordo.button>
                                         <x-ordo.button type="button" variant="default"
-                                                           href="{{ route('records.intake.upload', ['intake' => $item->id]) }}">Details</x-ordo.button>
+                                                       x-on:click="$dispatch('ordo:intake-details-open', { id: '{{ $item->id }}' })">Details</x-ordo.button>
                                         {{-- Payload travels on data- attributes: Blade does not compile directives such as
                                                      @js() inside a component's attribute values. --}}
                                         <x-ordo.button type="button" variant="danger"
@@ -217,6 +217,7 @@
 
     @include('records.partials.bulk-classify-modal')
     @include('records.partials.camera-capture')
+    @include('records.partials.intake-details-drawer')
     @include('records.partials.classify-drawer')
     @include('records.partials.discard-modal')
 </x-layouts.app>

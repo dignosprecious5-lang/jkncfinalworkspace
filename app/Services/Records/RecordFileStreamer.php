@@ -33,6 +33,20 @@ class RecordFileStreamer
      */
     public function stream(RecordFile $file): StreamedResponse
     {
+        return $this->serve($file, false);
+    }
+
+    /**
+     * Download the original bytes, regardless of whether the browser can preview
+     * the file inline.
+     */
+    public function download(RecordFile $file): StreamedResponse
+    {
+        return $this->serve($file, true);
+    }
+
+    private function serve(RecordFile $file, bool $download): StreamedResponse
+    {
         $disk = Storage::disk($file->disk);
 
         abort_unless($disk->exists($file->path), 404);
@@ -48,7 +62,7 @@ class RecordFileStreamer
         // otherwise be served inline as HTML from this domain — a stored XSS
         // reachable by anyone with the preview URL. Only the renderable set ever
         // goes inline.
-        if (! $file->isStreamableInline()) {
+        if ($download || ! $file->isStreamableInline()) {
             $headers['Content-Disposition'] = sprintf(
                 'attachment; filename="%s"',
                 $this->safeName($file->original_name),

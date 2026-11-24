@@ -11,6 +11,7 @@ use App\Services\CompanyContext;
 use App\Services\Records\RecordLookups;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -82,9 +83,6 @@ class RecordClassificationController extends Controller
 
         $this->forgetLookups();
 
-        // Back rather than to the scheme route, so the same form works from the
-        // setup modal as well as from the Classifications page. `setup_tab` tells
-        // the modal to reopen on the tab the write came from.
         return back()
             ->with('setup_tab', 'classifications')
             ->with('status', sprintf('Classification %s was added.', $classification->code));
@@ -109,7 +107,7 @@ class RecordClassificationController extends Controller
             ->where('record_classification_id', $parent->getKey())
             ->max('sort_order');
 
-        RecordIndex::query()->create([
+        $index = RecordIndex::query()->create([
             'tenant_id' => $parent->tenant_id,
             'company_id' => $parent->company_id,
             'record_classification_id' => $parent->getKey(),
@@ -127,6 +125,91 @@ class RecordClassificationController extends Controller
         return back()
             ->with('setup_tab', 'classifications')
             ->with('status', sprintf('Index %s was added under %s.', $request->input('code'), $parent->code));
+    }
+
+    public function updateClassification(Request $request, string $classification): RedirectResponse
+    {
+        Gate::authorize('create', RecordClassification::class);
+
+        $tenantId = $this->context->tenantId();
+        $companyId = $this->context->id();
+
+        $recordClassification = RecordClassification::query()
+            ->where('tenant_id', $tenantId)
+            ->where('company_id', $companyId)
+            ->where(function ($q) use ($classification) {
+                $q->where('code', $classification)->orWhere('id', $classification);
+            })
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'is_active' => ['nullable'],
+        ]);
+
+        $recordClassification->update([
+            'name' => trim($validated['name']),
+            'description' => $validated['description'] ?? null,
+            'is_active' => $request->boolean('is_active', true),
+        ]);
+
+        $this->forgetLookups();
+
+        return back()
+            ->with('setup_tab', 'classifications')
+            ->with('status', sprintf('Classification %s was updated.', $recordClassification->code));
+    }
+
+    public function updateIndex(Request $request, string $classification, string $index): RedirectResponse
+    {
+        Gate::authorize('create', RecordClassification::class);
+
+        $tenantId = $this->context->tenantId();
+        $companyId = $this->context->id();
+
+        $recordClassification = RecordClassification::query()
+            ->where('tenant_id', $tenantId)
+            ->where('company_id', $companyId)
+            ->where(function ($q) use ($classification) {
+                $q->where('code', $classification)->orWhere('id', $classification);
+            })
+            ->firstOrFail();
+
+        $recordIndex = RecordIndex::query()
+            ->where('tenant_id', $tenantId)
+            ->where('company_id', $companyId)
+            ->where('record_classification_id', $recordClassification->getKey())
+            ->where(function ($q) use ($index) {
+                $q->where('code', $index)->orWhere('id', $index);
+            })
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'is_active' => ['nullable'],
+            'sections' => ['nullable', 'array'],
+        ]);
+
+        $advancedConfig = null;
+        if ($request->has('sections')) {
+            $sections = array_values(array_filter((array) $request->input('sections', [])));
+            $advancedConfig = !empty($sections) ? ['sections' => $sections] : null;
+        }
+
+        $recordIndex->update([
+            'name' => trim($validated['name']),
+            'description' => $validated['description'] ?? null,
+            'is_active' => $request->boolean('is_active', true),
+            'advanced_field_config' => $advancedConfig,
+        ]);
+
+        $this->forgetLookups();
+
+        return back()
+            ->with('setup_tab', 'classifications')
+            ->with('status', sprintf('Index %s was updated.', $recordIndex->code));
     }
 
     /**

@@ -23,12 +23,16 @@
                named upload can be filed without hunting for it. Null on an
                ordinary visit, and an id this company does not own never arrives
                here — the controller resolves it against its own open items. --}}
-          @js($openItemId ?? null)
+          @js($openItemId ?? null),
+         @js(old()),
+         @js($errors->getMessages())
      )"
      x-init="if (initialItemId) show(initialItemId)"
      x-show="open" x-cloak
      x-on:ordo:classify-open.window="show($event.detail?.id)"
      x-on:keydown.escape.window="if (open) close()"
+     x-on:keydown.ctrl.s.window.prevent="if (open) { pane = 'ocr'; $nextTick(() => $refs.ocrSearchInput?.focus()); }"
+     x-on:keydown.ctrl.f.window.prevent="if (open) { pane = 'ocr'; $nextTick(() => $refs.ocrSearchInput?.focus()); }"
      x-on:click.self="close()">
 
     <div class="absolute inset-2.5 overflow-hidden rounded-[14px] bg-white shadow-[0_24px_70px_rgba(15,23,42,.22)]"
@@ -42,9 +46,9 @@
                  workspace, so one reader moving between the two drawers sees the
                  document presented identically on both. --}}
             <section class="flex min-h-0 min-w-0 flex-col border-r border-ordo-line bg-white max-[980px]:border-r-0 max-[980px]:border-b">
-                <div class="border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
-                    <h3 class="m-0 text-[15px] font-bold">Document Preview</h3>
-                    <p class="mt-1.25 mb-0 text-[10px] text-[#8b94a3]">
+                <div class="border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
+                    <h3 class="m-0 text-base font-bold text-gray-900">Document Preview</h3>
+                    <p class="mt-1 mb-0 text-xs text-gray-500">
                         Review the uploaded file while encoding its records information.
                     </p>
                 </div>
@@ -58,7 +62,7 @@
                                         x-on:click="pane = 'preview'">Preview</button>
                                 <button type="button" class="mini-btn" x-bind:class="pane === 'ocr' && 'active'"
                                         x-on:click="pane = 'ocr'">OCR Text</button>
-                                <button type="button" class="mini-btn ocr"
+                                <button type="button" class="mini-btn ocr hidden"
                                         x-bind:disabled="reReading || ! master"
                                         x-on:click="reRead()">
                                     <span x-show="! reReading">Re-read Document</span>
@@ -116,7 +120,7 @@
                                             <dd class="m-0 break-all text-[10px] text-[#475467]" x-text="master.name"></dd>
                                         </dl>
 
-                                        <a x-bind:href="master.previewUrl" target="_blank" rel="noopener"
+                                        <a x-bind:href="master.downloadUrl"
                                            class="mt-3.5 inline-flex items-center justify-center gap-2 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[11px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                                             Download Original
                                         </a>
@@ -130,10 +134,30 @@
                             {{-- Read-only, for the same reason as the record drawer:
                                  extracted text is the record of what the document
                                  said and is not something to edit in place. --}}
-                            <div class="h-full min-h-[500px] overflow-auto p-3.5" x-show="pane === 'ocr'" x-cloak>
+                            <div class="flex h-full min-h-[500px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
                                 <template x-if="master && master.ocrText">
-                                    <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.55] text-ordo-ink"
-                                         x-text="master.ocrText"></pre>
+                                    <div class="flex h-full min-h-0 flex-col">
+                                        <div class="mb-3 flex items-center gap-2 border-b border-ordo-line pb-2.5">
+                                            <div class="relative flex-1">
+                                                <span class="absolute left-2.5 top-2 text-[12px] text-ordo-muted">⌕</span>
+                                                <input type="search" x-model="ocrSearchQuery" x-ref="ocrSearchInput"
+                                                       placeholder="Search text in document (Ctrl+F or Ctrl+S)..."
+                                                       class="w-full rounded-lg border border-ordo-line bg-white py-1.5 pl-8 pr-3 text-[11px] outline-none focus:border-ordo-blue" />
+                                            </div>
+                                            <template x-if="ocrSearchQuery && ocrSearchQuery.trim()">
+                                                <span class="shrink-0 text-[10px] text-ordo-muted"
+                                                      x-text="ocrMatchCount + (ocrMatchCount === 1 ? ' match' : ' matches')"></span>
+                                            </template>
+                                            <template x-if="ocrSearchQuery">
+                                                <button type="button" x-on:click="ocrSearchQuery = ''"
+                                                        class="px-1.5 py-1 text-[10px] text-ordo-muted hover:text-ordo-ink">Clear</button>
+                                            </template>
+                                        </div>
+                                        <div class="min-h-0 flex-1 overflow-auto">
+                                            <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.55] text-ordo-ink"
+                                                 x-html="highlightedOcrText"></pre>
+                                        </div>
+                                    </div>
                                 </template>
                                 <template x-if="! master || ! master.ocrText">
                                     <div class="ocr-empty">
@@ -174,10 +198,14 @@
                                 <div class="truncate text-[10px] font-semibold" x-text="master ? master.name : 'Document'"></div>
                                 <div class="mt-0.5 text-[9px] text-[#98a2b3]" x-text="masterMeta()"></div>
                             </div>
-                            <a x-bind:href="master ? master.previewUrl : '#'" target="_blank" rel="noopener"
-                               x-bind:class="master ? '' : 'pointer-events-none opacity-50'"
+                            <a x-show="master && (master.renderedUrl || master.renderMode !== 'download')"
+                               x-bind:href="master ? (master.renderedUrl || master.previewUrl) : '#'" target="_blank" rel="noopener"
                                class="shrink-0 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[12px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                                 Open File
+                            </a>
+                            <a x-show="master" x-bind:href="master ? master.downloadUrl : '#'"
+                               class="shrink-0 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[12px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
+                                Download
                             </a>
                         </div>
                     </div>
@@ -186,10 +214,10 @@
 
             {{-- ============ RIGHT: RECORD FORM ============ --}}
             <section class="flex min-h-0 min-w-0 flex-col bg-white">
-                <div class="flex items-start justify-between border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
+                <div class="flex items-start justify-between border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
                     <div class="min-w-0">
-                        <h3 id="classify-drawer-title" class="m-0 text-[15px] font-bold">Classify Document</h3>
-                        <p class="mt-1 mb-0 truncate text-[10px] text-ordo-muted" x-text="current ? current.title : 'Document'"></p>
+                        <h3 id="classify-drawer-title" class="m-0 text-base font-bold text-gray-900">Classify Document</h3>
+                        <p class="mt-1 mb-0 truncate text-xs text-gray-500" x-text="current ? current.title : 'Document'"></p>
                     </div>
                     <button type="button"
                             class="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-[20px] leading-none text-ordo-muted transition-colors hover:bg-[#f3f4f6] focus:outline-none focus-visible:ring-2 focus-visible:ring-ordo-blue"
@@ -204,6 +232,7 @@
 
                     <input type="hidden" name="record_classification_id" x-bind:value="form.record_classification_id" />
                     <input type="hidden" name="record_index_id" x-bind:value="form.record_index_id" />
+                    <input type="hidden" name="_intake_id" x-bind:value="current ? current.id : ''" />
 
                     <div class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-ordo-line bg-[#fafbfc] px-3 py-2.5">
                         <div class="min-w-0">
@@ -215,11 +244,7 @@
                         <x-ordo.docref />
                     </div>
 
-                    <div class="mb-4 grid grid-cols-4 gap-2 max-[1180px]:grid-cols-2">
-                        <div class="auto-meta">
-                            <span>Document Type</span>
-                            <strong x-text="master ? master.documentType : '—'"></strong>
-                        </div>
+                    <div class="mb-4 grid grid-cols-3 gap-2 max-[1180px]:grid-cols-1">
                         <div class="auto-meta">
                             <span>Pages</span>
                             <strong x-text="master && master.pageCount ? master.pageCount : '—'"></strong>
@@ -249,17 +274,25 @@
                                       help="Select the main Records Classification Code.">
                             <select required x-model="form.record_classification_id"
                                     x-on:change="form.record_index_id = ''"
+                                    aria-label="Classification"
+                                    x-bind:aria-invalid="fieldError('record_classification_id') ? 'true' : 'false'"
+                                    x-bind:class="fieldError('record_classification_id') ? 'border-[#b42318]' : ''"
                                     class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
                                 <option value="">Select classification</option>
                                 <template x-for="option in classificationOptions" x-bind:key="option.id">
                                     <option x-bind:value="option.id" x-text="option.label"></option>
                                 </template>
                             </select>
+                            <p x-show="fieldError('record_classification_id')" x-cloak
+                               class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('record_classification_id')"></p>
                         </x-ordo.field>
 
                         <x-ordo.field label="Index" required full
                                       help="Indexes are filtered automatically from the selected Classification.">
                             <select required x-model="form.record_index_id"
+                                    aria-label="Index"
+                                    x-bind:aria-invalid="fieldError('record_index_id') ? 'true' : 'false'"
+                                    x-bind:class="fieldError('record_index_id') ? 'border-[#b42318]' : ''"
                                     class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
                                 <template x-if="! form.record_classification_id">
                                     <option value="">Select classification first</option>
@@ -271,11 +304,18 @@
                                     <option x-bind:value="option.id" x-text="option.label"></option>
                                 </template>
                             </select>
+                            <p x-show="fieldError('record_index_id')" x-cloak
+                               class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('record_index_id')"></p>
                         </x-ordo.field>
 
                         <x-ordo.field label="Document Title" required full>
-                            <input type="text" name="title" maxlength="255" x-model="form.title"
+                            <input type="text" name="title" maxlength="255" required x-model="form.title"
+                                   aria-label="Document Title"
+                                   x-bind:aria-invalid="fieldError('title') ? 'true' : 'false'"
+                                   x-bind:class="fieldError('title') ? 'border-[#b42318]' : ''"
                                    class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                            <p x-show="fieldError('title')" x-cloak
+                               class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('title')"></p>
                         </x-ordo.field>
 
                         <x-ordo.field label="Document Date">
@@ -290,7 +330,19 @@
                                 @foreach ($sources as $option)
                                     <option value="{{ $option->name }}">{{ $option->name }}</option>
                                 @endforeach
+                                <option value="Others">Others</option>
                             </select>
+                        </x-ordo.field>
+
+                        <x-ordo.field label="Specify Source" full x-show="form.source === 'Others'" x-cloak>
+                            <input type="text" name="source_other" maxlength="255" x-model="form.source_other"
+                                   x-bind:required="form.source === 'Others'"
+                                   x-bind:aria-invalid="fieldError('source_other') ? 'true' : 'false'"
+                                   x-bind:class="fieldError('source_other') ? 'border-[#b42318]' : ''"
+                                   placeholder="Enter the source name"
+                                   class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                            <p x-show="fieldError('source_other')" x-cloak
+                               class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('source_other')"></p>
                         </x-ordo.field>
                     </div>
 
@@ -330,7 +382,11 @@
                                     <x-ordo.field :label="$label" x-show="advancedSectionVisible('{{ $key }}')">
                                         <textarea name="{{ $key }}[]" rows="3" x-model="form.{{ $key }}"
                                                   placeholder="One value per line"
+                                                  x-bind:aria-invalid="fieldError('{{ $key }}') ? 'true' : 'false'"
+                                                  x-bind:class="fieldError('{{ $key }}') ? 'border-[#b42318]' : ''"
                                                   class="min-h-[74px] w-full resize-y rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue"></textarea>
+                                        <p x-show="fieldError('{{ $key }}')" x-cloak
+                                           class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('{{ $key }}')"></p>
                                     </x-ordo.field>
                                 @endforeach
                             </div>

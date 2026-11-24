@@ -22,6 +22,7 @@ class BulkFileRecordsRequest extends FormRequest
             'record_classification_id' => ['required', 'string', 'max:26'],
             'record_index_id' => ['required', 'string', 'max:26'],
             'source' => ['nullable', 'string', 'max:255'],
+            'source_other' => ['nullable', 'required_if:source,Others', 'string', 'max:255'],
         ];
     }
 
@@ -35,6 +36,7 @@ class BulkFileRecordsRequest extends FormRequest
             'items.max' => 'A maximum of 25 records can be classified at once.',
             'record_classification_id.required' => 'Select a Classification Code.',
             'record_index_id.required' => 'Select an Index Code.',
+            'source_other.required_if' => 'Specify the source selected as Others.',
         ];
     }
 

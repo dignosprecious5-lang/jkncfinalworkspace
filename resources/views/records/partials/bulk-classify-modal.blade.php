@@ -22,10 +22,10 @@
             <form method="POST" action="{{ route('records.unclassified.bulk') }}">
                 @csrf
 
-                <div class="flex items-start justify-between border-b border-ordo-line px-4 py-3.5">
+                <div class="flex items-start justify-between border-b border-gray-200 px-5 py-4 bg-gray-50">
                     <div>
-                        <h3 id="bulk-classify-title" class="m-0 text-[14px] font-bold">Bulk Classify</h3>
-                        <p class="mt-1 mb-0 text-[10px] text-ordo-muted">
+                        <h3 id="bulk-classify-title" class="m-0 text-base font-bold text-gray-900">Bulk Classify</h3>
+                        <p class="mt-1 mb-0 text-xs text-gray-500">
                             Applies one Classification and Index to every selected record. Each filed record
                             receives its own Document Reference and uses 1 Record Unit.
                         </p>
@@ -70,13 +70,21 @@
 
                     <x-ordo.field label="Source" full
                                   help="Leave blank to keep the source already captured at upload.">
-                        <select name="source"
+                        <select name="source" x-model="source"
                                 class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
                             <option value="">No change / blank</option>
                             @foreach ($sources as $option)
                                 <option value="{{ $option->name }}">{{ $option->name }}</option>
                             @endforeach
+                            <option value="Others">Others</option>
                         </select>
+                    </x-ordo.field>
+
+                    <x-ordo.field label="Specify Source" full x-show="source === 'Others'" x-cloak>
+                        <input type="text" name="source_other" maxlength="255"
+                               x-bind:required="source === 'Others'"
+                               placeholder="Enter the source name"
+                               class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                     </x-ordo.field>
 
                     <template x-for="id in $store.queueSelection.ids" x-bind:key="id">

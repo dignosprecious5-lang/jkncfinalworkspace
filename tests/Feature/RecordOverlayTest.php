@@ -82,7 +82,7 @@ class RecordOverlayTest extends TestCase
         $container = null;
 
         foreach (self::openingTags($content) as $tag) {
-            if (str_contains($tag, 'recordModals()')) {
+            if (str_contains($tag, 'recordModals(')) {
                 $container = $tag;
             }
         }

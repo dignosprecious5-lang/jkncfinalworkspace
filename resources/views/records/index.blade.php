@@ -75,7 +75,7 @@
 
                 <x-ordo.button type="submit" variant="default">Apply</x-ordo.button>
 
-                <a href="{{ route('records.index') }}" class="text-[11px] text-ordo-blue">Clear</a>
+                <a href="{{ route('records.index') }}" class="text-[11px] text-ordo-blue">Reset</a>
 
                 <a href="{{ route('records.export', array_filter($filters)) }}">
                     <x-ordo.button type="button" variant="default">Export CSV</x-ordo.button>

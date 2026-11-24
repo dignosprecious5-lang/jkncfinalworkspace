@@ -11,11 +11,7 @@
               x-text="current ? (current.documentReference ?? '—') : '—'"></span>
     </div>
 
-    <div class="mb-4 grid grid-cols-4 gap-2 max-[1180px]:grid-cols-2">
-        <div class="auto-meta">
-            <span>Document Type</span>
-            <strong x-text="master ? master.documentType : '—'"></strong>
-        </div>
+    <div class="mb-4 grid grid-cols-3 gap-2 max-[1180px]:grid-cols-1">
         <div class="auto-meta">
             <span>Pages</span>
             <strong x-text="master && master.pageCount ? master.pageCount : '—'"></strong>

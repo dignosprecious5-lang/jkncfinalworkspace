@@ -13,6 +13,8 @@
      x-show="open" x-cloak
      x-on:ordo:record-open.window="show($event.detail?.id)"
      x-on:keydown.escape.window="if (open) close()"
+     x-on:keydown.ctrl.s.window.prevent="if (open) { pane = 'ocr'; $nextTick(() => $refs.recordOcrSearchInput?.focus()); }"
+     x-on:keydown.ctrl.f.window.prevent="if (open) { pane = 'ocr'; $nextTick(() => $refs.recordOcrSearchInput?.focus()); }"
      x-on:click.self="close()">
 
     <div class="absolute inset-2.5 overflow-hidden rounded-[14px] bg-white shadow-[0_24px_70px_rgba(15,23,42,.22)]"
@@ -27,9 +29,9 @@
                  so a full page of a document is actually visible without the pane
                  scrolling first. --}}
             <section class="flex min-h-0 min-w-0 flex-col border-r border-ordo-line bg-white max-[980px]:border-r-0 max-[980px]:border-b">
-                <div class="border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
-                    <h3 class="m-0 text-[15px] font-bold">Document Preview</h3>
-                    <p class="mt-1.25 mb-0 text-[10px] text-[#8b94a3]">
+                <div class="border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
+                    <h3 class="m-0 text-base font-bold text-gray-900">Document Preview</h3>
+                    <p class="mt-1 mb-0 text-xs text-gray-500">
                         View the stored master file and extracted OCR text.
                     </p>
                 </div>
@@ -46,7 +48,7 @@
                                 {{-- Re-queues this one file and follows it to a
                                      terminal state. The bar below is driven by the
                                      file's real status, not a timer. --}}
-                                <button type="button" class="mini-btn ocr"
+                                <button type="button" class="mini-btn ocr hidden"
                                         x-bind:disabled="reReading || ! master"
                                         x-on:click="reRead()">
                                     <span x-show="! reReading">Re-read Document</span>
@@ -104,7 +106,7 @@
                                             <dd class="m-0 break-all text-[10px] text-[#475467]" x-text="master.name"></dd>
                                         </dl>
 
-                                        <a x-bind:href="master.previewUrl" target="_blank" rel="noopener"
+                                        <a x-bind:href="master.downloadUrl"
                                            class="mt-3.5 inline-flex items-center justify-center gap-2 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[11px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                                             Download Original
                                         </a>
@@ -119,10 +121,30 @@
                                  record of what the document said; the reference mock
                                  lets a reader overwrite it in place, which would let
                                  the evidence be edited without trace. --}}
-                            <div class="h-full min-h-[500px] overflow-auto p-3.5" x-show="pane === 'ocr'" x-cloak>
+                            <div class="flex h-full min-h-[500px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
                                 <template x-if="master && master.ocrText">
-                                    <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.55] text-ordo-ink"
-                                         x-text="master.ocrText"></pre>
+                                    <div class="flex h-full min-h-0 flex-col">
+                                        <div class="mb-3 flex items-center gap-2 border-b border-ordo-line pb-2.5">
+                                            <div class="relative flex-1">
+                                                <span class="absolute left-2.5 top-2 text-[12px] text-ordo-muted">⌕</span>
+                                                <input type="search" x-model="ocrSearchQuery" x-ref="recordOcrSearchInput"
+                                                       placeholder="Search text in document (Ctrl+F or Ctrl+S)..."
+                                                       class="w-full rounded-lg border border-ordo-line bg-white py-1.5 pl-8 pr-3 text-[11px] outline-none focus:border-ordo-blue" />
+                                            </div>
+                                            <template x-if="ocrSearchQuery && ocrSearchQuery.trim()">
+                                                <span class="shrink-0 text-[10px] text-ordo-muted"
+                                                      x-text="ocrMatchCount + (ocrMatchCount === 1 ? ' match' : ' matches')"></span>
+                                            </template>
+                                            <template x-if="ocrSearchQuery">
+                                                <button type="button" x-on:click="ocrSearchQuery = ''"
+                                                        class="px-1.5 py-1 text-[10px] text-ordo-muted hover:text-ordo-ink">Clear</button>
+                                            </template>
+                                        </div>
+                                        <div class="min-h-0 flex-1 overflow-auto">
+                                            <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.55] text-ordo-ink"
+                                                 x-html="highlightedOcrText"></pre>
+                                        </div>
+                                    </div>
                                 </template>
                                 <template x-if="! master || ! master.ocrText">
                                     <div class="ocr-empty">
@@ -130,7 +152,7 @@
                                             <p class="m-0" x-text="ocrEmptyMessage()"></p>
                                             <template x-if="! master || master.ocrStatus !== 'queued' && master.ocrStatus !== 'reading'">
                                                 <p class="mt-2 mb-0">
-                                                    Reading runs on a background worker. Use Re-read Document to queue it again.
+                                                    Reading runs on a background worker.
                                                 </p>
                                             </template>
                                         </div>
@@ -165,10 +187,14 @@
                                 <div class="truncate text-[10px] font-semibold" x-text="master ? master.name : 'Master file'"></div>
                                 <div class="mt-0.5 text-[9px] text-[#98a2b3]" x-text="masterMeta()"></div>
                             </div>
-                            <a x-bind:href="master ? master.previewUrl : '#'" target="_blank" rel="noopener"
-                               x-bind:class="master ? '' : 'pointer-events-none opacity-50'"
+                            <a x-show="master && (master.renderedUrl || master.renderMode !== 'download')"
+                               x-bind:href="master ? (master.renderedUrl || master.previewUrl) : '#'" target="_blank" rel="noopener"
                                class="shrink-0 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[12px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                                 Open File
+                            </a>
+                            <a x-show="master" x-bind:href="master ? master.downloadUrl : '#'"
+                               class="shrink-0 rounded-lg border border-ordo-line bg-white px-3 py-2 text-[12px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
+                                Download
                             </a>
                         </div>
                     </div>
@@ -177,10 +203,10 @@
 
             {{-- ============ RIGHT: TABBED WORKSPACE ============ --}}
             <section class="flex min-h-0 min-w-0 flex-col bg-white">
-                <div class="flex items-start justify-between border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
+                <div class="flex items-start justify-between border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
                     <div class="min-w-0">
-                        <h3 id="record-drawer-title" class="m-0 text-[15px] font-bold" x-text="current ? current.title : 'Record'"></h3>
-                        <p class="mt-1 mb-0 truncate text-[10px] text-ordo-muted" x-text="current ? subtitle() : ''"></p>
+                        <h3 id="record-drawer-title" class="m-0 text-base font-bold text-gray-900" x-text="current ? current.title : 'Record'"></h3>
+                        <p class="mt-1 mb-0 truncate text-xs text-gray-500" x-text="current ? subtitle() : ''"></p>
                     </div>
                     <button type="button"
                             class="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-[20px] leading-none text-ordo-muted transition-colors hover:bg-[#f3f4f6] focus:outline-none focus-visible:ring-2 focus-visible:ring-ordo-blue"
@@ -202,8 +228,6 @@
                     @include('records.partials.record-tabs.extracted')
                     @include('records.partials.record-tabs.links')
                     @include('records.partials.record-tabs.integration')
-                    @include('records.partials.record-tabs.history')
-                    @include('records.partials.record-tabs.system')
                 </div>
 
                 <div class="flex items-center justify-end gap-2 border-t border-ordo-line bg-white px-[22px] py-3.5">

@@ -253,6 +253,108 @@ describe("a preview drawer survives being reopened", () => {
     });
 });
 
+describe("classifyDrawer required fields", () => {
+    const makeDrawer = (advancedFieldConfig = null) => components.classifyDrawer(
+        [{
+            id: "intake-1",
+            title: "Queued document",
+            suggestedClassificationId: "classification-1",
+            suggestedIndexId: "index-1",
+        }],
+        { "classification-1": "Entity & Ownership" },
+        {
+            "classification-1": [{
+                id: "index-1",
+                advanced_field_config: advancedFieldConfig,
+            }],
+        },
+        {},
+        "/records/unclassified",
+    );
+
+    test("blocks filing until each configured required section has a value", () => {
+        const drawer = makeDrawer({
+            sections: ["financials"],
+            required: ["financials"],
+        });
+
+        drawer.show("intake-1");
+
+        assert.equal(drawer.canSubmit(), false);
+        drawer.form.financials = "Paid-in capital";
+        assert.equal(drawer.canSubmit(), true);
+    });
+
+    test("ignores unknown required-section keys just like server validation", () => {
+        const drawer = makeDrawer({
+            sections: [],
+            required: ["unrecognized"],
+        });
+
+        drawer.show("intake-1");
+
+        assert.equal(drawer.canSubmit(), true);
+    });
+
+    test("requires a specified source when Others is selected", () => {
+        const drawer = makeDrawer();
+
+        drawer.show("intake-1");
+        drawer.form.source = "Others";
+        drawer.form.source_other = "";
+
+        assert.equal(drawer.canSubmit(), false);
+        drawer.form.source_other = "External partner";
+        assert.equal(drawer.canSubmit(), true);
+    });
+});
+
+describe("cameraCapture camera switching", () => {
+    test("toggles from the rear to the front camera and stops the previous stream", async () => {
+        const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+        const calls = [];
+        let previousStopped = false;
+        const nextStream = {
+            getTracks: () => [],
+            getVideoTracks: () => [{ getSettings: () => ({ deviceId: "front-camera" }) }],
+        };
+
+        Object.defineProperty(globalThis, "navigator", {
+            configurable: true,
+            value: {
+                mediaDevices: {
+                    getUserMedia: async (constraints) => {
+                        calls.push(constraints);
+                        return nextStream;
+                    },
+                    enumerateDevices: async () => [],
+                },
+            },
+        });
+
+        try {
+            const capture = components.cameraCapture();
+            capture.stream = { getTracks: () => [{ stop: () => { previousStopped = true; } }] };
+            capture.$nextTick = (callback) => callback();
+            capture.attach = () => {};
+            capture.loadDevices = async () => {};
+
+            await capture.switchCamera();
+
+            assert.deepEqual(calls, [{ video: { facingMode: { exact: "user" } }, audio: false }]);
+            assert.equal(previousStopped, true);
+            assert.equal(capture.stream, nextStream);
+            assert.equal(capture.facingMode, "user");
+        } finally {
+            if (descriptor) {
+                Object.defineProperty(globalThis, "navigator", descriptor);
+            } else {
+                delete globalThis.navigator;
+            }
+        }
+    });
+});
+
 /**
  * The Unclassified Records dropzone's camera action.
  *

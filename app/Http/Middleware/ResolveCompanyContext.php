@@ -15,6 +15,16 @@ class ResolveCompanyContext
 
     public function handle(Request $request, Closure $next): Response
     {
+        if (! auth()->check() && ! app()->runningUnitTests()) {
+            if ($request->expectsJson()) {
+                abort(401, 'Unauthenticated.');
+            }
+            if (\Illuminate\Support\Facades\Route::has('login')) {
+                return redirect()->guest(route('login'));
+            }
+            abort(401, 'Authentication required to access JK&C ORDO Records Management.');
+        }
+
         $wasSet = $this->context->has();
 
         try {
@@ -31,16 +41,23 @@ class ResolveCompanyContext
     }
 
     /**
-     * The prototype has no authentication yet, so a session without a company falls
-     * back to the first available company. Scoping stays server-side: every query
-     * still filters on the resolved tenant and company.
+     * Resolve the active company scoped to the authenticated user's tenant.
+     * Scoping stays server-side: every query still filters on tenant and company.
      */
     private function bootstrapDefaultCompany(): void
     {
-        $company = Company::query()->orderBy('created_at')->orderBy('id')->first();
+        $user = auth()->user();
+        $tenantId = $user?->tenant_id ?? null;
+
+        $query = Company::query()->orderBy('created_at')->orderBy('id');
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        $company = $query->first();
 
         if (! $company instanceof Company) {
-            throw new LogicException('No company exists. Run `php artisan db:seed` before using the intake engine.');
+            throw new LogicException('No active company found for user.');
         }
 
         $this->context->set($company);

@@ -14,12 +14,12 @@
 --}}
 @props(['title', 'subtitle' => null])
 
-<div {{ $attributes->merge(['class' => 'flex items-start justify-between gap-4 border-b border-ordo-line px-4 py-4']) }}>
+<div {{ $attributes->merge(['class' => 'flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 bg-white']) }}>
     <div class="min-w-0">
-        <h1 class="mb-[3px] text-[16px] font-bold">{{ $title }}</h1>
+        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-gray-900 leading-snug">{{ $title }}</h1>
 
         @if ($subtitle)
-            <p class="text-[11px] text-[#8b94a3]">{{ $subtitle }}</p>
+            <p class="text-xs md:text-sm text-gray-500 mt-1 leading-relaxed">{{ $subtitle }}</p>
         @endif
     </div>
 
@@ -41,7 +41,8 @@
         <x-ordo.button type="button" variant="icon"
                        title="Records setup"
                        aria-label="Records Management Setup"
-                       x-on:click="$dispatch('ordo:setup-open')">&#9881;</x-ordo.button>
+                       x-on:click="$dispatch('ordo:setup-open')"
+                       class="hidden">&#9881;</x-ordo.button>
 
         @isset($actions)
             {{ $actions }}

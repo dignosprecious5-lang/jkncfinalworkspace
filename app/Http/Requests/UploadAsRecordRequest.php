@@ -31,7 +31,12 @@ class UploadAsRecordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'file', ...$this->documentRules(), 'max:51200'],
+            'file' => [
+                'required',
+                'file',
+                ...$this->documentRules(),
+                'max:'.($this->maxFileSizeMb() * 1024),
+            ],
             'record_classification_id' => ['required', 'string', Rule::in($this->classificationIds())],
             'record_index_id' => ['required', 'string', Rule::in($this->indexIds())],
             'title' => ['nullable', 'string', 'max:255'],
@@ -48,11 +53,16 @@ class UploadAsRecordRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'file.max' => 'That file is larger than the 50 MB limit.',
+            'file.max' => "That file is larger than the {$this->maxFileSizeMb()} MB limit.",
             'record_classification_id.in' => 'That Classification is not part of this company\'s scheme.',
             'record_index_id.in' => 'That Index is not part of this company\'s scheme.',
             ...$this->documentMessages('file'),
         ];
+    }
+
+    private function maxFileSizeMb(): int
+    {
+        return max(1, (int) config('ordo.uploads.record_file_max_size_mb', 50));
     }
 
     /**

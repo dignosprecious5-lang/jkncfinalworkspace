@@ -209,7 +209,7 @@ class RecordCapacityService
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN status NOT IN (?, ?) THEN 1 ELSE 0 END), 0) as open_items,
                  COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as needs_review,
-                 COALESCE(SUM(CASE WHEN capture_source NOT IN (?, ?, ?) THEN 1 ELSE 0 END), 0) as generated',
+                 COALESCE(SUM(CASE WHEN capture_source NOT IN (?, ?, ?) THEN 1 ELSE 0 END), 0) as `generated`',
                 [
                     IntakeStatus::Filed->value,
                     IntakeStatus::Discarded->value,

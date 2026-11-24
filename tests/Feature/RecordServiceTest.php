@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\RecordStatus;
+use App\Enums\ReferenceStatus;
+use App\Enums\SourceType;
 use App\Models\Company;
 use App\Models\Record;
 use App\Models\RecordActivityLog;
 use App\Models\RecordClassification;
 use App\Models\RecordIndex;
+use App\Models\RecordSource;
 use App\Services\Records\RecordFilingService;
 use App\Services\Records\RecordIntakeService;
 use App\Services\Records\RecordService;
@@ -301,6 +304,30 @@ class RecordServiceTest extends TestCase
 
         $this->assertSame(RecordStatus::Archived, $record->fresh()->status);
         $this->assertSame(1, DB::table('records')->count());
+    }
+
+    public function test_the_metadata_source_dropdown_offers_others_only_once(): void
+    {
+        $this->fileRecord();
+        $company = $this->company;
+
+        (new RecordSource)->forceFill([
+            'tenant_id' => $company->tenant_id,
+            'company_id' => $company->id,
+            'name' => 'Other',
+            'type' => SourceType::Other,
+            'status' => ReferenceStatus::Active,
+            'sort_order' => 99,
+        ])->save();
+
+        $content = $this->get(route('records.index'))->assertOk()->getContent() ?? '';
+        preg_match_all('/<select name="source".*?<\/select>/s', $content, $matches);
+        $metadataSourceSelect = collect($matches[0])
+            ->first(fn (string $select): bool => str_contains($select, 'Select source'));
+
+        $this->assertNotNull($metadataSourceSelect);
+        $this->assertDoesNotMatchRegularExpression('/<option value="Other">Other<\/option>/', $metadataSourceSelect);
+        $this->assertSame(1, preg_match_all('/<option value="Others">Others<\/option>/', $metadataSourceSelect));
     }
 
     /**

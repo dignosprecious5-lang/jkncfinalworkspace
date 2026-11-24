@@ -324,6 +324,92 @@ class RecordIntegrationTest extends TestCase
             ->assertSee((string) $item->id, false);
     }
 
+    public function test_filing_rejects_missing_classification_index_and_title(): void
+    {
+        $this->scheme('301', '301-6');
+        $item = $this->app->make(RecordIntakeService::class)
+            ->createIntakeItem([$this->fakeImage('required-fields.jpg')]);
+
+        $this->from(route('records.unclassified', ['open' => $item->id]))
+            ->post(route('records.unclassified.file', ['intake' => $item->id]), [])
+            ->assertRedirect(route('records.unclassified', ['open' => $item->id]))
+            ->assertSessionHasErrors([
+                'record_classification_id',
+                'record_index_id',
+                'title',
+            ]);
+
+        $this->assertDatabaseCount('records', 0);
+    }
+
+    public function test_filing_saves_the_specified_source_when_others_is_selected(): void
+    {
+        $this->scheme('301', '301-6');
+        $item = $this->app->make(RecordIntakeService::class)
+            ->createIntakeItem([$this->fakeImage('source-other.jpg')]);
+        $classification = RecordClassification::query()->where('company_id', $this->company->id)->firstOrFail();
+        $index = RecordIndex::query()->where('company_id', $this->company->id)->firstOrFail();
+
+        $this->post(route('records.unclassified.file', ['intake' => $item->id]), [
+            'record_classification_id' => $classification->id,
+            'record_index_id' => $index->id,
+            'title' => 'Document with specified source',
+            'source' => 'Others',
+            'source_other' => 'External partner',
+        ])->assertRedirect(route('records.unclassified'));
+
+        $this->assertDatabaseHas('records', [
+            'title' => 'Document with specified source',
+            'source' => 'External partner',
+        ]);
+    }
+
+    public function test_filing_requires_a_source_when_others_is_selected(): void
+    {
+        $this->scheme('301', '301-6');
+        $item = $this->app->make(RecordIntakeService::class)
+            ->createIntakeItem([$this->fakeImage('source-required.jpg')]);
+        $classification = RecordClassification::query()->where('company_id', $this->company->id)->firstOrFail();
+        $index = RecordIndex::query()->where('company_id', $this->company->id)->firstOrFail();
+
+        $this->from(route('records.unclassified', ['open' => $item->id]))
+            ->post(route('records.unclassified.file', ['intake' => $item->id]), [
+                'record_classification_id' => $classification->id,
+                'record_index_id' => $index->id,
+                'title' => 'Document with missing specified source',
+                'source' => 'Others',
+                'source_other' => '',
+            ])
+            ->assertSessionHasErrors('source_other');
+
+        $this->assertDatabaseCount('records', 0);
+    }
+
+    public function test_filing_enforces_advanced_sections_required_by_the_index(): void
+    {
+        $this->scheme('301', '301-6');
+        $index = RecordIndex::query()->where('company_id', $this->company->id)->firstOrFail();
+        $index->forceFill([
+            'advanced_field_config' => [
+                'sections' => ['financials'],
+                'required' => ['financials'],
+            ],
+        ])->save();
+        $classification = RecordClassification::query()->where('company_id', $this->company->id)->firstOrFail();
+        $item = $this->app->make(RecordIntakeService::class)
+            ->createIntakeItem([$this->fakeImage('financials-required.jpg')]);
+
+        $this->from(route('records.unclassified', ['open' => $item->id]))
+            ->post(route('records.unclassified.file', ['intake' => $item->id]), [
+                'record_classification_id' => $classification->id,
+                'record_index_id' => $index->id,
+                'title' => 'Document with missing required financials',
+            ])
+            ->assertSessionHasErrors('financials');
+
+        $this->assertDatabaseCount('records', 0);
+    }
+
     /**
      * A crafted ?open= must not point the drawer at somebody else's document.
      */

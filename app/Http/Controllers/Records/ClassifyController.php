@@ -58,7 +58,7 @@ class ClassifyController extends Controller
                 ->withQueryString(),
             'classifications' => $this->lookups->classifications(),
             'indexesByClassification' => $this->lookups->indexesByClassification(),
-            'sources' => $this->lookups->sources(),
+            'sources' => $this->lookups->documentSources(),
             'drawerItems' => $this->drawerItems($context),
             'search' => $search,
             'type' => $type,
@@ -195,6 +195,7 @@ class ClassifyController extends Controller
                     'ocrError' => $file->ocr_error,
                     'ocrText' => $file->ocr_text,
                     'previewUrl' => route('records.files.preview', ['file' => $file->id]),
+                    'downloadUrl' => route('records.files.download', ['file' => $file->id]),
                     'isImage' => $file->isImage(),
                     'isPdf' => $file->isPdf(),
                     'isText' => $file->isText(),
@@ -239,7 +240,9 @@ class ClassifyController extends Controller
             'record_index_id' => $request->input('record_index_id'),
             'title' => $request->input('title'),
             'document_date' => $request->input('document_date'),
-            'source' => $request->input('source'),
+            'source' => $request->input('source') === 'Others'
+                ? $request->input('source_other')
+                : $request->input('source'),
             'external_reference_number' => $request->input('external_reference_number'),
             'identifiers' => $request->input('identifiers'),
             'additional_dates' => $request->input('additional_dates'),

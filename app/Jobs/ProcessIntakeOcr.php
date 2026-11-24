@@ -36,7 +36,7 @@ class ProcessIntakeOcr implements ShouldQueue
     /**
      * Seconds a single attempt may run before the worker kills it.
      */
-    public int $timeout = 120;
+    public int $timeout = 900;
 
     /**
      * The tenant and company travel with the job because it runs on a queue
@@ -105,6 +105,30 @@ class ProcessIntakeOcr implements ShouldQueue
             } catch (Throwable $e) {
                 $this->settleForReview($file, $e->getMessage());
             }
+        }
+
+        try {
+            $item = RecordIntakeItem::query()
+                ->where('tenant_id', $this->tenantId)
+                ->where('company_id', $this->companyId)
+                ->find($this->recordIntakeItemId);
+
+            if ($item) {
+                $detected = app(\App\Services\Records\DocumentIntelligenceService::class)->detect($item);
+                $updates = [];
+                if (blank($item->suggested_classification_id) && ! empty($detected['classification_id'])) {
+                    $updates['suggested_classification_id'] = $detected['classification_id'];
+                    $updates['suggested_index_id'] = $detected['index_id'];
+                }
+                if (blank($item->source) && ! empty($detected['source'])) {
+                    $updates['source'] = $detected['source'];
+                }
+                if (! empty($updates)) {
+                    $item->forceFill($updates)->save();
+                }
+            }
+        } catch (Throwable) {
+            // Intelligent suggestion is best-effort and must never block filing
         }
     }
 

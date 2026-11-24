@@ -21,10 +21,11 @@
      x-on:click.self="close()"
      x-show="open" x-cloak>
 
-    <div class="grid h-full place-items-center overflow-auto p-2.5" x-on:click.stop>
+    <div class="grid h-full place-items-center overflow-auto p-2.5" x-on:click.self="close()">
         <div class="w-full max-w-[640px] overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgba(15,23,42,.22)]"
              role="dialog" aria-modal="true" aria-labelledby="record-picker-title"
-             x-show="open" x-cloak>
+             x-show="open" x-cloak
+             x-on:click.stop>
 
             <form method="POST" x-bind:action="action()">
                 @csrf
@@ -118,23 +119,45 @@
                         </div>
                     </div>
 
-                    {{-- Module target: no such module exists yet, so the reference is taken as given. --}}
+                    {{-- Module target: name an ORDO module or pick a common destination like Transmittal. --}}
                     <div class="mt-3 grid grid-cols-2 gap-2.5 max-[560px]:grid-cols-1" x-show="mode === 'module'">
+                        <div class="col-span-full">
+                            <span class="text-[10px] font-semibold text-ordo-muted block mb-1">Common Destinations</span>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button type="button" class="rounded-md border border-ordo-line bg-[#f8faff] hover:border-ordo-blue px-2 py-1 text-[10px] text-ordo-blue"
+                                        x-on:click="module = 'Transmittal'; referenceId = referenceId || 'TR-{{ date('Y') }}-001'; linkedLabel = linkedLabel || 'Transmittal Manifest'">
+                                    + Transmittal
+                                </button>
+                                <button type="button" class="rounded-md border border-ordo-line bg-[#f8faff] hover:border-ordo-blue px-2 py-1 text-[10px] text-ordo-blue"
+                                        x-on:click="module = 'Corporate Governance'; referenceId = referenceId || 'CG-{{ date('Y') }}-001'; linkedLabel = linkedLabel || 'Board Action Item'">
+                                    + Corporate Governance
+                                </button>
+                                <button type="button" class="rounded-md border border-ordo-line bg-[#f8faff] hover:border-ordo-blue px-2 py-1 text-[10px] text-ordo-blue"
+                                        x-on:click="module = 'Compliance / BIR'; referenceId = referenceId || 'BIR-{{ date('Y') }}-001'; linkedLabel = linkedLabel || 'Tax Filing Attachment'">
+                                    + Compliance / BIR
+                                </button>
+                                <button type="button" class="rounded-md border border-ordo-line bg-[#f8faff] hover:border-ordo-blue px-2 py-1 text-[10px] text-ordo-blue"
+                                        x-on:click="module = 'Legal'; referenceId = referenceId || 'LEG-{{ date('Y') }}-001'; linkedLabel = linkedLabel || 'Contract Attachment'">
+                                    + Legal
+                                </button>
+                            </div>
+                        </div>
+
                         <x-ordo.field label="ORDO Module" required>
                             <input type="text" name="module" x-model="module" maxlength="60"
-                                   placeholder="e.g. Corporate Governance"
+                                   placeholder="e.g. Transmittal or Corporate Governance"
                                    class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                         </x-ordo.field>
 
                         <x-ordo.field label="Reference" required help="Up to 26 characters.">
                             <input type="text" name="reference_id" x-model="referenceId" maxlength="26"
-                                   placeholder="e.g. BR-2026-0142"
+                                   x-bind:placeholder="module === 'Transmittal' ? 'e.g. TR-{{ date('Y') }}-001' : 'e.g. BR-2026-0142'"
                                    class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                         </x-ordo.field>
 
                         <x-ordo.field label="Title" full help="How the linked object is named in the Linked To list.">
                             <input type="text" name="linked_label" x-model="linkedLabel" maxlength="255"
-                                   placeholder="e.g. Board Resolution 2026-0142"
+                                   x-bind:placeholder="module === 'Transmittal' ? 'e.g. Transmittal to Bureau of Internal Revenue' : 'e.g. Board Resolution 2026-0142'"
                                    class="w-full rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                         </x-ordo.field>
                     </div>

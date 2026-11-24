@@ -118,6 +118,21 @@ class RecordLookups
     }
 
     /**
+     * Sources offered by filing and metadata forms.
+     *
+     * "Other" is represented by the special "Others" option plus its text
+     * input, so exposing the seeded "Other" row as a second option is redundant.
+     *
+     * @return Collection<int, RecordSource>
+     */
+    public function documentSources(): Collection
+    {
+        return $this->sources()
+            ->reject(fn (RecordSource $source): bool => strcasecmp($source->name, 'Other') === 0)
+            ->values();
+    }
+
+    /**
      * Drop this company's cached lookups.
      *
      * Callers that change the scheme — the seeder, and any future editor for

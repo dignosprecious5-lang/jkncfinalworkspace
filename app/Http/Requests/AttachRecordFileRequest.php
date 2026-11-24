@@ -31,10 +31,7 @@ class AttachRecordFileRequest extends FormRequest
                 'required',
                 'file',
                 ...$this->documentRules(),
-                // 50 MB. Higher than intake's 20 MB ceiling, because a supporting file is
-                // added to a record that is already filed and there is no intake
-                // step to pass it through on the way.
-                'max:51200',
+                'max:'.($this->maxFileSizeMb() * 1024),
             ],
         ];
     }
@@ -45,8 +42,13 @@ class AttachRecordFileRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'file.max' => 'That file is larger than the 50 MB limit.',
+            'file.max' => "That file is larger than the {$this->maxFileSizeMb()} MB limit.",
             ...$this->documentMessages('file'),
         ];
+    }
+
+    private function maxFileSizeMb(): int
+    {
+        return max(1, (int) config('ordo.uploads.record_file_max_size_mb', 50));
     }
 }

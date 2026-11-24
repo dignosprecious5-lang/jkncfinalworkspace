@@ -33,6 +33,11 @@ class RecordClassificationPolicy
         return $this->hasContext() && UserRole::for($user)->canManageScheme();
     }
 
+    public function update(?object $user): bool
+    {
+        return $this->create($user);
+    }
+
     /**
      * With no company resolved there is nothing to scope a write to, so the
      * answer is no rather than an unguarded write.

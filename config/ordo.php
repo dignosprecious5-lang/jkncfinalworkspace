@@ -34,6 +34,20 @@ return [
         'picker' => (int) env('ORDO_RATE_LIMIT_PICKER', 60),
     ],
 
+    'uploads' => [
+        'intake_max_file_size_mb' => (int) env('ORDO_INTAKE_MAX_FILE_SIZE_MB', 20),
+        'record_file_max_size_mb' => (int) env('ORDO_RECORD_FILE_MAX_SIZE_MB', 50),
+    ],
+
+    'ocr' => [
+        'tesseract_binary' => env('ORDO_TESSERACT_BINARY', 'tesseract'),
+        'pdftoppm_binary' => env('ORDO_PDFTOPPM_BINARY', 'pdftoppm'),
+        'languages' => env('ORDO_OCR_LANGUAGES', 'eng'),
+        'timeout_seconds' => (int) env('ORDO_OCR_TIMEOUT_SECONDS', 30),
+        'max_pdf_pages' => (int) env('ORDO_OCR_MAX_PDF_PAGES', 20),
+        'pdf_dpi' => (int) env('ORDO_OCR_PDF_DPI', 250),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Lookup Cache

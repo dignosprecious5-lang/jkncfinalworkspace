@@ -13,10 +13,9 @@ use Throwable;
  * has to decide what to do with a file long before it knows what the file is. The
  * formats split three ways:
  *
- *   - PDF text is parsed. A scanned page has no text layer at all, so it returns
- *     nothing, which the caller treats as "needs review" rather than "succeeded
- *     with no words" — that distinction is the whole reason this returns a value
- *     plus a reason instead of a bare string.
+ *   - PDFs with embedded text are parsed first. Scanned PDFs fall back to
+ *     Tesseract after their pages are rasterized by Poppler; supported images go
+ *     directly to Tesseract.
  *   - Plain text and CSV are already text.
  *   - Office archives are ZIP containers, so their bytes are never the document's
  *     text and this deliberately refuses them rather than returning the archive's
@@ -31,7 +30,10 @@ class DocumentTextExtractor
     /** Bytes read from a text file. Above this it is a mislabelled binary. */
     private const MAX_TEXT_BYTES = 20971520;
 
-    public function __construct(private readonly Parser $parser) {}
+    public function __construct(
+        private readonly Parser $parser,
+        private readonly TesseractOcr $ocr,
+    ) {}
 
     /**
      * @return array{text: string, reason: string|null} The text, or the reason
@@ -47,7 +49,8 @@ class DocumentTextExtractor
 
         return match (true) {
             $this->isText($mimeType, $extension) => $this->fromTextFile($absolutePath),
-            $extension === 'pdf' => $this->fromPdf($absolutePath),
+            $extension === 'pdf' => $this->fromPdfOrOcr($absolutePath, $mimeType, $extension),
+            $this->isImage($mimeType, $extension) => $this->fromOcr($absolutePath, $mimeType, $extension),
             default => $this->none('This format carries no readable text layer.'),
         };
     }
@@ -67,6 +70,46 @@ class DocumentTextExtractor
 
         if ($text === '') {
             return $this->none('The PDF has no text layer. It is probably a scan.');
+        }
+
+        return ['text' => $text, 'reason' => null];
+    }
+
+    /**
+     * Preserve embedded PDF text extraction and OCR only scanned PDFs.
+     *
+     * @return array{text: string, reason: string|null}
+     */
+    private function fromPdfOrOcr(string $absolutePath, string $mimeType, string $extension): array
+    {
+        $text = $this->fromPdf($absolutePath);
+
+        if ($text['reason'] === null || ! str_contains($text['reason'], 'no text layer')) {
+            return $text;
+        }
+
+        return $this->fromOcr($absolutePath, $mimeType, $extension, $text['reason']);
+    }
+
+    /**
+     * @return array{text: string, reason: string|null}
+     */
+    private function fromOcr(string $absolutePath, string $mimeType, string $extension, ?string $fallbackReason = null): array
+    {
+        try {
+            $text = trim($this->ocr->extract($absolutePath, $mimeType, $extension));
+        } catch (Throwable $exception) {
+            $reason = $fallbackReason === null
+                ? $exception->getMessage()
+                : $fallbackReason.' OCR could not complete: '.$exception->getMessage();
+
+            return $this->none($reason);
+        }
+
+        if ($text === '') {
+            return $this->none($fallbackReason === null
+                ? 'OCR did not detect readable text.'
+                : $fallbackReason.' OCR did not detect readable text.');
         }
 
         return ['text' => $text, 'reason' => null];
@@ -106,6 +149,12 @@ class DocumentTextExtractor
     {
         return in_array(strtolower($mimeType), ['text/plain', 'text/csv'], true)
             || in_array($extension, ['txt', 'csv'], true);
+    }
+
+    private function isImage(string $mimeType, string $extension): bool
+    {
+        return str_starts_with(strtolower($mimeType), 'image/')
+            && in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff', 'bmp'], true);
     }
 
     /**

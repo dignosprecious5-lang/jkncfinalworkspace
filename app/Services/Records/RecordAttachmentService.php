@@ -75,12 +75,14 @@ class RecordAttachmentService
         // names this upload rather than arriving from three calls deeper.
         $this->capacity->verifyFilingCapacity(1);
 
+        $userId = $user instanceof \Illuminate\Contracts\Auth\Authenticatable ? (string) $user->getAuthIdentifier() : (is_string($user) ? $user : null);
+
         $item = $this->intake->createIntakeItem([$upload], [
             'title' => $attributes['title'] ?? null,
             'source' => $attributes['source'] ?? null,
             'document_date' => $attributes['document_date'] ?? null,
             'external_reference_number' => $attributes['external_reference_number'] ?? null,
-            'uploaded_by' => $user,
+            'uploaded_by' => $userId,
         ]);
 
         return $this->filing->file($item, [
@@ -135,7 +137,7 @@ class RecordAttachmentService
                     'page_count' => $details['page_count'],
                     'checksum_sha256' => $details['sha256'],
                     'ocr_status' => OcrStatus::Queued,
-                    'uploaded_by' => $user,
+                    'uploaded_by' => $user instanceof \Illuminate\Contracts\Auth\Authenticatable ? (string) $user->getAuthIdentifier() : (is_string($user) ? $user : null),
                     'version' => $version,
                 ]);
             } catch (Throwable $e) {
@@ -253,7 +255,7 @@ class RecordAttachmentService
             'record_id' => $record->id,
             'record_intake_item_id' => null,
             'record_file_id' => $file->id,
-            'user_id' => $user?->id,
+            'user_id' => $user instanceof \Illuminate\Contracts\Auth\Authenticatable ? (string) $user->getAuthIdentifier() : (is_string($user) ? $user : ($user?->id ?? null)),
             'action' => $versioned ? 'record.version_created' : 'record.file_added',
             'description' => $versioned
                 ? sprintf('Version %d stored as %s.', $file->version, $file->original_name)

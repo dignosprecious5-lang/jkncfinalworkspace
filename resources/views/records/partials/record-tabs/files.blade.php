@@ -61,10 +61,14 @@
         {{-- The file's own role, not a fixed label: the reference shows the role
              the file was actually stored under. --}}
         <div class="flex shrink-0 items-center gap-2">
-            <a x-bind:href="master ? master.previewUrl : '#'" target="_blank" rel="noopener"
-               x-bind:class="master ? '' : 'pointer-events-none opacity-50'"
+            <a x-show="master && (master.renderedUrl || master.renderMode !== 'download')"
+               x-bind:href="master ? (master.renderedUrl || master.previewUrl) : '#'" target="_blank" rel="noopener"
                class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                 Open
+            </a>
+            <a x-show="master" x-bind:href="master ? master.downloadUrl : '#'"
+               class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
+                Download
             </a>
             <x-ordo.pill tone="green" x-text="master ? (master.fileRole === 'master' ? 'Master File' : 'Supporting File') : 'Master File'" />
         </div>
@@ -102,9 +106,14 @@
                             x-text="file.documentType + ' • ' + humanSize(file.sizeBytes) + (file.pageCount ? ' • ' + file.pageCount + ' page(s)' : '')"></small>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
-                    <a x-bind:href="file.previewUrl" target="_blank" rel="noopener"
+                    <a x-show="file.renderedUrl || file.renderMode !== 'download'"
+                       x-bind:href="file.renderedUrl || file.previewUrl" target="_blank" rel="noopener"
                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                         Open
+                    </a>
+                    <a x-bind:href="file.downloadUrl"
+                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
+                        Download
                     </a>
                     <x-ordo.pill>Supporting</x-ordo.pill>
                 </div>
@@ -130,9 +139,14 @@
                             x-text="file.name + ' • ' + humanSize(file.sizeBytes) + ' • ' + (file.createdAt ?? '—')"></small>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
-                    <a x-bind:href="file.previewUrl" target="_blank" rel="noopener"
+                    <a x-show="file.renderedUrl || file.renderMode !== 'download'"
+                       x-bind:href="file.renderedUrl || file.previewUrl" target="_blank" rel="noopener"
                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
                         Open
+                    </a>
+                    <a x-bind:href="file.downloadUrl"
+                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-1.5 text-[10px] text-[#374151] transition-colors hover:bg-[#f9fafb]">
+                        Download
                     </a>
                     <x-ordo.pill x-bind:class="file.isLatest ? 'bg-[#e9f7f0] text-ordo-success' : 'bg-[#f3f4f6] text-[#4b5563]'">
                         <span x-text="file.isLatest ? 'Current' : 'Prior'"></span>

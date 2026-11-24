@@ -20,7 +20,12 @@ class StoreIntakeRequest extends FormRequest
     {
         return [
             'files' => ['required', 'array', 'min:1', 'max:25'],
-            'files.*' => ['required', 'file', ...$this->documentRules(), 'max:20480'],
+            'files.*' => [
+                'required',
+                'file',
+                ...$this->documentRules(),
+                'max:'.($this->maxFileSizeMb() * 1024),
+            ],
             'capture_source' => ['nullable', 'string', 'in:upload,multi_upload,camera'],
             'title' => ['nullable', 'string', 'max:255'],
             'source' => ['nullable', 'string', 'max:255'],
@@ -37,9 +42,14 @@ class StoreIntakeRequest extends FormRequest
         return [
             'files.required' => 'Choose at least one file to upload.',
             'files.max' => 'A maximum of 25 files can be uploaded at once.',
-            'files.*.max' => 'Each file must be 20 MB or smaller.',
+            'files.*.max' => "Each file must be {$this->maxFileSizeMb()} MB or smaller.",
             ...$this->documentMessages('files.*'),
         ];
+    }
+
+    private function maxFileSizeMb(): int
+    {
+        return max(1, (int) config('ordo.uploads.intake_max_file_size_mb', 20));
     }
 
     /**

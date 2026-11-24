@@ -126,7 +126,9 @@ class RecordReportPageTest extends TestCase
         $response->assertSee('Records Included');
         $response->assertSee('Records by Classification');
         $response->assertSee('Management Summary');
-        $response->assertSee('Download CSV');
+        $response->assertSee('Export CSV');
+        $response->assertSee('Export PDF');
+        $response->assertDontSee('Print / Save PDF');
     }
 
     /**
@@ -377,12 +379,7 @@ class RecordReportPageTest extends TestCase
         }
     }
 
-    /**
-     * The three output controls are three ways to take the same report onward,
-     * not a primary action with two lesser ones beside it, so none of them is
-     * privileged over the others.
-     */
-    public function test_the_three_output_controls_carry_equal_weight(): void
+    public function test_the_report_preview_has_present_and_unified_export_controls_without_print(): void
     {
         $this->record('Board Minutes');
 
@@ -391,16 +388,12 @@ class RecordReportPageTest extends TestCase
         ])->assertOk()->getContent() ?? '';
 
         $this->assertSame(
-            3,
-            preg_match_all('/<button(?![^>]*type="submit")[^>]*>\s*(?:Present|Print \/ Save PDF|Download CSV)/s', $content),
-            'The preview does not render exactly three output controls.',
+            4,
+            preg_match_all('/<(?:button|summary)(?![^>]*type="submit")[^>]*>\s*(?:Present|Export|Export CSV|Export PDF)/s', $content),
+            'The preview does not render Present and the unified CSV/PDF export menu.',
         );
 
-        $this->assertDoesNotMatchRegularExpression(
-            '/<button[^>]*bg-ordo-blue[^>]*>\s*(?:Present|Print \/ Save PDF|Download CSV)/s',
-            $content,
-            'One of the output controls is styled as the primary action.',
-        );
+        $this->assertStringNotContainsString('window.print()', $content);
     }
 
     /**
@@ -422,7 +415,9 @@ class RecordReportPageTest extends TestCase
 
         $this->assertStringContainsString('x-model="comments"', $content, 'The observations box lost its binding.');
         $this->assertStringContainsString('x-on:click="present()"', $content, 'Present lost its handler.');
-        $this->assertStringContainsString('x-on:click="download()"', $content, 'Download CSV lost its handler.');
+        $this->assertStringContainsString('x-on:click="download()"', $content, 'Export CSV lost its handler.');
+        $this->assertStringContainsString('x-on:click="downloadPdf()"', $content, 'Export PDF lost its handler.');
+        $this->assertStringNotContainsString('window.print()', $content, 'PDF export still invokes the browser print dialog.');
         $this->assertStringContainsString('min-h-[100px]', $content, 'The observations box lost its reference height.');
     }
 
@@ -559,6 +554,21 @@ class RecordReportPageTest extends TestCase
             'ordo-records-quality-report.csv',
             (string) $response->headers->get('Content-Disposition'),
         );
+    }
+
+    public function test_the_pdf_export_downloads_a_generated_document(): void
+    {
+        $this->record('Board Minutes');
+
+        $response = $this->get(route('records.reports.export', [
+            'format' => 'pdf',
+            'type' => ReportType::Inventory->value,
+        ]));
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $response->headers->get('Content-Type'));
+        $this->assertStringContainsString('.pdf', (string) $response->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
     }
 
     // ------------------------------------------------------------ isolation

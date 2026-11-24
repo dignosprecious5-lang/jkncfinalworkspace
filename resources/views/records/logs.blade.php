@@ -11,13 +11,13 @@
         <x-ordo.page-head title="Audit Log"
                           subtitle="Append-only activity trail across intake, filing, edits, archiving and links.">
             <x-slot:actions>
-                {{-- One export button in the header, as the reference mock has. The
-                     JSON envelope is a real capability but a secondary one, so it
-                     lives with the filters it answers to rather than competing for
-                     the title bar. --}}
-                <a href="{{ $csvUrl }}">
-                    <x-ordo.button variant="default">Export CSV</x-ordo.button>
-                </a>
+                <details class="relative">
+                    <summary class="inline-flex cursor-pointer list-none items-center justify-center rounded-lg border border-ordo-line bg-ordo-panel px-3 py-2 text-[12px] text-[#374151] hover:bg-[#f9fafb]">Export</summary>
+                    <div class="absolute right-0 z-10 mt-1 min-w-[150px] rounded-lg border border-ordo-line bg-white p-1 shadow-ordo">
+                        <a href="{{ $csvUrl }}" class="block rounded-md px-3 py-2 text-[11px] text-ordo-ink hover:bg-[#f8fafc]">Export CSV</a>
+                        <a href="{{ $pdfUrl }}" class="block rounded-md px-3 py-2 text-[11px] text-ordo-ink hover:bg-[#f8fafc]">Export PDF</a>
+                    </div>
+                </details>
             </x-slot:actions>
         </x-ordo.page-head>
 
@@ -48,13 +48,7 @@
 
                 <x-ordo.button type="submit" variant="default">Apply</x-ordo.button>
 
-                <a href="{{ route('records.logs') }}" class="text-[11px] text-ordo-blue">Clear</a>
-
-                    {{-- Placed beside the filters on purpose: both exports cover
-                         exactly what is selected above, so the control belongs next
-                         to the thing that scopes it. --}}
-                    <span class="text-[11px] text-ordo-faint" aria-hidden="true">&middot;</span>
-                    <a href="{{ $jsonUrl }}" class="text-[11px] text-ordo-blue">Compliance JSON</a>
+                <a href="{{ route('records.logs') }}" class="text-[11px] text-ordo-blue">Reset</a>
             </form>
 
             <div class="mt-4 overflow-x-auto">

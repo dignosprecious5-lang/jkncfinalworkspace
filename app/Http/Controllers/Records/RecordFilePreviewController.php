@@ -39,6 +39,11 @@ class RecordFilePreviewController extends Controller
         return $this->streamer->stream($this->file($file));
     }
 
+    public function download(string $file): StreamedResponse
+    {
+        return $this->streamer->download($this->file($file));
+    }
+
     /**
      * @throws ModelNotFoundException
      */

@@ -12,11 +12,13 @@ use App\Models\RecordReportRun;
 use App\Services\CompanyContext;
 use App\Services\Records\RecordLookups;
 use App\Services\Records\RecordSearchService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -140,10 +142,27 @@ class RecordReportController extends Controller
     /**
      * Stream the filtered records as CSV, matching the preview exactly.
      */
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): Response
     {
         $filters = $this->filtersFrom($request);
         $type = $this->reportTypeFrom($request);
+
+        if ($request->query('format') === 'pdf') {
+            $records = $this->filtered($filters)->get();
+
+            return Pdf::loadView('records.pdf.report', [
+                'type' => $type,
+                'filters' => $filters,
+                'metrics' => $this->metrics($filters),
+                'records' => $records,
+                'comments' => mb_substr((string) $request->query('comments', ''), 0, 5000),
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')->download(sprintf(
+                'ORDO_%s_%s.pdf',
+                str_replace('-', '_', strtoupper($type->slug())),
+                now()->format('Y-m-d'),
+            ));
+        }
 
         return response()->stream(function () use ($filters): void {
             echo $this->csvLine([

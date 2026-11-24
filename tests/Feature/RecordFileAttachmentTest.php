@@ -13,6 +13,7 @@ use App\Services\CompanyContext;
 use App\Services\Records\RecordAttachmentService;
 use App\Services\Records\RecordFilingService;
 use App\Services\Records\RecordIntakeService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\FakeUploads;
@@ -172,6 +173,26 @@ class RecordFileAttachmentTest extends TestCase
 
         $this->post(route('records.files.supporting', ['record' => $record->id]))
             ->assertSessionHasErrors('file');
+    }
+
+    public function test_the_configured_record_file_size_limit_applies_to_supporting_and_new_record_uploads(): void
+    {
+        config(['ordo.uploads.record_file_max_size_mb' => 1]);
+        $record = $this->filedRecord();
+
+        $this->post(route('records.files.supporting', ['record' => $record->id]), [
+            'file' => UploadedFile::fake()->create('oversized.pdf', 1025, 'application/pdf'),
+        ])->assertSessionHasErrors([
+            'file' => 'That file is larger than the 1 MB limit.',
+        ]);
+
+        $this->post(route('records.files.upload-as-record'), [
+            'file' => UploadedFile::fake()->create('oversized.pdf', 1025, 'application/pdf'),
+            'record_classification_id' => $this->classification->id,
+            'record_index_id' => $this->index->id,
+        ])->assertSessionHasErrors([
+            'file' => 'That file is larger than the 1 MB limit.',
+        ]);
     }
 
     // -------------------------------------------------------------- versions

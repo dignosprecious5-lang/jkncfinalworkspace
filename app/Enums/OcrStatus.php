@@ -16,21 +16,18 @@ enum OcrStatus: string
     {
         return match ($this) {
             self::Queued => 'Queued',
-            self::Reading => 'Reading',
-            self::Detected => 'Detected',
-            self::NeedsReview => 'Needs review',
+            self::Reading => 'Processing',
+            self::Detected, self::Ready => 'Completed',
+            self::NeedsReview, self::Unsupported => 'Failed',
             self::NotRead => 'Not read',
-            self::Unsupported => 'Unsupported',
-            self::Ready => 'Ready',
         };
     }
 
     public function tone(): string
     {
         return match ($this) {
-            self::Detected, self::Ready => 'blue',
-            self::NeedsReview => 'amber',
-            self::Unsupported => 'neutral',
+            self::Detected, self::Ready => 'green',
+            self::NeedsReview, self::Unsupported => 'amber',
             self::Reading, self::Queued => 'neutral',
             self::NotRead => 'neutral',
         };

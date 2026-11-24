@@ -246,6 +246,18 @@ class RecordActivityLogTest extends TestCase
         }
     }
 
+    public function test_the_pdf_export_downloads_a_generated_document(): void
+    {
+        $this->record();
+
+        $response = $this->get(route('records.logs.export', ['format' => 'pdf']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $response->headers->get('Content-Type'));
+        $this->assertStringContainsString('.pdf', (string) $response->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+    }
+
     public function test_the_csv_export_resolves_both_subject_types(): void
     {
         $this->record();
@@ -442,38 +454,14 @@ class RecordActivityLogTest extends TestCase
 
     // ------------------------------------------------------- the button's place
 
-    /**
-     * The reference mock has one export button in the header. Matching it means
-     * the header carries Export CSV alone, and the JSON control is a link rather
-     * than a second button.
-     */
-    public function test_the_header_carries_the_csv_export_alone(): void
+    public function test_the_header_has_a_unified_csv_and_pdf_export_dropdown_without_compliance_json(): void
     {
         $content = $this->get(route('records.logs'))->assertOk()->getContent() ?? '';
 
-        $this->assertStringContainsString('>Export CSV</button>', $content);
-        $this->assertStringNotContainsString(
-            '>Compliance JSON</button>',
-            $content,
-            'Compliance JSON is still a header button; the reference mock has one export.',
-        );
-        // Demoted, not removed: it is now an anchor in the filter bar.
-        $this->assertStringContainsString('>Compliance JSON</a>', $content);
-    }
-
-    /**
-     * The JSON export stays reachable — demoted, not removed.
-     */
-    public function test_the_json_export_moved_into_the_filter_bar(): void
-    {
-        $content = $this->get(route('records.logs'))->assertOk()->getContent() ?? '';
-
-        $this->assertStringContainsString('Compliance JSON', $content);
-        $this->assertStringContainsString(
-            'format=json',
-            $content,
-            'The JSON export link lost its filters.',
-        );
+        $this->assertStringContainsString('>Export</summary>', $content);
+        $this->assertStringContainsString('>Export CSV</a>', $content);
+        $this->assertStringContainsString('>Export PDF</a>', $content);
+        $this->assertStringNotContainsString('Compliance JSON', $content);
     }
 
     public function test_the_json_export_never_leaks_another_companys_entries(): void

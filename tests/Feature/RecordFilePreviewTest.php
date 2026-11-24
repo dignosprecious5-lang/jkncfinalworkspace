@@ -186,6 +186,22 @@ class RecordFilePreviewTest extends TestCase
         );
     }
 
+    public function test_the_download_route_forces_an_attachment_without_changing_preview_behavior(): void
+    {
+        $record = $this->filedRecord($this->realPdf('minutes.pdf'));
+        $file = $record->files()->firstOrFail();
+
+        $preview = $this->get(route('records.files.preview', ['file' => $file->id]));
+        $download = $this->get(route('records.files.download', ['file' => $file->id]));
+
+        $this->assertStringContainsString('inline;', (string) $preview->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('attachment;', (string) $download->headers->get('Content-Disposition'));
+        $this->assertSame(
+            Storage::disk($file->disk)->get($file->path),
+            $download->streamedContent(),
+        );
+    }
+
     public function test_the_file_route_gives_every_file_in_a_record_its_own_bytes(): void
     {
         $record = $this->filedRecord($this->realPdf('minutes.pdf'));
@@ -296,11 +312,15 @@ class RecordFilePreviewTest extends TestCase
 
         // One row template for supporting files, one for version history, and the
         // master chip. Each is bound to that row's own file, not the record's.
-        $this->assertSame(2, substr_count($content, 'x-bind:href="file.previewUrl"'));
+        $this->assertSame(2, substr_count($content, 'x-bind:href="file.renderedUrl || file.previewUrl"'));
+        $this->assertSame(2, substr_count($content, 'x-bind:href="file.downloadUrl"'));
 
         // Two, not one: the preview pane's own Open File bar carries the same
         // expression as the Files tab's master chip.
-        $this->assertSame(2, substr_count($content, 'x-bind:href="master ? master.previewUrl'));
+        $this->assertSame(
+            2,
+            substr_count($content, 'x-bind:href="master ? (master.renderedUrl || master.previewUrl)'),
+        );
     }
 
     // ---------------------------------------------------------------- helpers
