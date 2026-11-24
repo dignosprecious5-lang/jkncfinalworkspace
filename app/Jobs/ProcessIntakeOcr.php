@@ -123,6 +123,9 @@ class ProcessIntakeOcr implements ShouldQueue
                 if (blank($item->source) && ! empty($detected['source'])) {
                     $updates['source'] = $detected['source'];
                 }
+                if (blank($item->document_date) && ! empty($detected['document_date'])) {
+                    $updates['document_date'] = $detected['document_date'];
+                }
                 if (! empty($updates)) {
                     $item->forceFill($updates)->save();
                 }
