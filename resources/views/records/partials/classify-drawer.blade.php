@@ -46,9 +46,9 @@
                  workspace, so one reader moving between the two drawers sees the
                  document presented identically on both. --}}
             <section class="flex min-h-0 min-w-0 flex-col border-r border-ordo-line bg-white max-[980px]:border-r-0 max-[980px]:border-b">
-                <div class="border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
-                    <h3 class="m-0 text-[15px] font-bold">Document Preview</h3>
-                    <p class="mt-1.25 mb-0 text-[10px] text-[#8b94a3]">
+                <div class="border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
+                    <h3 class="m-0 text-base font-bold text-gray-900">Document Preview</h3>
+                    <p class="mt-1 mb-0 text-xs text-gray-500">
                         Review the uploaded file while encoding its records information.
                     </p>
                 </div>
@@ -134,9 +134,9 @@
                             {{-- Read-only, for the same reason as the record drawer:
                                  extracted text is the record of what the document
                                  said and is not something to edit in place. --}}
-                            <div class="flex h-full min-h-[500px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
+                            <div class="flex h-full min-h-[520px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
                                 <template x-if="master && master.ocrText">
-                                    <div class="flex h-full min-h-0 flex-col">
+                                    <div class="flex h-full min-h-[480px] flex-col">
                                         <div class="mb-3 flex items-center gap-2 border-b border-ordo-line pb-2.5" x-show="showOcrSearch" x-cloak>
                                             <div class="relative flex-1">
                                                 <span class="absolute left-2.5 top-2 text-[12px] text-ordo-muted">⌕</span>
@@ -148,16 +148,12 @@
                                                 <span class="shrink-0 text-[10px] text-ordo-muted"
                                                       x-text="ocrMatchCount + (ocrMatchCount === 1 ? ' match' : ' matches')"></span>
                                             </template>
-                                            <template x-if="ocrSearchQuery">
-                                                <button type="button" x-on:click="ocrSearchQuery = ''"
-                                                        class="px-1.5 py-1 text-[10px] text-ordo-muted hover:text-ordo-ink">Clear</button>
-                                            </template>
                                             <button type="button" x-on:click="closeOcrSearch()"
                                                     class="px-1.5 py-1 text-[13px] leading-none text-ordo-muted hover:text-ordo-ink"
                                                     title="Close search (Esc)">&times;</button>
                                         </div>
-                                        <div class="min-h-0 flex-1 overflow-auto rounded-lg border border-ordo-line bg-[#f8fafc] p-3.5 shadow-2xs">
-                                            <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.6] text-ordo-ink"
+                                        <div class="min-h-[480px] flex-1 overflow-auto rounded-lg border border-gray-200 bg-[#f8fafc] p-4">
+                                            <pre class="whitespace-pre-wrap font-mono text-[12px] leading-[1.6] text-gray-800"
                                                  x-html="highlightedOcrText || escapeHtml(master?.ocrText || '')"></pre>
                                         </div>
                                     </div>
@@ -217,10 +213,10 @@
 
             {{-- ============ RIGHT: RECORD FORM ============ --}}
             <section class="flex min-h-0 min-w-0 flex-col bg-white">
-                <div class="flex items-start justify-between border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
+                <div class="flex items-start justify-between border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
                     <div class="min-w-0">
-                        <h3 id="classify-drawer-title" class="m-0 text-[15px] font-bold">Classify Document</h3>
-                        <p class="mt-1 mb-0 truncate text-[10px] text-ordo-muted" x-text="current ? current.title : 'Document'"></p>
+                        <h3 id="classify-drawer-title" class="m-0 text-base font-bold text-gray-900">Classify Document</h3>
+                        <p class="mt-1 mb-0 truncate text-xs text-gray-500" x-text="current ? current.title : 'Document'"></p>
                     </div>
                     <button type="button"
                             class="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-[20px] leading-none text-ordo-muted transition-colors hover:bg-[#f3f4f6] focus:outline-none focus-visible:ring-2 focus-visible:ring-ordo-blue"
@@ -326,27 +322,29 @@
                                    class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
                         </x-ordo.field>
 
-                        <x-ordo.field label="Source">
-                            <select name="source" x-model="form.source"
-                                    class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
-                                <option value="">Select source</option>
-                                @foreach ($sources as $option)
-                                    <option value="{{ $option->name }}">{{ $option->name }}</option>
-                                @endforeach
-                                <option value="Others">Others</option>
-                            </select>
-                        </x-ordo.field>
+                        <div class="flex flex-col gap-2.5">
+                            <x-ordo.field label="Source">
+                                <select name="source" x-model="form.source"
+                                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
+                                    <option value="">Select source</option>
+                                    @foreach ($sources as $option)
+                                        <option value="{{ $option->name }}">{{ $option->name }}</option>
+                                    @endforeach
+                                    <option value="Others">Others</option>
+                                </select>
+                            </x-ordo.field>
 
-                        <x-ordo.field label="Specify Source" full x-show="form.source === 'Others'" x-cloak>
-                            <input type="text" name="source_other" maxlength="255" x-model="form.source_other"
-                                   x-bind:required="form.source === 'Others'"
-                                   x-bind:aria-invalid="fieldError('source_other') ? 'true' : 'false'"
-                                   x-bind:class="fieldError('source_other') ? 'border-[#b42318]' : ''"
-                                   placeholder="Enter the source name"
-                                   class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-                            <p x-show="fieldError('source_other')" x-cloak
-                               class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('source_other')"></p>
-                        </x-ordo.field>
+                            <x-ordo.field label="Specify Source" x-show="form.source === 'Others'" x-cloak>
+                                <input type="text" name="source_other" maxlength="255" x-model="form.source_other"
+                                       x-bind:required="form.source === 'Others'"
+                                       x-bind:aria-invalid="fieldError('source_other') ? 'true' : 'false'"
+                                       x-bind:class="fieldError('source_other') ? 'border-[#b42318]' : ''"
+                                       placeholder="Enter the source name"
+                                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                                <p x-show="fieldError('source_other')" x-cloak
+                                   class="mt-1 text-[10px] text-[#b42318]" x-text="fieldError('source_other')"></p>
+                            </x-ordo.field>
+                        </div>
                     </div>
 
                     {{-- Advanced Details stays collapsed until the index asks for it, and

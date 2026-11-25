@@ -103,7 +103,7 @@ class DealCatalogSelection
                     'service_identifications' => $type === 'SERVICE' ? $this->serviceIdentifications($model, $areas) : [],
                     'linked_service_ids' => $type === 'PRODUCT' ? array_values(array_unique(array_merge(
                         ServiceCatalogConfiguration::list($row['linked_service_ids'] ?? null), isset($row['linked_service_id']) ? [$row['linked_service_id']] : []))) : [],
-                    'service_area' => $this->areas($row[$type === 'PRODUCT' ? 'product_area' : 'service_area'] ?? null, $row[$type === 'PRODUCT' ? 'product_area_other' : 'service_area_other'] ?? null),
+                    'service_area' => $this->areas($type === 'PRODUCT' ? ($row['product_area'] ?? $row['service_area'] ?? null) : ($row['service_area'] ?? null), $row[$type === 'PRODUCT' ? 'product_area_other' : 'service_area_other'] ?? null),
                     'selectable' => $active, 'retained' => $isRetained, 'diagnostics' => $configuration['diagnostics'],
                 ];
             }

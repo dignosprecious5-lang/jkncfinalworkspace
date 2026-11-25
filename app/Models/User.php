@@ -115,6 +115,11 @@ class User extends Authenticatable
         return strtolower((string) $this->role) === 'admin';
     }
 
+    public function canApprove(): bool
+    {
+        return $this->isSuperAdmin() || $this->isAdmin();
+    }
+
     public function isEmployee(): bool
     {
         return strtolower((string) $this->role) === 'employee';
@@ -217,13 +222,19 @@ class User extends Authenticatable
             return true;
         }
 
-        $userPermission = $this->userPermission;
+        if (\Illuminate\Support\Facades\Schema::hasTable('user_permissions')) {
+            $userPermission = $this->userPermission;
 
-        if ($userPermission && isset($userPermission->{$permission})) {
-            return (bool) $userPermission->{$permission};
+            if ($userPermission && isset($userPermission->{$permission})) {
+                return (bool) $userPermission->{$permission};
+            }
         }
 
-        $rolePermission = RolePermission::where('role', $this->role)->first();
+        if (! \Illuminate\Support\Facades\Schema::hasTable('role_permissions')) {
+            return false;
+        }
+
+        $rolePermission = RolePermission::whereRaw('LOWER(role) = ?', [strtolower((string) $this->role)])->first();
 
         return $rolePermission && isset($rolePermission->{$permission})
             ? (bool) $rolePermission->{$permission}

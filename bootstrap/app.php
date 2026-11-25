@@ -30,6 +30,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'prevent-back-history' => \App\Http\Middleware\PreventBackHistory::class,
             'human-capital.module' => \App\Http\Middleware\HumanCapitalModuleAccess::class,
+            'ordo.context' => \App\Http\Middleware\ResolveCompanyContext::class,
+            'ordo.record' => \App\Http\Middleware\ScopedRecordLookup::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -41,6 +43,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('natgov:sync-reminders')->everyMinute();
         $schedule->command('activities:dispatch-reminders')->everyMinute();
         $schedule->command('activities:generate-recurring')->hourly();
+        $schedule->command('services:instantiate-periods')
+            ->dailyAt('00:15')
+            ->timezone(config('app.timezone', 'Asia/Manila'))
+            ->withoutOverlapping();
+        $schedule->command('services:send-reminders')
+            ->dailyAt('08:00')
+            ->timezone(config('app.timezone', 'Asia/Manila'))
+            ->withoutOverlapping();
+        $schedule->command('products:send-reminders')
+            ->dailyAt('08:05')
+            ->timezone(config('app.timezone', 'Asia/Manila'))
+            ->withoutOverlapping();
         $schedule->call(function (): void {
             if (! \App\Services\Gmail\GmailTransport::enabled()) {
                 return;

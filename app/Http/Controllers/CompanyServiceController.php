@@ -17,10 +17,30 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class CompanyServiceController extends Controller
+class CompanyServiceController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [new Middleware(function ($request, $next) {
+            $user = $request->user();
+            abort_unless(
+                $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_services')),
+                403
+            );
+            if (! $request->isMethod('GET')) {
+                abort_unless(
+                    $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('create_sales_marketing'),
+                    403
+                );
+            }
+
+            return $next($request);
+        })];
+    }
     private const SERVICE_AREA_OPTIONS = [
         'Corporate & Regulatory Advisory',
         'Governance & Policy Advisory',

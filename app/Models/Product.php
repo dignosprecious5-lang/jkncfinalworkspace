@@ -2,79 +2,302 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\ProductTerm;
+use App\Models\ProductCustomField;
 
 class Product extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'product_id',
-        'product_name',
+        // =========================================================
+        // PRODUCT BASIC INFORMATION
+        // =========================================================
+        'name',
+        'short_name',
+        'sku',
         'product_type',
-        'linked_service_id',
-        'linked_service_ids',
-        'deal_id',
-        'product_area',
-        'product_area_other',
-        'product_description',
-        'product_inclusions',
-        'requirements',
-        'requirement_category',
+        'service_area',
         'category',
         'pricing_type',
-        'price',
-        'cost',
-        'is_discountable',
-        'tax_type',
         'tax_treatment',
-        'sku',
+
+        // =========================================================
+        // INVENTORY BASIC INFORMATION
+        // =========================================================
         'inventory_type',
-        'stock_qty',
-        'unit',
+        'inventory_stock',
+
+        // =========================================================
+        // PRODUCT OVERVIEW
+        // =========================================================
+        'description',
+        'internal_description',
+        'client_description',
+        'purpose',
+        'when_to_use',
+        'what_product_is_not',
+        'expected_turnaround',
+        'effective_date',
+
+        // =========================================================
+        // PRODUCT CATALOG
+        // =========================================================
+        'scope_of_work',
+        'deliverables',
+        'client_responsibilities',
+        'exclusions',
+
+        // =========================================================
+        // INVENTORY SPECIFICATIONS
+        // =========================================================
+        'unit_measure',
+        'stock_tracking',
+        'reorder_level',
+        'current_stock',
+        'minimum_stock',
+        'maximum_stock',
+        'warehouse_location',
+        'storage_location',
+        'stock_status',
+
+        // =========================================================
+        // STEP 6 — PRODUCT COMMERCIALS
+        // =========================================================
+        'pricing_model',
+        'currency',
+        'price',
+        'minimum_price',
+        'maximum_price',
+        'cost_per_unit',
+        'expected_margin',
+        'discount_allowed',
+        'max_discount_without_approval',
+        'expected_hours',
+        'payment_structure',
+        'payment_structure_custom',
+        'payment_notes',
+
+        // =========================================================
+        // STEP 7 — ENGAGEMENT
+        // =========================================================
+        'instantiation_execution_mode',
+        'recurrence_frequency',
+        'recurrence_frequency_custom',
+        'billing_frequency',
+        'billing_frequency_custom',
+        'reporting_frequency',
+        'reporting_frequency_custom',
+        'auto_carryover',
+
+        // =========================================================
+        // STEP 8 — REPORTING
+        // =========================================================
+        'project_reporting_type',
+        'report_scope',
+
+        // =========================================================
+        // STEP 9 — AUTOMATION
+        // =========================================================
+        'base_reference_date',
+        'lead_time_generation',
+        'default_auto_assignment_rule',
+        'auto_carryover_automation',
+        'internal_reminder_trigger',
+        'client_followup_cadence',
+        'notification_channel',
+        'overdue_escalation_threshold',
+        'escalation_recipient_role',
+        'missing_requirements_gate_rule',
+
+        // =========================================================
+        // STATUS
+        // =========================================================
         'status',
-        'owner_id',
-        'created_by',
-        'reviewed_by',
-        'reviewed_at',
-        'approved_by',
-        'approved_at',
-        'custom_field_values',
     ];
 
     protected $casts = [
         'product_area' => 'array',
-        'linked_service_ids' => 'array',
-        'requirements' => 'array',
-        'is_discountable' => 'boolean',
-        'price' => 'decimal:2',
-        'cost' => 'decimal:2',
-        'reviewed_at' => 'datetime',
-        'approved_at' => 'datetime',
-        'custom_field_values' => 'array',
+        'effective_date' => 'date',
+        'inventory_stock' => 'integer',
+        'reorder_level' => 'integer',
+        'minimum_stock' => 'integer',
+        'maximum_stock' => 'integer',
+
+        // =========================================================
+        // STEP 6 — PRODUCT COMMERCIALS
+        // =========================================================
+        'minimum_price' => 'decimal:2',
+        'maximum_price' => 'decimal:2',
+        'cost_per_unit' => 'decimal:2',
+        'expected_margin' => 'decimal:2',
+        'expected_hours' => 'decimal:2',
     ];
 
-    public function service(): BelongsTo
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted()
     {
-        return $this->belongsTo(Service::class, 'linked_service_id');
+        static::creating(function (Product $product) {
+            $isLegacySchema = \Illuminate\Support\Facades\Schema::hasColumn('products', 'product_id');
+
+            if ($isLegacySchema && empty($product->product_id)) {
+                do {
+                    $candidate = (string) mt_rand(10000, 99999);
+                } while (static::where('product_id', $candidate)->exists());
+                $product->product_id = $candidate;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'product_name')) {
+                if (empty($product->product_name) && ! empty($product->name)) {
+                    $product->product_name = $product->name;
+                } elseif (empty($product->name) && ! empty($product->product_name)) {
+                    $product->name = $product->product_name;
+                }
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'product_area') && empty($product->product_area)) {
+                $area = $product->service_area;
+                $product->product_area = is_array($area) ? $area : (filled($area) ? [trim((string) $area)] : ['General']);
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'product_description') && empty($product->product_description)) {
+                $product->product_description = $product->description ?: ($product->name ?: 'Product Description');
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'category') && empty($product->category)) {
+                $product->category = 'General';
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'product_type') && empty($product->product_type)) {
+                $invType = mb_strtolower(trim((string) ($product->inventory_type ?? '')));
+                $isPhysical = in_array($invType, ['physical', 'tracked', 'stocked', 'inventory', 'goods'], true)
+                    || ((int) ($product->inventory_stock ?? 0) > 0);
+                $product->product_type = $isPhysical ? 'Physical' : 'General';
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'pricing_type') && empty($product->pricing_type)) {
+                $product->pricing_type = 'Fixed';
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'tax_type') && empty($product->tax_type)) {
+                $product->tax_type = $product->tax_treatment ?: 'Tax Exclusive';
+            }
+            if ($isLegacySchema && \Illuminate\Support\Facades\Schema::hasColumn('products', 'inventory_type') && empty($product->inventory_type)) {
+                $product->inventory_type = 'Non-Tracked';
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'price') && ($product->attributes['price'] ?? null) === null) {
+                $product->price = 0;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'stock_qty') && ($product->attributes['stock_qty'] ?? null) === null) {
+                $product->stock_qty = (int) ($product->inventory_stock ?? 0);
+            }
+        });
+
+        static::updating(function (Product $product) {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'product_name') && $product->isDirty('name') && filled($product->name)) {
+                $product->product_name = $product->name;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'product_area') && $product->isDirty('service_area')) {
+                $area = $product->service_area;
+                $product->product_area = is_array($area) ? $area : (filled($area) ? [trim((string) $area)] : ['General']);
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'stock_qty') && $product->isDirty('inventory_stock')) {
+                $product->stock_qty = (int) ($product->inventory_stock ?? 0);
+            }
+        });
+
+        static::updated(function ($product) {
+            if (class_exists(\App\Models\AuditLog::class)) {
+                try {
+                    \App\Models\AuditLog::log(
+                        'Workspace Saved',
+                        'Workspace',
+                        'Updated information in product workspace.'
+                    );
+                } catch (\Exception $e) {
+                    // Fallback to create if AuditLog::log signature differs
+                    \App\Models\AuditLog::create([
+                        'product_id' => $product->id,
+                        'action'     => 'Workspace Saved',
+                        'details'    => 'Updated information in product workspace.',
+                        'user_name'  => auth()->user()->name ?? 'System User',
+                    ]);
+                }
+            }
+        });
     }
 
-    public function deal(): BelongsTo
+    // =========================================================
+    // PRODUCT ACTIVITIES / WORKFLOW
+    // =========================================================
+
+    public function activities(): HasMany
     {
-        return $this->belongsTo(Deal::class, 'deal_id');
+        return $this->hasMany(ProductActivity::class)
+            ->orderBy('sequence');
     }
 
-    public function creator(): BelongsTo
+    // =========================================================
+    // PRODUCT REQUIREMENTS
+    // =========================================================
+
+    public function requirements(): HasMany
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->hasMany(ProductRequirement::class)
+            ->orderBy('sequence');
+    }
+ // =========================================================
+    // CUSTOM FIELD
+    // =========================================================
+
+public function customFields(): \Illuminate\Database\Eloquent\Relations\HasMany
+{
+    return $this->hasMany(ProductCustomField::class);
+}
+    // =========================================================
+    // PRODUCT VERSIONS / HISTORY
+    // =========================================================
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ProductVersion::class)
+            ->orderByDesc('id');
     }
 
-    public function reviewer(): BelongsTo
+    // =========================================================
+    // PRODUCT COMMERCIAL & PERFORMANCE RELATIONSHIPS
+    // =========================================================
+
+    public function deals(): HasMany
     {
-        return $this->belongsTo(User::class, 'reviewed_by');
+        return $this->hasMany(Deal::class, 'product_id');
     }
 
-    public function approver(): BelongsTo
+    public function proposals(): HasMany
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->hasMany(Proposal::class, 'product_id');
+    }
+
+    public function engagements(): HasMany
+    {
+        return $this->hasMany(Engagement::class, 'product_id');
+    }
+
+    public function billings(): HasMany
+    {
+        return $this->hasMany(Billing::class, 'product_id');
+    }
+
+    public function collections(): HasMany
+    {
+        return $this->hasMany(Collection::class, 'product_id');
+    }
+
+    // =========================================================
+    // PRODUCT TERMS & AGREEMENTS
+    // =========================================================
+
+    public function terms(): HasMany
+    {
+        return $this->hasMany(ProductTerm::class)
+            ->orderBy('sort_order');
     }
 }

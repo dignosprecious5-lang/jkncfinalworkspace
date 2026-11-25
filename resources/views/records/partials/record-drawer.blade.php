@@ -29,9 +29,9 @@
                  so a full page of a document is actually visible without the pane
                  scrolling first. --}}
             <section class="flex min-h-0 min-w-0 flex-col border-r border-ordo-line bg-white max-[980px]:border-r-0 max-[980px]:border-b">
-                <div class="border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
-                    <h3 class="m-0 text-[15px] font-bold">Document Preview</h3>
-                    <p class="mt-1.25 mb-0 text-[10px] text-[#8b94a3]">
+                <div class="border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
+                    <h3 class="m-0 text-base font-bold text-gray-900">Document Preview</h3>
+                    <p class="mt-1 mb-0 text-xs text-gray-500">
                         View the stored master file and extracted OCR text.
                     </p>
                 </div>
@@ -121,9 +121,9 @@
                                  record of what the document said; the reference mock
                                  lets a reader overwrite it in place, which would let
                                  the evidence be edited without trace. --}}
-                            <div class="flex h-full min-h-[500px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
+                            <div class="flex h-full min-h-[520px] flex-col overflow-hidden p-3.5" x-show="pane === 'ocr'" x-cloak>
                                 <template x-if="master && master.ocrText">
-                                    <div class="flex h-full min-h-0 flex-col">
+                                    <div class="flex h-full min-h-[480px] flex-col">
                                         <div class="mb-3 flex items-center gap-2 border-b border-ordo-line pb-2.5" x-show="showOcrSearch" x-cloak>
                                             <div class="relative flex-1">
                                                 <span class="absolute left-2.5 top-2 text-[12px] text-ordo-muted">⌕</span>
@@ -143,8 +143,8 @@
                                                     class="px-1.5 py-1 text-[13px] leading-none text-ordo-muted hover:text-ordo-ink"
                                                     title="Close search (Esc)">&times;</button>
                                         </div>
-                                        <div class="min-h-0 flex-1 overflow-auto rounded-lg border border-ordo-line bg-[#f8fafc] p-3.5 shadow-2xs">
-                                            <pre class="whitespace-pre-wrap font-mono text-[11px] leading-[1.6] text-ordo-ink"
+                                        <div class="min-h-[480px] flex-1 overflow-auto rounded-lg border border-gray-200 bg-[#f8fafc] p-4">
+                                            <pre class="whitespace-pre-wrap font-mono text-[12px] leading-[1.6] text-gray-800"
                                                  x-html="highlightedOcrText || escapeHtml(master?.ocrText || '')"></pre>
                                         </div>
                                     </div>
@@ -206,10 +206,10 @@
 
             {{-- ============ RIGHT: TABBED WORKSPACE ============ --}}
             <section class="flex min-h-0 min-w-0 flex-col bg-white">
-                <div class="flex items-start justify-between border-b border-ordo-line px-[22px] pb-[18px] pt-[22px]">
+                <div class="flex items-start justify-between border-b border-gray-200 px-[22px] pb-[18px] pt-[22px] bg-white">
                     <div class="min-w-0">
-                        <h3 id="record-drawer-title" class="m-0 text-[15px] font-bold" x-text="current ? current.title : 'Record'"></h3>
-                        <p class="mt-1 mb-0 truncate text-[10px] text-ordo-muted" x-text="current ? subtitle() : ''"></p>
+                        <h3 id="record-drawer-title" class="m-0 text-base font-bold text-gray-900" x-text="current ? current.title : 'Record'"></h3>
+                        <p class="mt-1 mb-0 truncate text-xs text-gray-500" x-text="current ? subtitle() : ''"></p>
                     </div>
                     <button type="button"
                             class="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-[20px] leading-none text-ordo-muted transition-colors hover:bg-[#f3f4f6] focus:outline-none focus-visible:ring-2 focus-visible:ring-ordo-blue"

@@ -47,6 +47,13 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminUserPermissionController;
 use App\Http\Controllers\AccountAuditLogController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductExportController;
+use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\ProductTermController;
+use App\Http\Controllers\ProductVersionController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ServiceTermController;
+use App\Http\Controllers\ServiceWorkspaceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RegularController;
 use App\Http\Controllers\RolePermissionController;
@@ -663,24 +670,118 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/regular/{regular}/ntp/submission', [RegularController::class, 'showNtpSubmission'])->name('regular.ntp.submission');
     Route::post('/regular/{regular}/ntp/manual-approve', [RegularController::class, 'manualApproveNtp'])->name('regular.ntp.manual-approve');
 
+    /*
+    |--------------------------------------------------------------------------
+    | SERVICES & PRODUCTS UNIFIED CATALOG ROUTES (ORDO V2)
+    |--------------------------------------------------------------------------
+    */
+    Route::controller(ServiceController::class)->group(function () {
+        Route::get('/services', 'index')->name('services.index');
+        Route::post('/services', 'store')->name('services.store');
+        Route::get('/services/reports', 'reports')->name('services.reports');
+        Route::get('/services/reports/export-csv', 'exportReportsCsv')->name('services.reports.export_csv');
+        Route::get('/services/reports/export-pdf', 'exportReportsPdf')->name('services.reports.export_pdf');
+        Route::get('/services/export-csv', 'exportDashboardCsv')->name('services.export_csv');
+        Route::get('/services/export-pdf', 'exportDashboardPdf')->name('services.export_pdf');
+        Route::get('/services/export-all', 'exportAllCatalog')->name('services.export_all');
+        Route::post('/services/import', 'import')->name('services.import');
+        Route::delete('/services/global-requirements/{globalRequirement}', 'destroyGlobalRequirement')->name('services.global_requirements.destroy');
+
+        Route::get('/services/{service}', 'show')->name('services.show');
+        Route::get('/services/{service}/workspace', 'workspace')->name('services.workspace');
+        Route::post('/services/{service}/version-update', 'updateVersion')->name('services.version.update');
+        Route::put('/services/{service}/version-update', 'updateVersion');
+        Route::get('/services/{service}/audit-logs', 'getAuditLogs')->name('services.audit_logs');
+        Route::post('/services/{service}/submit-approval', 'submitForApproval')->name('services.submit_approval');
+        Route::post('/services/{service}/approve', 'approve')->name('services.approve');
+        Route::post('/services/{service}/reject', 'reject')->name('services.reject');
+        Route::post('/services/{service}/custom-fields', 'storeCustomField')->name('services.custom-fields.store');
+
+        Route::post('/services/{service}/activities', 'storeActivity')->name('services.activities.store');
+        Route::put('/services/activities/{activity}', 'updateActivity')->name('services.activities.update');
+        Route::delete('/services/activities/{activity}', 'destroyActivity')->name('services.activities.destroy');
+        Route::post('/services/{service}/activities/bulk-import', 'bulkImportActivities')->name('services.activities.bulk_import');
+        Route::post('/services/{service}/activities/bulk-action', 'bulkActionActivities')->name('services.activities.bulk_action');
+        Route::delete('/services/{service}/activities/bulk-destroy', 'bulkDestroyActivities')->name('services.activities.bulk_destroy');
+        Route::delete('/services/{service}/activities/destroy-all', 'destroyAllActivities')->name('services.activities.destroy_all');
+
+        Route::get('/services/{service}/inherited-terms', 'getInheritedTerms')->name('services.inherited_terms');
+        Route::post('/services/{service}/requirements', 'storeRequirement')->name('services.requirements.store');
+        Route::put('/services/requirements/{requirement}', 'updateRequirement')->name('services.requirements.update');
+        Route::delete('/services/requirements/{requirement}', 'destroyRequirement')->name('services.requirements.destroy');
+        Route::post('/services/{service}/requirements/bulk-template', 'bulkToTemplateLibrary')->name('services.requirements.bulk-template');
+
+        Route::post('/services/{service}/duplicate', 'duplicate')->name('services.duplicate');
+        Route::get('/services/{service}/usage', 'usage')->name('services.usage');
+        Route::get('/services/{service}/export', 'export')->name('services.export');
+        Route::get('/services/{service}/export-single', 'export')->name('services.export_single');
+        Route::match(['post', 'patch'], '/services/{service}/archive', 'archive')->name('services.archive');
+    });
+
+    // Service Terms & Templates (POST/PUT/PATCH/DELETE only — no state-changing GET)
+    Route::post('/service-versions/{serviceVersion}/terms', [ServiceTermController::class, 'store'])->name('service-terms.store');
+    Route::put('/service-terms/{serviceTerm}', [ServiceTermController::class, 'update'])->name('service-terms.update');
+    Route::post('/service-versions/{serviceVersion}/terms/{serviceTerm}/duplicate', [ServiceTermController::class, 'duplicate'])->name('service-terms.duplicate');
+    Route::patch('/service-terms/{serviceTerm}/disable', [ServiceTermController::class, 'disable'])->name('service-terms.disable');
+    Route::delete('/service-terms/{serviceTerm}', [ServiceTermController::class, 'destroy'])->name('service-terms.destroy');
+    Route::patch('/terms-templates/{termsTemplate}/disable', [ServiceTermController::class, 'disableTemplate'])->name('service-terms.template.disable');
+    Route::post('/service-versions/{serviceVersion}/terms/template', [ServiceTermController::class, 'storeTemplate'])->name('service-terms.template.store');
+    Route::post('/service-versions/{serviceVersion}/terms/apply-template', [ServiceTermController::class, 'applyTemplate'])->name('service-terms.template.apply');
+
+    // Products Module Routes (no state-changing GET, no unguarded closures)
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
-    Route::match(['put', 'patch'], '/products/{id}', [ProductController::class, 'update'])->name('products.update');
-    Route::delete('/products/{id}', [ProductController::class, 'destroy'])->name('products.destroy');
+    Route::get('/products/reports', [ProductController::class, 'reports'])->name('products.reports');
+    Route::get('/products/reports/export-csv', [ProductController::class, 'exportReportsCsv'])->name('products.reports.export_csv');
+    Route::get('/products/reports/export-pdf', [ProductController::class, 'exportReportsPdf'])->name('products.reports.export_pdf');
+    Route::get('/products/export-csv', [ProductExportController::class, 'exportCsvRoute'])->name('products.export.csv');
+    Route::get('/products/export-pdf', [ProductExportController::class, 'exportPdfRoute'])->name('products.export.pdf');
+    Route::get('/products/export-all', [ProductExportController::class, 'exportAll'])->name('products.export.all');
+    Route::get('/products/import', [ProductImportController::class, 'showImportForm'])->name('products.import.form');
+    Route::post('/products/import', [ProductImportController::class, 'storeImport'])->name('products.import.store');
+
+    Route::get('/products/{id}/workspace', [ProductController::class, 'workspace'])->name('products.workspace');
+    Route::post('/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
+    Route::patch('/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
+    Route::post('/products/{id}/submit-approval', [ProductController::class, 'submitApproval'])->name('products.submit-approval');
     Route::post('/products/{id}/approve', [ProductController::class, 'approve'])->name('products.approve');
     Route::post('/products/{id}/reject', [ProductController::class, 'reject'])->name('products.reject');
-    Route::post('/products/change-owner', [ProductController::class, 'changeOwner'])->name('products.change-owner');
-    Route::post('/products/custom-fields', [ProductController::class, 'storeCustomField'])->name('products.custom-fields.store');
-    Route::get('/products/{id}', [ProductController::class, 'show'])->name('products.show');
+    Route::post('/products/{id}/custom-fields', [ProductController::class, 'storeCustomField'])->name('products.custom-fields.store');
 
-    Route::get('/services', [CompanyServiceController::class, 'globalIndex'])->name('services.index');
-    Route::post('/services', [CompanyServiceController::class, 'storeGlobal'])->name('services.store');
-    Route::post('/services/custom-fields', [CompanyServiceController::class, 'storeCustomField'])->name('services.custom-fields.store');
-    Route::post('/services/{service}/approve', [CompanyServiceController::class, 'approveGlobal'])->name('services.approve');
-    Route::post('/services/{service}/reject', [CompanyServiceController::class, 'rejectGlobal'])->name('services.reject');
-    Route::get('/services/{service}', [CompanyServiceController::class, 'showGlobal'])->name('services.show');
-    Route::match(['put', 'patch'], '/services/{service}', [CompanyServiceController::class, 'updateGlobal'])->name('services.update');
-    Route::delete('/services/{service}', [CompanyServiceController::class, 'destroyGlobal'])->name('services.destroy');
+    Route::put('/products/{id}/overview', [ProductController::class, 'updateOverview'])->name('products.overview.update');
+    Route::put('/products/{id}/catalog', [ProductController::class, 'updateCatalog'])->name('products.catalog.update');
+    Route::put('/products/{id}/inventory', [ProductController::class, 'updateInventory'])->name('products.inventory.update');
+    Route::put('/products/{id}/commercials', [ProductController::class, 'updateCommercials'])->name('products.commercials.update');
+    Route::put('/products/{id}/engagement', [ProductController::class, 'updateEngagement'])->name('products.updateEngagement');
+    Route::put('/products/{id}/reporting', [ProductController::class, 'updateReporting'])->name('products.updateReporting');
+    Route::put('/products/{id}/automation', [ProductController::class, 'updateAutomation'])->name('products.updateAutomation');
+
+    Route::post('/products/{id}/requirements', [ProductController::class, 'storeRequirement'])->name('products.requirements.store');
+    Route::put('/products/{id}/requirements/{requirementId}', [ProductController::class, 'updateRequirement'])->name('products.requirements.update');
+    Route::delete('/products/{id}/requirements/{requirementId}', [ProductController::class, 'destroyRequirement'])->name('products.requirements.destroy');
+
+    Route::post('/products/{id}/activities', [ProductController::class, 'storeActivity'])->name('products.activities.store');
+    Route::put('/products/{id}/activities/{activityId}', [ProductController::class, 'updateActivity'])->name('products.activities.update');
+    Route::delete('/products/{id}/activities/{activityId}', [ProductController::class, 'destroyActivity'])->name('products.activities.destroy');
+    Route::post('/products/{id}/activities/bulk-import', [ProductController::class, 'bulkImportActivities'])->name('products.activities.bulk-import');
+
+    // Product Terms & Agreements
+    Route::post('/products/{product}/terms', [ProductTermController::class, 'store'])->name('product-terms.store');
+    Route::put('/product-terms/{productTerm}', [ProductTermController::class, 'update'])->name('product-terms.update');
+    Route::post('/products/{product}/terms/{productTerm}/duplicate', [ProductTermController::class, 'duplicate'])->name('product-terms.duplicate');
+    Route::patch('/product-terms/{productTerm}/disable', [ProductTermController::class, 'disable'])->name('product-terms.disable');
+    Route::delete('/products/{productTerm}/terms', [ProductTermController::class, 'destroy'])->name('product-terms.destroy');
+    Route::post('/products/{product}/terms/templates', [ProductTermController::class, 'storeTemplate'])->name('product-terms.templates.store');
+    Route::post('/products/{product}/terms/apply-template', [ProductTermController::class, 'applyTemplate'])->name('product-terms.apply-template');
+    Route::post('/products/{product}/terms/direct', [ProductTermController::class, 'store'])->name('products.terms.store');
+    Route::post('/products/{product}/terms/{productTerm}/save-as-template', [ProductTermController::class, 'saveAsTemplate'])->name('product-terms.save-as-template');
+    Route::patch('/terms-templates/{id}/disable', [ProductTermController::class, 'disableTemplate'])->name('terms-templates.disable');
+
+    // Product Versions
+    Route::get('/products/{product}/versions', [ProductVersionController::class, 'index'])->name('product-versions.index');
+    Route::post('/products/{product}/versions', [ProductVersionController::class, 'store'])->name('product-versions.store');
+    Route::patch('/product-versions/{productVersion}/activate', [ProductVersionController::class, 'activate'])->name('product-versions.activate');
+    Route::patch('/product-versions/{productVersion}/status', [ProductVersionController::class, 'updateStatus'])->name('product-versions.status');
 
     /*
     |--------------------------------------------------------------------------

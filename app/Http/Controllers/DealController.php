@@ -630,7 +630,7 @@ class DealController extends Controller
                 ->where('service_name', '!=', '');
 
             if (Schema::hasColumn('services', 'status')) {
-                $query->where('status', 'Active');
+                $query->whereRaw('LOWER(status) = ?', ['active']);
             }
 
             $services = $query->orderBy('service_name')->get();
@@ -721,7 +721,7 @@ class DealController extends Controller
                 ->where('product_name', '!=', '')
                 ->when(
                     Schema::hasColumn('products', 'status'),
-                    fn ($query) => $query->whereIn('status', ['Pending Approval', 'Active'])
+                    fn ($query) => $query->whereRaw('LOWER(status) = ?', ['active'])
                 )
                 ->orderBy('product_name')
                 ->get();

@@ -9,10 +9,30 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class CompanyProductController extends Controller
+class CompanyProductController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [new Middleware(function ($request, $next) {
+            $user = $request->user();
+            abort_unless(
+                $user && ($user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('access_product')),
+                403
+            );
+            if (! $request->isMethod('GET')) {
+                abort_unless(
+                    $user->isAdmin() || $user->isSuperAdmin() || $user->hasPermission('create_sales_marketing'),
+                    403
+                );
+            }
+
+            return $next($request);
+        })];
+    }
     public function index(Request $request, int $company): View
     {
         $companyData = $this->findCompany($company);

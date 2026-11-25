@@ -64,7 +64,9 @@ class ProductCatalogConfiguration
                     $diagnostics[] = "Product term {$row['id']}: missing immutable scope anchor; applicability requires review.";
                     continue;
                 }
-                $actual = ServiceCatalogConfiguration::value($product, $scope === 'service_area' ? 'product_area' : 'category');
+                $actual = $scope === 'service_area'
+                    ? (ServiceCatalogConfiguration::value($product, 'product_area') ?: ServiceCatalogConfiguration::value($product, 'service_area'))
+                    : ServiceCatalogConfiguration::value($product, 'category');
                 try {
                     $left = ServiceCatalogConfiguration::list($anchor);
                     $right = ServiceCatalogConfiguration::list($actual);

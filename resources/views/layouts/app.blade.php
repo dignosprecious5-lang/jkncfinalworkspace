@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -43,12 +43,12 @@
     </style>
 
     @if(file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @vite(['resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
     @stack('styles')
 </head>
 
-<body class="bg-gray-50 font-sans">
+<body class="h-full bg-gray-50 font-sans flex flex-col overflow-hidden">
     @php
         $user = Auth::user();
         $notificationsEnabled = \Illuminate\Support\Facades\Schema::hasTable('notifications');
@@ -164,14 +164,14 @@
     @endphp
 
     <!-- HEADER -->
-    <header class="h-16 bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div class="h-full px-4 flex items-center justify-between">
+    <header class="h-16 w-full bg-white border-b border-gray-200 shrink-0 z-50">
+        <div class="h-full px-4 flex items-center justify-between w-full">
 
-            <div class="flex items-center gap-3 w-[260px]">
+            <div class="flex items-center gap-3 w-[260px] shrink-0">
                 <img src="/images/imaglogo.png" class="h-10 w-auto" alt="Logo">
             </div>
 
-            <div class="flex-1 flex justify-center px-6">
+            <div class="flex-1 flex justify-center px-6 min-w-0">
                 <div class="relative w-full max-w-xl">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                     <input
@@ -182,7 +182,7 @@
                 </div>
             </div>
 
-            <div class="w-[260px] flex justify-end">
+            <div class="w-[260px] flex justify-end shrink-0">
                 <div class="flex items-center gap-4">
 
                     @include('partials.notification-bell')
@@ -235,7 +235,7 @@
         </div>
     </header>
 
-    <div class="flex h-[calc(100vh-4rem)]">
+    <div class="flex flex-1 min-h-0 w-full overflow-hidden">
 
         <!-- ENTERPRISE SIDEBAR -->
         <aside
@@ -264,7 +264,7 @@
             @mouseenter="if (sidebarCollapsed) sidebarHover = true"
             @mouseleave="if (sidebarCollapsed) sidebarHover = false"
             :class="expanded ? 'w-72' : 'w-20'"
-            class="bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
+            class="shrink-0 h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
         >
             <div class="px-3 py-4 border-b border-gray-100">
                 <div class="flex items-center gap-3">
@@ -523,7 +523,7 @@
 
         <!-- SECOND SIDEBAR -->
         @if(request()->routeIs('records*'))
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Record-Manager</p>
                 </div>
@@ -578,7 +578,7 @@
 
         <!-- SECOND SIDEBAR -->
         @if(request()->routeIs('townhall*'))
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Town Hall</p>
                 </div>
@@ -609,7 +609,7 @@
             </aside>
 
         @elseif(request()->routeIs('admin.*') && $canSeeAdminIcon)
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
 
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -791,7 +791,7 @@
             </aside>
 
         @elseif(request()->routeIs('finance*'))
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Finance</p>
                 </div>
@@ -878,7 +878,7 @@
             </aside>
 
         @elseif($isHumanCapitalSection && $canSeeHumanCapital)
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Human Capital</p>
                 </div>
@@ -1101,7 +1101,7 @@
             && Auth::user()->hasPermission('access_sales_marketing')
             && request()->routeIs('sales-marketing*')
         )
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incentive Management</p>
                 </div>
@@ -1142,7 +1142,7 @@
             && request()->routeIs('company.*')
             && ! request()->routeIs('company.index')
         )
-            <aside class="w-72 bg-white border-r border-gray-200 flex flex-col">
+            <aside class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Company</p>
                 </div>
@@ -1374,7 +1374,7 @@
             )
         )
             <aside x-data="{ scrollCorporateNav(amount) { this.$refs.corporateNav?.scrollBy({ top: amount, behavior: 'smooth' }); } }"
-                   class="w-72 bg-white border-r border-gray-200 flex flex-col">
+                   class="w-72 shrink-0 h-full bg-white border-r border-gray-200 flex flex-col">
                 <div class="px-4 py-3 border-b border-gray-100">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Corporate</p>
                 </div>
@@ -1484,11 +1484,20 @@
         @endif
 
         <!-- MAIN CONTENT -->
-        <main class="flex-1 min-w-0 overflow-y-auto">
+        <main class="flex-1 min-w-0 h-full overflow-y-auto overflow-x-auto bg-gray-50">
             @yield('content')
         </main>
 
     </div>
+
+    @if(request()->routeIs('records*'))
+        @php
+            $setupTabUrl = route('records.setup.tab', ['tab' => '__TAB__']);
+            $setupInitialTab = session('setup_tab', 'classifications');
+            $setupInitiallyOpen = session()->has('setup_tab');
+        @endphp
+        @include('records.partials.setup-modal')
+    @endif
 
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

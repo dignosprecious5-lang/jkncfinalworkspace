@@ -1,1084 +1,821 @@
 @extends('layouts.app')
-@section('title', 'Services')
 
 @section('content')
 @php
-    $isAdminReviewer = false;
-    $statusClasses = [
-        'Pending Approval' => 'border-amber-200 bg-amber-50 text-amber-700',
-        'Draft' => 'border-slate-200 bg-slate-50 text-slate-700',
-        'Active' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        'Inactive' => 'border-amber-200 bg-amber-50 text-amber-700',
-        'Rejected' => 'border-rose-200 bg-rose-50 text-rose-700',
-        'Archived' => 'border-rose-200 bg-rose-50 text-rose-700',
+    /**
+     * Services Catalog Dashboard View
+     * Fully Compliant with ORDO Services Module V2 Specification
+     */
+
+    // 1. Data Initialization & Fallbacks
+    $serviceList = isset($services) ? $services : [];
+    $counts = isset($allServicesCount) ? $allServicesCount : [
+        'incomplete' => 0, 'draft' => 0, 'for_approval' => 0, 'active' => 0, 'archived' => 0
     ];
+    $insightData = isset($insights) ? $insights : [];
 @endphp
 
-<div class="px-6 py-6 lg:px-8">
-    <div class="mx-auto max-w-[1600px]">
-    <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-            <h1 class="text-3xl font-semibold tracking-tight text-gray-900">{{ $isAdminReviewer ? 'Services Review' : 'Services' }}</h1>
-            <p class="mt-1 text-sm text-gray-500">
-                {{ $isAdminReviewer
-                    ? 'Review submitted services, then approve or reject them before they become active in the catalog.'
-                    : 'Standardized service catalog with configurable fields, routing, scheduling, and pricing.' }}
-            </p>
-        </div>
-        <button type="button" id="openGlobalServiceModalCreate" class="inline-flex h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
-            <i class="fas fa-plus mr-2 text-xs"></i> Add Service
+<div class="services-catalog-page min-w-0 w-full px-4 py-5 sm:px-6 lg:px-8">
+{{-- 2. Success Flash Notification --}}
+@if (session('success'))
+    <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 px-4 py-2.5 rounded text-xs font-semibold shadow-sm mb-4 flex items-center justify-between">
+        <span><i class="fa-solid fa-circle-check mr-2"></i> {{ session('success') }}</span>
+    </div>
+@endif
+
+{{-- 3. Header Section & Action Buttons --}}
+<div class="mb-7 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900">Services Catalog</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Standardized service catalog with configurable fields, routing, scheduling, and pricing.</p>
+        <button type="button" onclick="document.getElementById('whatIsServiceModal').classList.remove('hidden')" class="text-xs text-blue-600 font-semibold hover:underline mt-1 inline-block cursor-pointer">
+            What is a Service?
         </button>
     </div>
+    
+    <div class="flex flex-wrap items-center gap-2">
+        {{-- REPORTS BUTTON --}}
+        <button type="button" onclick="window.location.href='{{ route('services.reports') }}'" class="relative z-20 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+            <i class="fa-solid fa-chart-pie text-blue-600 text-xs"></i>
+            <span>Reports</span>
+        </button>
 
-    @if (session('services_success'))
-        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('services_success') }}
-        </div>
-    @endif
+        {{-- BULK ACTIONS DROPDOWN MENU --}}
+        <div class="relative inline-block text-left">
+            <button type="button" 
+                    onclick="toggleBulkActionsMenu(event)" 
+                    class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+                <i class="fa-solid fa-layer-group text-slate-500 text-xs"></i>
+                <span>Bulk Actions</span>
+                <i class="fa-solid fa-chevron-down text-[9px] text-slate-400 ml-1"></i>
+            </button>
 
-    <div class="mb-6 grid gap-3 xl:grid-cols-3">
-        <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Active Services</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['active'] }}</p>
+            <div id="bulkActionsMenu" 
+                 class="hidden absolute right-0 mt-1.5 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 text-xs font-medium text-slate-700 divide-y divide-slate-100">
+                
+                <!-- Bulk Import Services Option -->
+                <button type="button" 
+                        onclick="document.getElementById('importServiceModal').classList.remove('hidden'); document.getElementById('bulkActionsMenu').classList.add('hidden')" 
+                        class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-file-import text-blue-600 w-4 text-center"></i>
+                    <span>Bulk Import Services</span>
+                </button>
+
+                <!-- Bulk Export Options Group -->
+                <div class="py-1">
+                    <!-- Export to CSV -->
+                    <a href="{{ Route::has('services.export_all') ? route('services.export_all', ['format' => 'csv']) : url('/services/export-all?format=csv') }}" 
+                       onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
+                       class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-csv text-emerald-600 w-4 text-center"></i>
+                        <span>Export to CSV</span>
+                    </a>
+
+                    <!-- Export to PDF -->
+                    <a href="{{ Route::has('services.export_all') ? route('services.export_all', ['format' => 'pdf']) : url('/services/export-all?format=pdf') }}" 
+                       onclick="document.getElementById('bulkActionsMenu').classList.add('hidden')"
+                       class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center space-x-2.5 transition text-slate-700 cursor-pointer block">
+                        <i class="fa-solid fa-file-pdf text-rose-600 w-4 text-center"></i>
+                        <span>Export to PDF</span>
+                    </a>
+                </div>
+            </div>
         </div>
-        <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pending Approval</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['pending'] }}</p>
+
+        {{-- QUICK ADD BUTTON --}}
+        <button onclick="document.getElementById('quickAddModal').classList.remove('hidden')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded shadow-sm transition flex items-center space-x-1 cursor-pointer">
+            <span>+ Quick Add</span>
+        </button>
+    </div>
+</div>
+
+{{-- 4. Detailed Insights Cards (Updated to Grid to display all dynamic metrics) --}}
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
+    @php
+        $mostPurchasedName = $insightData['most_purchased']['name'] ?? 'No data yet';
+        $purchasedCount = $insightData['most_purchased']['count'] ?? 0;
+
+        $highestName = $insightData['highest_revenue']['name'] ?? 'No data yet';
+        $highestPrice = isset($insightData['highest_revenue']['amount']) ? number_format($insightData['highest_revenue']['amount'], 2) : '0.00';
+
+        $laborName = $insightData['most_labor_intensive']['name'] ?? 'No data yet';
+        $laborHours = $insightData['most_labor_intensive']['hours'] ?? 0;
+
+        $discountName = $insightData['most_discounted']['name'] ?? 'No data yet';
+        $maxDiscount = $insightData['most_discounted']['events'] ?? 0;
+
+        $marginName = $insightData['highest_margin']['name'] ?? 'No data yet';
+        $marginPct = $insightData['highest_margin']['percentage'] ?? 0;
+
+        $fastestName = $insightData['fastest_growing']['name'] ?? 'No data yet';
+        $fastestRate = $insightData['fastest_growing']['rate'] ?? 'No growth data';
+
+        $decliningName = $insightData['declining_services']['name'] ?? 'No data yet';
+        $decliningTrend = $insightData['declining_services']['trend'] ?? 'No trend data';
+    @endphp
+
+    {{-- Most Purchased Service --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Purchased Service</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $mostPurchasedName }}">{{ $mostPurchasedName }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $purchasedCount }} Active Contracts</div>
+    </div>
+
+    {{-- Highest Priced Service --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Priced Service</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $highestName }}">{{ $highestName }}</p>
+        <div class="text-xs text-slate-800 font-semibold mt-1">₱{{ $highestPrice }}</div>
+    </div>
+
+    {{-- Most Labor Intensive --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Labor Intensive</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $laborName }}">{{ $laborName }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $laborHours }} Expected Hours</div>
+    </div>
+
+    {{-- Most Discounted Service --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Discounted Service</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $discountName }}">{{ $discountName }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $maxDiscount }} Max Discount</div>
+    </div>
+
+    {{-- Highest Margin Service --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Highest Margin Service</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $marginName }}">{{ $marginName }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $marginPct }}% Margin</div>
+    </div>
+
+    {{-- Fastest Growing / Declining Services --}}
+    <div class="min-h-28 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Fastest Growing & Inactive</span>
+        <p class="mt-1 break-words font-bold text-slate-900 text-sm leading-snug" title="{{ $fastestName }}">{{ $fastestName }}</p>
+        <div class="text-xs text-slate-700 font-semibold mt-1">{{ $fastestRate }} | {{ $decliningName }}</div>
+    </div>
+</div>
+
+{{-- 5. Status Metrics Cards (5 Columns Filter) --}}
+<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 xl:gap-4">
+    @php
+        $statusMap = [
+            'incomplete'   => ['label' => 'Incomplete', 'color' => 'slate'],
+            'draft'        => ['label' => 'Draft', 'color' => 'slate'],
+            'for_approval' => ['label' => 'For Approval', 'color' => 'slate'],
+            'active'       => ['label' => 'Active', 'color' => 'slate'],
+            'archived'     => ['label' => 'Archived', 'color' => 'slate'],
+        ];
+    @endphp
+
+    @foreach ($statusMap as $key => $meta)
+        @php
+            $cnt = $counts[$key] ?? 0;
+            $isSelected = request('status') === $key ? 'ring-2 ring-blue-500 font-bold bg-slate-50' : '';
+        @endphp
+        <a href="{{ route('services.index') }}?status={{ $key }}" class="min-h-24 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg p-4 transition block shadow-sm {{ $isSelected }}">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{{ $meta['label'] }}</span>
+            <div class="text-2xl font-bold text-slate-900 mt-1">{{ $cnt }}</div>
+        </a>
+    @endforeach
+</div>
+
+{{-- 6. Dashboard Filters Bar --}}
+<form method="GET" action="{{ route('services.index') }}" class="mb-5 bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="font-bold text-slate-800 text-sm">Dashboard Filters</span>
+            <span class="text-slate-500 text-sm font-medium">From</span>
+            <input type="date" name="from_date" value="{{ request('from_date', '') }}" class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white">
+            <span class="text-slate-500 text-sm font-medium">To</span>
+            <input type="date" name="to_date" value="{{ request('to_date', '') }}" class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white">
         </div>
-        <div class="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rejected Services</p>
-            <p class="mt-2 text-2xl font-bold text-gray-900">{{ $summary['rejected'] }}</p>
+    </div>
+    <div class="grid grid-cols-1 items-end gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <div class="relative min-w-[220px] flex-1">
+                <input type="text" name="search" value="{{ request('search', '') }}" placeholder="Search code or service name..." class="w-full border border-slate-300 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+            </div>
+            <select name="status" class="min-w-[150px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white">
+                <option value="">All Status</option>
+                <option value="incomplete" {{ request('status') === 'incomplete' ? 'selected' : '' }}>Incomplete</option>
+                <option value="draft" {{ request('status') === 'draft' ? 'selected' : '' }}>Draft</option>
+                <option value="for_approval" {{ request('status') === 'for_approval' ? 'selected' : '' }}>For Approval</option>
+                <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                <option value="archived" {{ request('status') === 'archived' ? 'selected' : '' }}>Archived</option>
+            </select>
+            <select name="category" class="min-w-[180px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white">
+                <option value="">All Categories</option>
+                <option value="Accountancy Revenue" {{ request('category') === 'Accountancy Revenue' ? 'selected' : '' }}>Accountancy Revenue</option>
+                <option value="Share Transfer & Stockholder Compliance" {{ request('category') === 'Share Transfer & Stockholder Compliance' ? 'selected' : '' }}>Share Transfer & Stockholder Compliance</option>
+                <option value="Consulting Revenue" {{ request('category') === 'Consulting Revenue' ? 'selected' : '' }}>Consulting Revenue</option>
+                <option value="Managed Administrative Support Services" {{ request('category') === 'Managed Administrative Support Services' ? 'selected' : '' }}>Managed Administrative Support Services</option>
+                <option value="Compliance Revenue" {{ request('category') === 'Compliance Revenue' ? 'selected' : '' }}>Compliance Revenue</option>
+                <option value="LGU and Local Permit Compliance" {{ request('category') === 'LGU and Local Permit Compliance' ? 'selected' : '' }}>LGU and Local Permit Compliance</option>
+                <option value="Compliance" {{ request('category') === 'Compliance' ? 'selected' : '' }}>Compliance</option>
+            </select>
+            <select name="engagement" class="min-w-[145px] border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 bg-white">
+                <option value="">Engagement</option>
+                <option value="project" {{ request('engagement') === 'project' ? 'selected' : '' }}>Project</option>
+                <option value="regular" {{ request('engagement') === 'regular' ? 'selected' : '' }}>Regular</option>
+                <option value="hybrid" {{ request('engagement') === 'hybrid' ? 'selected' : '' }}>Hybrid</option>
+            </select>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <a href="{{ route('services.index') }}" class="text-slate-500 hover:text-slate-700 text-sm font-medium px-3 py-2">Reset</a>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-lg shadow-sm cursor-pointer">Apply Filters</button>
         </div>
     </div>
 
-    @if ($isAdminReviewer)
-        <div class="mb-4 flex flex-wrap gap-2">
-            @php
-                $reviewTabs = [
-                    'pending_review' => 'Pending Review',
-                    'active' => 'Active',
-                    'rejected' => 'Rejected',
-                    'all' => 'All Services',
-                ];
-            @endphp
-            @foreach ($reviewTabs as $tabValue => $tabLabel)
-                <a
-                    href="{{ route('services.index', array_merge(request()->query(), ['tab' => $tabValue])) }}"
-                    class="inline-flex h-10 items-center rounded-lg border px-4 text-sm font-medium {{ $filters['tab'] === $tabValue ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50' }}"
-                >
-                    {{ $tabLabel }}
-                </a>
-            @endforeach
+    {{-- 6.1 SERVICE AREA & CREATE FIELD DROPDOWN MENU --}}
+    <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100 text-sm text-slate-600">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="font-semibold text-slate-800">Service Area:</span>
+            <select name="service_area" onchange="this.form.submit()" class="border border-slate-300 rounded-lg px-3.5 py-2 text-sm text-slate-800 bg-white">
+                <option value="">All Service Areas</option>
+                <option value="Corporate & Regulatory Advisory" {{ request('service_area') === 'Corporate & Regulatory Advisory' ? 'selected' : '' }}>Corporate & Regulatory Advisory</option>
+                <option value="Accounting & Compliance Advisory" {{ request('service_area') === 'Accounting & Compliance Advisory' ? 'selected' : '' }}>Accounting & Compliance Advisory</option>
+                <option value="Governance & Policy Advisory" {{ request('service_area') === 'Governance & Policy Advisory' ? 'selected' : '' }}>Governance & Policy Advisory</option>
+                <option value="People & Talent Solutions" {{ request('service_area') === 'People & Talent Solutions' ? 'selected' : '' }}>People & Talent Solutions</option>
+                <option value="Strategic Situations Advisory" {{ request('service_area') === 'Strategic Situations Advisory' ? 'selected' : '' }}>Strategic Situations Advisory</option>
+                <option value="Business Strategy & Process Advisory" {{ request('service_area') === 'Business Strategy & Process Advisory' ? 'selected' : '' }}>Business Strategy & Process Advisory</option>
+                <option value="Learning & Capability Development" {{ request('service_area') === 'Learning & Capability Development' ? 'selected' : '' }}>Learning & Capability Development</option>
+                <option value="Service Add-Ons" {{ request('service_area') === 'Service Add-Ons' ? 'selected' : '' }}>Service Add-Ons</option>
+                <option value="Others" {{ request('service_area') === 'Others' ? 'selected' : '' }}>Others</option>
+            </select>
         </div>
-    @endif
 
-    @if ($isAdminReviewer && $filters['tab'] === 'pending_review')
-        <div class="mb-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-            <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900">Approval Queue</h2>
-                    <p class="text-sm text-gray-600">Review submitted services and queued edit or delete requests before anything changes in the live catalog.</p>
-                </div>
-                <div class="text-sm font-medium text-amber-800">
-                    {{ $services->total() + $pendingChangeRequests->count() }} pending {{ \Illuminate\Support\Str::plural('item', $services->total() + $pendingChangeRequests->count()) }}
-                </div>
+        <div class="relative inline-block text-left">
+            <button type="button" onclick="toggleCreateFieldMenu(event)" class="text-blue-600 hover:text-blue-800 font-bold text-sm flex items-center space-x-1.5 transition cursor-pointer py-1.5 px-3 rounded-lg hover:bg-blue-50">
+                <span>+ Create Field</span>
+            </button>
+
+            <div id="createFieldMenu" class="hidden absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 text-sm font-medium text-slate-700 max-h-64 overflow-y-auto">
+                <button type="button" onclick="openFieldModal('Single Line Text')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-font text-slate-400 w-4 text-center"></i>
+                    <span>Single Line Text</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Multi Line Text')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-align-left text-slate-400 w-4 text-center"></i>
+                    <span>Multi Line Text</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Number')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-hashtag text-slate-400 w-4 text-center"></i>
+                    <span>Number</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Currency')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-money-bill-wave text-slate-400 w-4 text-center"></i>
+                    <span>Currency</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Picklist')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-list-check text-slate-400 w-4 text-center"></i>
+                    <span>Picklist</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Checkbox')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-regular fa-square-check text-slate-400 w-4 text-center"></i>
+                    <span>Checkbox</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Date')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-regular fa-calendar text-slate-400 w-4 text-center"></i>
+                    <span>Date</span>
+                </button>
+                <button type="button" onclick="openFieldModal('Lookup')" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center space-x-3 transition text-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-link text-slate-400 w-4 text-center"></i>
+                    <span>Lookup</span>
+                </button>
             </div>
         </div>
+    </div>
+</form>
 
-        <div class="space-y-4">
-            @foreach ($pendingChangeRequests as $changeRequest)
-                <article class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                    <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="text-lg font-semibold text-gray-900">{{ $changeRequest->record_name ?: 'Service' }}</h3>
-                                <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                                    Pending {{ ucfirst($changeRequest->action) }}
-                                </span>
-                            </div>
-                            <p class="mt-1 text-sm text-gray-500">
-                                Service ID {{ $changeRequest->record_public_id ?: '-' }} • Requested by {{ $changeRequest->submitter?->name ?: 'Unknown user' }}
-                            </p>
-                        </div>
-                        <div class="flex flex-wrap gap-2 xl:justify-end">
-                            <form method="POST" action="{{ route('catalog-change-requests.approve', $changeRequest) }}">
-                                @csrf
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100">Approve</button>
-                            </form>
-                            <form method="POST" action="{{ route('catalog-change-requests.reject', $changeRequest) }}">
-                                @csrf
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100">Reject</button>
-                            </form>
-                        </div>
-                    </div>
-                </article>
-            @endforeach
-
-            @forelse ($services as $service)
-                <article class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                    <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="text-lg font-semibold text-gray-900">{{ $service->service_name }}</h3>
-                                <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium {{ $statusClasses[$service->status] ?? 'border-gray-200 bg-gray-50 text-gray-700' }}">{{ $service->status }}</span>
-                            </div>
-                            <p class="mt-1 text-sm text-gray-500">ID {{ $service->service_id }} · {{ $service->company?->company_name ?: 'Global Catalog' }}</p>
-                            <p class="mt-3 text-sm leading-6 text-gray-600">{{ $service->service_description }}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-2 xl:justify-end">
-                            <a href="{{ route('services.show', $service->id) }}" class="inline-flex h-10 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">Review Details</a>
-                            <form method="POST" action="{{ route('services.approve', $service->id) }}">
-                                @csrf
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 hover:bg-emerald-100">Approve</button>
-                            </form>
-                            <form method="POST" action="{{ route('services.reject', $service->id) }}">
-                                @csrf
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100">Reject</button>
-                            </form>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Service Area</p>
-                            <p class="mt-2 text-sm font-medium text-gray-800">{{ implode(', ', $service->service_area ?? []) ?: '-' }}</p>
-                        </div>
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Category</p>
-                            <p class="mt-2 text-sm font-medium text-gray-800">{{ $service->category ?: '-' }}</p>
-                        </div>
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assigned Unit</p>
-                            <p class="mt-2 text-sm font-medium text-gray-800">{{ $service->assigned_unit ?: '-' }}</p>
-                        </div>
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Created By</p>
-                            <p class="mt-2 text-sm font-medium text-gray-800">{{ $service->creator?->name ?: '-' }}</p>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
-                        <div class="rounded-xl border border-gray-200 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pricing Snapshot</p>
-                            <dl class="mt-3 space-y-2 text-sm text-gray-700">
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Rate / Price</dt>
-                                    <dd class="font-medium text-gray-900">
-                                        @if ($service->rate_per_unit)
-                                            {{ number_format((float) $service->rate_per_unit, 2) }} / {{ $service->unit }}
-                                        @elseif ($service->price_fee)
-                                            {{ number_format((float) $service->price_fee, 2) }}
-                                        @else
-                                            -
-                                        @endif
-                                    </dd>
-                                </div>
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Cost of Service</dt>
-                                    <dd class="font-medium text-gray-900">{{ $service->cost_of_service ? number_format((float) $service->cost_of_service, 2) : '-' }}</dd>
-                                </div>
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Tax Treatment</dt>
-                                    <dd class="font-medium text-gray-900">{{ $service->tax_type ?: '-' }}</dd>
-                                </div>
-                            </dl>
-                        </div>
-                        <div class="rounded-xl border border-gray-200 px-4 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Engagement Snapshot</p>
-                            <dl class="mt-3 space-y-2 text-sm text-gray-700">
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Frequency</dt>
-                                    <dd class="font-medium text-gray-900">{{ $service->frequency ?: '-' }}</dd>
-                                </div>
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Engagement Type</dt>
-                                    <dd class="font-medium text-right text-gray-900">{{ implode(', ', $service->engagement_structure ?? []) ?: '-' }}</dd>
-                                </div>
-                                <div class="flex items-center justify-between gap-4">
-                                    <dt>Updated At</dt>
-                                    <dd class="font-medium text-gray-900">{{ optional($service->updated_at)->format('M d, Y h:i A') ?: '-' }}</dd>
-                                </div>
-                            </dl>
-                        </div>
-                    </div>
-                </article>
-            @empty
-                <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
-                    No services waiting for review.
-                </div>
-            @endforelse
+{{-- DYNAMIC FIELD CREATION MODAL --}}
+<div id="createFieldModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-xs space-y-4 relative">
+        <div class="flex justify-between items-center border-b pb-3">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">Create Custom Field</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">Type: <span id="modalFieldTypeName" class="font-bold text-blue-600">Single Line Text</span></p>
+            </div>
+            <button type="button" onclick="closeFieldModal()" class="text-slate-400 hover:text-slate-600 text-lg cursor-pointer">&times;</button>
         </div>
 
-        @if ($services->hasPages())
-            <div class="mt-6">
-                {{ $services->onEachSide(1)->links() }}
+        <form action="#" method="POST" onsubmit="event.preventDefault(); alert('Custom field created successfully!'); closeFieldModal();" class="space-y-3">
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Field Label *</label>
+                <input type="text" required placeholder="e.g. Tax Registration ID" class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500">
             </div>
-        @endif
-    @else
-    <form method="GET" action="{{ route('services.index') }}" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <input type="hidden" name="tab" value="{{ $filters['tab'] }}">
-        <div class="grid gap-3 xl:grid-cols-[minmax(260px,1.6fr)_repeat(5,minmax(170px,1fr))_auto]">
-            <div class="relative">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
-                <input type="text" name="search" value="{{ $filters['search'] }}" placeholder="Search services..." class="h-11 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Field API Name</label>
+                <input type="text" placeholder="e.g. tax_registration_id" class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500 bg-slate-50">
             </div>
-            <select name="status" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                <option value="all">Status: All</option>
-                @foreach ($statusOptions as $option)
-                    <option value="{{ $option }}" @selected($filters['status'] === $option)>{{ $option }}</option>
-                @endforeach
-            </select>
-            <select name="category" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                <option value="all">Category: All</option>
-                @foreach ($categories as $option)
-                    <option value="{{ $option }}" @selected($filters['category'] === $option)>{{ $option }}</option>
-                @endforeach
-            </select>
-            <select name="assigned_unit" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                <option value="all">Assigned Unit: All</option>
-                @foreach ($assignedUnitOptions as $option)
-                    <option value="{{ $option }}" @selected($filters['assigned_unit'] === $option)>{{ $option }}</option>
-                @endforeach
-            </select>
-            <select name="frequency" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                <option value="all">Frequency: All</option>
-                @foreach (['One-time', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'Annually', 'Custom'] as $option)
-                    <option value="{{ $option }}" @selected($filters['frequency'] === $option)>{{ $option }}</option>
-                @endforeach
-            </select>
-            <select name="engagement_type" class="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                <option value="all">Engagement: All</option>
-                <option value="Project Engagement" @selected($filters['engagement_type'] === 'Project Engagement')>Project Engagement</option>
-                <option value="Regular (Retainer)" @selected($filters['engagement_type'] === 'Regular (Retainer)')>Regular (Retainer)</option>
-                <option value="Hybrid" @selected($filters['engagement_type'] === 'Hybrid')>Hybrid Engagement</option>
-            </select>
-            <button class="h-11 rounded-xl border border-gray-200 bg-gray-900 px-5 text-sm font-medium text-white hover:bg-gray-800">Apply</button>
-        </div>
-    </form>
+            <div id="picklistOptionsContainer" class="hidden">
+                <label class="block font-semibold text-slate-700 mb-1">Options (One per line)</label>
+                <textarea rows="3" placeholder="Option 1&#10;Option 2&#10;Option 3" class="w-full border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex items-center space-x-2 pt-1">
+                <input type="checkbox" id="isRequired" class="rounded border-slate-300 text-blue-600">
+                <label for="isRequired" class="text-xs text-slate-700 font-medium">Mark as Required Field</label>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 border-t">
+                <button type="button" onclick="closeFieldModal()" class="px-3.5 py-1.5 border border-slate-300 text-slate-700 font-medium rounded hover:bg-slate-50 transition cursor-pointer">Cancel</button>
+                <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow-sm transition cursor-pointer">Create Field</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div class="border-b border-gray-100 px-5 py-4">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+{{-- 7. Services Data Table with Column Lines & Status Column --}}
+<div class="mb-5 w-full min-w-0 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+    <table class="w-full min-w-[1380px] table-fixed text-left border-collapse text-xs border-slate-200 divide-y divide-slate-200">
+        <thead>
+            <tr class="bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider divide-x divide-slate-200">
+                <th class="w-12 whitespace-nowrap py-4 px-3 text-center"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)" class="rounded border-slate-300"></th>
+                <th class="w-64 whitespace-nowrap py-4 px-5">SERVICE NAME & CODE</th>
+                <th class="w-44 whitespace-nowrap py-4 px-4">CATEGORY</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4">COMPANY</th>
+                <th class="w-36 whitespace-nowrap py-4 px-4">ENGAGEMENT</th>
+                <th class="w-36 whitespace-nowrap py-4 px-4">STANDARD PRICE</th>
+                <th class="w-36 whitespace-nowrap py-4 px-4">UNIT / RATE</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4">TAX TREATMENT</th>
+                <th class="w-32 whitespace-nowrap py-4 px-4">EXPECTED HOURS</th>
+                <th class="w-32 whitespace-nowrap py-4 px-4">STATUS</th>
+                <th class="w-40 whitespace-nowrap py-4 px-4 text-center">ACTIONS</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 text-slate-700 bg-white">
+            @if (count($serviceList) > 0)
+                @foreach ($serviceList as $item)
                     @php
-                        $serviceAreaTabs = collect($serviceAreaOptions)
-                            ->reject(fn ($option) => $option === 'Others')
-                            ->values();
+                        $id = is_object($item) ? $item->id : $item['id'];
+                        $name = is_object($item) ? $item->name : $item['name'];
+                        $code = is_object($item) ? ($item->service_code ?? 'SVC-' . sprintf('%04d', $id)) : ($item['service_code'] ?? 'SVC-0000');
+                        $cat = is_object($item) ? ($item->category->name ?? $item->category ?? $item->service_area ?? '-') : ($item['category'] ?? '-');
+                        $company = is_object($item) ? ($item->company ?? 'Global Catalog') : ($item['company'] ?? 'Global Catalog');
+                        $behavior = is_object($item) ? ($item->engagement_behavior ?? 'regular') : ($item['engagement_behavior'] ?? 'regular');
+                        
+                        $priceVal = is_object($item) ? ($item->activeVersion->standard_price ?? $item->standard_price ?? 0) : ($item['standard_price'] ?? 0);
+                        $price = number_format($priceVal, 2);
+
+                        // Kinukuha ang unit_rate mula sa activeVersion o item data
+                        $unitRateVal = is_object($item) ? ($item->activeVersion->unit_rate ?? $item->unit_rate ?? 0) : ($item['unit_rate'] ?? 0);
+                        $unitRate = number_format($unitRateVal, 2);
+                        
+                        $tax = is_object($item) ? ($item->activeVersion->tax_treatment ?? $item->tax_treatment ?? 'VAT Exclusive') : ($item['tax_treatment'] ?? 'VAT Exclusive');
+                        $hours = is_object($item) ? ($item->activeVersion->expected_hours ?? $item->expected_hours ?? 0) : ($item['expected_hours'] ?? 0);
+                        
+                        $rawStatus = is_object($item) ? ($item->status ?? 'incomplete') : ($item['status'] ?? 'incomplete');
+                        $status = strtolower($rawStatus);
+
+                        $workspaceUrl = Route::has('services.workspace') ? route('services.workspace', ['service' => $id, 'mode' => 'view']) : (Route::has('services.show') ? route('services.show', $id) : '#');
+                        $editUrl = Route::has('services.workspace') ? route('services.workspace', ['service' => $id, 'mode' => 'edit']) : '#';
+                        $usageUrl = Route::has('services.workspace') ? route('services.workspace', ['service' => $id, 'tab' => 'usage_performance']) : '#';
+                        $archiveRoute = Route::has('services.archive') ? route('services.archive', $id) : url('/services/' . $id . '/archive');
                     @endphp
-                    <label for="serviceAreaQuickFilter" class="text-sm font-medium text-gray-600">Service Area</label>
-                    <form method="GET" action="{{ route('services.index') }}" class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <select id="serviceAreaQuickFilter" name="service_area" onchange="this.form.submit()" class="h-10 min-w-[320px] rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                            <option value="all" @selected($filters['service_area'] === 'all')>All Service Areas</option>
-                            @foreach ($serviceAreaTabs as $serviceAreaTab)
-                                <option value="{{ $serviceAreaTab }}" @selected($filters['service_area'] === $serviceAreaTab)>{{ $serviceAreaTab }}</option>
-                            @endforeach
-                        </select>
-                        <input type="hidden" name="search" value="{{ $filters['search'] }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] }}">
-                        <input type="hidden" name="assigned_unit" value="{{ $filters['assigned_unit'] }}">
-                        <input type="hidden" name="frequency" value="{{ $filters['frequency'] }}">
-                        <input type="hidden" name="engagement_type" value="{{ $filters['engagement_type'] }}">
-                        <input type="hidden" name="tab" value="{{ $filters['tab'] }}">
-                        <input type="hidden" name="per_page" value="{{ $filters['per_page'] }}">
-                    </form>
-                </div>
-                <button id="openCreateFieldDropdown" type="button" class="self-start text-sm font-medium text-blue-600 hover:text-blue-700 lg:self-auto">+ Create Field</button>
-            </div>
-        </div>
-        <div class="overflow-x-auto overflow-y-visible">
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-50 text-xs text-gray-700">
-                    <tr>
-                        <th data-column-key="service_name" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Service Name</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="service_name" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="category" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Category</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="category" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="company" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Company</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="company" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="frequency" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Frequency</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="frequency" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="engagement_type" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Engagement Type</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="engagement_type" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="price_rate" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Price / Rate</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="price_rate" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="assigned_unit" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Assigned Unit</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="assigned_unit" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="status" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Status</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="status" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        <th data-column-key="service_owner" data-column-type="base" class="group px-3 py-3 text-left font-medium">
-                            <div class="inline-flex items-center gap-1">
-                                <span>Service Owner</span>
-                                <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="service_owner" data-column-type="base">
-                                    <i class="fas fa-ellipsis-v text-[10px]"></i>
-                                </button>
-                            </div>
-                        </th>
-                        @foreach ($customFields as $field)
-                            <th data-column-key="{{ $field->field_key }}" data-column-type="custom" class="group px-3 py-3 text-left font-medium">
-                                <div class="inline-flex items-center gap-1">
-                                    <span>{{ $field->field_name }}</span>
-                                    <button type="button" class="field-header-trigger invisible inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition group-hover:visible hover:bg-gray-100 hover:text-gray-600" data-column-key="{{ $field->field_key }}" data-column-type="custom">
-                                        <i class="fas fa-ellipsis-v text-[10px]"></i>
+
+                    <tr class="hover:bg-slate-50 transition divide-x divide-slate-200">
+                        <td class="align-top py-4 px-3 text-center">
+                            <input type="checkbox" name="selected_services[]" value="{{ $id }}" class="service-checkbox rounded border-slate-300">
+                        </td>
+                        <td class="align-top break-words py-4 px-5">
+                            <a href="{{ $workspaceUrl }}" class="font-bold text-slate-900 hover:text-blue-600 hover:underline block leading-snug">{{ $name }}</a>
+                            <span class="text-[11px] text-slate-400 block font-normal mt-0.5">Code: <strong class="text-slate-600">{{ $code }}</strong></span>
+                        </td>
+                        <td class="align-top break-words py-4 px-4 text-slate-600">{{ $cat }}</td>
+                        <td class="align-top break-words py-4 px-4 text-slate-500">{{ $company }}</td>
+                        <td class="align-top py-4 px-4">
+                            <span class="px-2 py-0.5 border rounded text-[11px] font-medium border-slate-200 text-slate-700 bg-slate-50 capitalize">
+                                {{ $behavior }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 font-mono font-semibold text-slate-900">₱{{ $price }}</td>
+                        <td class="align-top whitespace-nowrap py-4 px-4 font-mono font-semibold text-slate-900">
+                            @if($unitRateVal > 0)
+                                ₱{{ $unitRate }}
+                            @else
+                                <span class="text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="align-top break-words py-4 px-4 text-slate-500">{{ $tax }}</td>
+                        <td class="align-top whitespace-nowrap py-4 px-4 text-slate-600 font-mono">{{ $hours }} hrs</td>
+                        
+                        {{-- STATUS COLUMN WITH NEUTRAL BADGES --}}
+                        <td class="align-top py-4 px-4">
+                            <span class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-[10px] font-bold uppercase tracking-wide border border-slate-200">
+                                {{ ucfirst($status) }}
+                            </span>
+                        </td>
+
+                        {{-- ACTIONS COLUMN --}}
+                        <td class="align-top py-4 px-4 text-center relative">
+                            <div class="inline-flex items-center gap-2">
+                                <a href="{{ $workspaceUrl }}" class="border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium px-2.5 py-1 rounded text-[11px] transition inline-block shadow-sm">View</a>
+                                
+                                <div class="relative inline-block text-left">
+                                    <button onclick="toggleServiceDropdown(event, 'svc-menu-{{ $id }}')" type="button" class="border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 px-1.5 py-1 rounded text-[11px] transition cursor-pointer shadow-sm">
+                                        More <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
                                     </button>
+
+                                    <div id="svc-menu-{{ $id }}" class="svc-action-dropdown hidden origin-top-right absolute right-0 mt-1 w-44 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-slate-100 z-50 text-left text-xs py-1">
+                                        <div class="py-1">
+                                            <a href="{{ $workspaceUrl }}" class="block px-3 py-1.5 text-slate-700 hover:bg-slate-100">View Workspace</a>
+                                            <a href="{{ $editUrl }}" class="block px-3 py-1.5 text-slate-700 hover:bg-slate-100">Edit / New Revision</a>
+                                            
+                                            @if (Route::has('services.duplicate'))
+                                                <form action="{{ route('services.duplicate', $id) }}" method="POST" class="m-0 p-0">
+                                                    @csrf
+                                                    <button type="submit" class="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-100 cursor-pointer">Duplicate Service</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                        
+                                    
+                                        <div class="py-1">
+                                            <form id="archive-form-{{ $id }}" action="{{ $archiveRoute }}" method="POST" class="m-0 p-0" onsubmit="return confirm('Are you sure you want to archive this service?')">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 font-semibold cursor-pointer">Archive Service</button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
-                            </th>
-                        @endforeach
-                        <th class="w-[180px] px-3 py-3 text-left font-medium">Actions</th>
+                            </div>
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @forelse ($services as $service)
-                        @php
-                            $pendingRequest = $pendingRequestMap->get($service->id);
-                        @endphp
-                        <tr class="service-row text-gray-700 hover:bg-gray-50">
-                            <td data-column-key="service_name" class="px-3 py-3">
-                                <a href="{{ route('services.show', $service->id) }}" class="font-medium text-gray-900 hover:text-blue-700">{{ $service->service_name }}</a>
-                                <div class="mt-1 text-xs text-gray-500">ID {{ $service->service_id }} @if($service->company)<span class="mx-1">|</span>{{ $service->company->company_name }}@endif</div>
-                            </td>
-                            <td data-column-key="category" class="px-3 py-3 text-gray-600">{{ $service->category ?: '-' }}</td>
-                            <td data-column-key="company" class="px-3 py-3 text-gray-600">{{ $service->company?->company_name ?: 'Global Catalog' }}</td>
-                            <td data-column-key="frequency" class="px-3 py-3 text-gray-600">{{ $service->frequency ?: '-' }}</td>
-                            <td data-column-key="engagement_type" class="px-3 py-3 text-gray-600">{{ implode(', ', $service->engagement_structure ?? []) ?: '-' }}</td>
-                            <td data-column-key="price_rate" class="px-3 py-3 text-gray-600">
-                                @if ($service->rate_per_unit)
-                                    {{ number_format((float) $service->rate_per_unit, 2) }} / {{ $service->unit }}
-                                @elseif ($service->price_fee)
-                                    {{ number_format((float) $service->price_fee, 2) }}
-                                @else
-                                    -
-                                @endif
-                            </td>
-                            <td data-column-key="assigned_unit" class="px-3 py-3 text-gray-600">{{ $service->assigned_unit ?: '-' }}</td>
-                            <td data-column-key="status" class="px-3 py-3">
-                                <div class="flex flex-col gap-1">
-                                    <span class="inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-medium {{ $statusClasses[$service->status] ?? 'border-gray-200 bg-gray-50 text-gray-700' }}">{{ $service->status }}</span>
-                                    @if ($pendingRequest)
-                                        <span class="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">Pending {{ ucfirst($pendingRequest->action) }}</span>
-                                    @endif
-                                </div>
-                            </td>
-                            <td data-column-key="service_owner" class="px-3 py-3 text-gray-600">{{ $service->creator?->name ?: '-' }}</td>
-                            @foreach ($customFields as $field)
-                                <td data-column-key="{{ $field->field_key }}" class="px-3 py-3 text-gray-600">{{ data_get($service->custom_field_values, $field->field_key, '-') ?: '-' }}</td>
-                            @endforeach
-                            <td class="px-3 py-3">
-                                <div class="flex items-center justify-start gap-2 whitespace-nowrap">
-                                    @if ($isAdminReviewer && $service->status === 'Pending Approval')
-                                        <form method="POST" action="{{ route('services.approve', $service->id) }}">
-                                            @csrf
-                                            <button type="submit" class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">Approve</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('services.reject', $service->id) }}">
-                                            @csrf
-                                            <button type="submit" class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50">Reject</button>
-                                        </form>
-                                    @elseif ($pendingRequest)
-                                        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Pending {{ ucfirst($pendingRequest->action) }}</span>
-                                        @if ($isAdminReviewer)
-                                            <form method="POST" action="{{ route('catalog-change-requests.approve', $pendingRequest) }}">
-                                                @csrf
-                                                <button type="submit" class="rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50">Approve</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('catalog-change-requests.reject', $pendingRequest) }}">
-                                                @csrf
-                                                <button type="submit" class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50">Reject</button>
-                                            </form>
-                                        @endif
-                                    @else
-                                        <button type="button" class="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50" data-global-service-edit='@json($service)'>Edit</button>
-                                        <form method="POST" action="{{ route('services.destroy', $service->id) }}" onsubmit="return confirm('Submit a delete request for this service?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Delete</button>
-                                        </form>
-                                    @endif
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="{{ 9 + $customFields->count() }}" class="px-3 py-16 text-center text-sm text-gray-500">No services found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                @endforeach
+            @else
+                <tr><td colspan="11" class="py-8 text-center text-slate-400">No services found in database.</td></tr>
+            @endif
+        </tbody>
+    </table>
+</div>
+
+{{-- 8. TABLE FOOTER & PAGINATION BAR --}}
+@if ($serviceList instanceof \Illuminate\Pagination\LengthAwarePaginator)
+    @php
+        $total = $serviceList->total();
+        $first = $serviceList->firstItem() ?? 0;
+        $last = $serviceList->lastItem() ?? 0;
+        $perPage = $serviceList->perPage();
+    @endphp
+
+    <div class="flex flex-wrap items-center justify-between gap-4 bg-white border border-slate-200 rounded-lg p-4 shadow-sm text-xs text-slate-500 mb-6">
+        <div>
+            Showing <span class="font-bold text-slate-800">{{ $first }}</span> to <span class="font-bold text-slate-800">{{ $last }}</span> of <span class="font-bold text-slate-800">{{ $total }}</span> results
         </div>
-        <div class="border-t border-gray-100 px-5 py-4">
-            <div class="flex flex-wrap items-center gap-3 text-sm text-gray-700">
-                <span>Total Services: {{ $services->total() }}</span>
-                <div class="ml-auto flex items-center gap-2 text-xs text-gray-600">
-                    <form method="GET" action="{{ route('services.index') }}" class="flex items-center gap-2">
-                        <span>Records per page</span>
-                        <select name="per_page" class="h-9 rounded-lg border border-gray-200 px-3 text-xs" onchange="this.form.submit()">
-                            @foreach ([5, 10, 25, 50] as $size)
-                                <option value="{{ $size }}" {{ (int) $filters['per_page'] === $size ? 'selected' : '' }}>{{ $size }}</option>
-                            @endforeach
-                        </select>
-                        <input type="hidden" name="search" value="{{ $filters['search'] }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] }}">
-                        <input type="hidden" name="assigned_unit" value="{{ $filters['assigned_unit'] }}">
-                        <input type="hidden" name="frequency" value="{{ $filters['frequency'] }}">
-                        <input type="hidden" name="engagement_type" value="{{ $filters['engagement_type'] }}">
-                        <input type="hidden" name="tab" value="{{ $filters['tab'] }}">
-                    </form>
-                    <span>{{ $services->firstItem() ?? 0 }} to {{ $services->lastItem() ?? 0 }} | Page {{ $services->currentPage() }} of {{ $services->lastPage() }}</span>
-                </div>
+        
+        <div class="flex flex-wrap items-center gap-5">
+            <div class="flex flex-wrap items-center gap-2">
+                <span>Records per page</span>
+                <form method="GET" action="{{ route('services.index') }}" class="m-0 p-0">
+                    @foreach (request()->except(['per_page', 'page']) as $k => $v)
+                        @if ($v) <input type="hidden" name="{{ $k }}" value="{{ $v }}"> @endif
+                    @endforeach
+                    <select name="per_page" onchange="this.form.submit()" class="border border-slate-300 rounded px-2 py-1 text-xs text-slate-700 bg-white">
+                        <option value="10" {{ $perPage == 10 ? 'selected' : '' }}>10</option>
+                        <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
+                        <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
+                        <option value="100" {{ $perPage == 100 ? 'selected' : '' }}>100</option>
+                    </select>
+                </form>
             </div>
-            <div class="mt-4">
-                {{ $services->onEachSide(1)->links() }}
+
+            <div>
+                {{ $serviceList->links() }}
             </div>
         </div>
     </div>
-    @endif
-</div>
+@endif
+
+ </div>
+{{-- 9. Modals --}}
+<div id="whatIsServiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 text-base space-y-5 relative z-[10000]">
+        <div class="flex justify-between items-center border-b pb-4">
+            <h3 class="text-xl font-bold text-slate-900">What is a Service?</h3>
+            <button type="button" onclick="document.getElementById('whatIsServiceModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+        </div>
+        <p class="text-slate-700 leading-relaxed text-base font-normal text-justify">
+            A <strong class="font-bold text-slate-900">Service</strong> defines a standardized productized offering in your firm’s catalog. It includes workflow activities, default pricing models, client deliverables, required documents, and approval rules used across proposals and active client contracts.
+        </p>
+        <div class="flex justify-end pt-3 border-t">
+            <button type="button" onclick="document.getElementById('whatIsServiceModal').classList.add('hidden')" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm rounded-lg shadow-md cursor-pointer transition">
+                Got it
+            </button>
+        </div>
+    </div>
 </div>
 
-@include('services.partials.service-form-modal', [
-    'fieldPrefix' => 'globalService',
-    'modalId' => 'globalServiceModal',
-    'title' => 'Add Service',
-    'subtitle' => 'Create a configurable service entry with routing, requirements, and pricing.',
-    'action' => route('services.store'),
-    'companyLocked' => false,
-])
-@include('products.partials.create-field-dropdown', ['fieldTypes' => $fieldTypes])
-@include('products.partials.field-actions-dropdown')
-@include('products.partials.create-field-modal', [
-    'createFieldActionRoute' => route('services.custom-fields.store'),
-    'lookupModules' => $lookupModules,
-])
+<div id="importServiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-4 z-[9999]">
+    <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 text-xs space-y-4 relative z-[10000]">
+        <div class="flex justify-between items-center border-b pb-3">
+            <h3 class="text-sm font-bold text-slate-900">Import Service Specification</h3>
+            <button type="button" onclick="document.getElementById('importServiceModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-lg cursor-pointer">&times;</button>
+        </div>
+        <form action="{{ Route::has('services.import') ? route('services.import') : '#' }}" method="POST" enctype="multipart/form-data" class="space-y-4">
+            @csrf
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1">Select Service File (JSON, CSV, or XLSX) *</label>
+                <input type="file" name="json_file" accept=".json,.csv,.txt,.xlsx" required class="w-full border border-slate-300 rounded px-3 py-2 text-xs outline-none focus:border-blue-500">
+            </div>
+            <div class="flex justify-end space-x-2 pt-2 border-t">
+                <button type="button" onclick="document.getElementById('importServiceModal').classList.add('hidden')" class="px-3.5 py-1.5 border border-slate-300 text-slate-700 font-medium rounded cursor-pointer">Cancel</button>
+                <button type="submit" class="px-4 py-1.5 bg-blue-600 text-white font-medium rounded shadow-sm cursor-pointer">Upload & Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="quickAddModal" class="fixed inset-0 w-screen h-screen bg-slate-900/60 backdrop-blur-sm hidden flex justify-center items-center p-6 z-[9999]">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-8 text-sm space-y-5 relative z-[10000]">
+        <div class="flex justify-between items-center border-b pb-4">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Quick Add Service</h3>
+                <p class="text-xs text-slate-500 mt-1">Create a draft service shell to configure in workspace.</p>
+            </div>
+            <button type="button" onclick="document.getElementById('quickAddModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+        </div>
+
+        <form action="{{ Route::has('services.store') ? route('services.store') : '/services' }}" method="POST" class="space-y-4">
+            @csrf
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Service Name *</label>
+                <input type="text" name="name" required placeholder="e.g. On-site Profit and Loss Review" class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Service Area *</label>
+                    <div id="serviceAreaExistingWrapper">
+                        <select name="service_area_select" id="serviceAreaSelect" onchange="handleServiceAreaChange(this)" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                            <option value="">-- Select Service Area --</option>
+                            @php
+                                $quickAddServiceAreas = collect($serviceAreas ?? [])->flatMap(static function ($area): array {
+                                    if (is_array($area)) {
+                                        return $area;
+                                    }
+
+                                    if (! is_string($area) || trim($area) === '') {
+                                        return [];
+                                    }
+
+                                    $decodedArea = json_decode($area, true);
+
+                                    return is_array($decodedArea) ? $decodedArea : [$area];
+                                })->map(static fn ($area): string => is_scalar($area) ? trim((string) $area) : '')
+                                    ->filter();
+                                $defaultServiceAreas = collect([
+                                    'Corporate & Regulatory Advisory', 'Accounting & Compliance Advisory',
+                                    'Governance & Policy Advisory', 'People & Talent Solutions',
+                                    'Strategic Situations Advisory', 'Business Strategy & Process Advisory',
+                                    'Learning & Capability Development', 'Service Add-Ons', 'Others',
+                                ]);
+                                $quickAddServiceAreas = $defaultServiceAreas->merge($quickAddServiceAreas)->filter()->unique()->sort()->values();
+                            @endphp
+                            @foreach($quickAddServiceAreas as $area)
+                                <option value="{{ $area }}">{{ $area }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div id="serviceAreaCustomWrapper" class="hidden">
+                        <input type="text" name="service_area" id="serviceAreaCustomInput" placeholder="Enter new service area..." disabled class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                    </div>
+                    <div class="mt-1.5 flex items-center">
+                        <button type="button" id="addServiceAreaBtn" onclick="enableNewServiceArea()" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">+ Add New Service Area</button>
+                        <button type="button" id="useExistingServiceAreaBtn" onclick="useExistingServiceArea()" class="hidden text-[11px] font-semibold text-slate-600 hover:text-slate-800 hover:underline cursor-pointer">&larr; Use Existing Service Area</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Category *</label>
+                    <div id="categoryExistingWrapper">
+                        <select name="category_select" id="categorySelect" onchange="handleCategoryChange(this)" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                            <option value="">-- Select Category --</option>
+                            @php
+                                $quickAddServiceCategories = collect($serviceCategories ?? []);
+                                $defaultServiceCategories = collect([
+                                    'Accountancy Revenue', 'Share Transfer & Stockholder Compliance',
+                                    'Consulting Revenue', 'Managed Administrative Support Services',
+                                    'Compliance Revenue', 'LGU and Local Permit Compliance', 'Compliance', 'Others',
+                                ]);
+                                $quickAddServiceCategories = $defaultServiceCategories->merge($quickAddServiceCategories)->filter()->unique()->sort()->values();
+                            @endphp
+                            @foreach($quickAddServiceCategories as $category)
+                                <option value="{{ $category }}">{{ $category }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div id="categoryCustomWrapper" class="hidden">
+                        <input type="text" name="category" id="categoryCustomInput" placeholder="Enter new category..." disabled class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                    </div>
+                    <div class="mt-1.5 flex items-center">
+                        <button type="button" id="addCategoryBtn" onclick="enableNewCategory()" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">+ Add New Category</button>
+                        <button type="button" id="useExistingCategoryBtn" onclick="useExistingCategory()" class="hidden text-[11px] font-semibold text-slate-600 hover:text-slate-800 hover:underline cursor-pointer">&larr; Use Existing Category</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Engagement Behavior *</label>
+                    <select name="engagement_behavior" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                        <option value="">-- Select Engagement --</option>
+                        <option value="project">Project</option>
+                        <option value="regular">Regular</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Tax Treatment *</label>
+                    <select name="tax_treatment" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 bg-white">
+                        <option value="">-- Select Tax Treatment --</option>
+                        <option value="VAT Exclusive">VAT Exclusive</option>
+                        <option value="VAT Inclusive">VAT Inclusive</option>
+                        <option value="No Tax">No Tax</option>
+                        <option value="Percentage Tax">Percentage Tax</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block font-semibold text-slate-700 mb-1.5 text-xs uppercase tracking-wide">Short Description (Optional)</label>
+                <textarea name="short_description" rows="3" placeholder="Brief summary for internal catalog..." class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4 border-t">
+                <button type="button" onclick="document.getElementById('quickAddModal').classList.add('hidden')" class="px-5 py-2 border border-slate-300 text-slate-700 font-medium text-xs rounded-lg hover:bg-slate-50 transition cursor-pointer">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition cursor-pointer">Save Service</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const modal = document.getElementById('globalServiceModal');
-    const form = document.getElementById('globalServiceForm');
-    const openButton = document.getElementById('openGlobalServiceModalCreate');
-    const closeButtons = modal.querySelectorAll('[data-close-service-modal]');
-    const editButtons = document.querySelectorAll('[data-global-service-edit]');
-    const methodInput = document.getElementById('globalServiceFormMethod');
-    const title = document.getElementById('globalServiceModalTitle');
-    const submit = document.getElementById('globalServiceFormSubmit');
-    const updateUrlTemplate = @json(route('services.update', '__SERVICE__'));
-    const createUrl = @json(route('services.store'));
-
-    const createFieldDropdownButton = document.getElementById('openCreateFieldDropdown');
-    const createFieldDropdownMenu = document.getElementById('createFieldDropdownMenu');
-    const fieldTypeButtons = Array.from(document.querySelectorAll('.create-field-type-option'));
-    const createFieldModal = document.getElementById('createFieldModal');
-    const createFieldPanel = document.getElementById('createFieldPanel');
-    const createFieldModalOverlay = document.getElementById('createFieldModalOverlay');
-    const closeCreateFieldModal = document.getElementById('closeCreateFieldModal');
-    const cancelCreateFieldModal = document.getElementById('cancelCreateFieldModal');
-    const createFieldTypeInput = document.getElementById('createFieldTypeInput');
-    const createFieldTypeLabel = document.getElementById('createFieldTypeLabel');
-    const picklistOptionsSection = document.getElementById('picklistOptionsSection');
-    const picklistOptionsContainer = document.getElementById('picklistOptionsContainer');
-    const addPicklistOption = document.getElementById('addPicklistOption');
-    const defaultValueSection = document.getElementById('defaultValueSection');
-    const lookupSection = document.getElementById('lookupSection');
-    const defaultValueInput = document.getElementById('default_value');
-    const headerActionTriggers = Array.from(document.querySelectorAll('.field-header-trigger'));
-    const fieldActionsMenu = document.getElementById('fieldActionsMenu');
-    const fieldActionButtons = Array.from(document.querySelectorAll('.field-action-item'));
-    const tableHead = document.querySelector('table thead');
-    const tableBody = document.querySelector('table tbody');
-    let createFieldDropdownOpen = false;
-    let fieldActionsMenuOpen = false;
-    let activeFieldColumnKey = null;
-    let activeFieldIsCustom = false;
-    const columnSortState = {};
-    const columnFilters = {};
-
-    const openModal = () => window.jkncSlideOver.open(modal);
-    const closeModal = () => window.jkncSlideOver.close(modal);
-
-    const formatDateTimeLocal = (value) => {
-        if (!value) return '';
-        return String(value).replace(' ', 'T').slice(0, 16);
-    };
-
-    const resetForm = () => {
-        form.reset();
-        form.action = createUrl;
-        methodInput.value = 'POST';
-        title.textContent = 'Add Service';
-        submit.textContent = 'Save';
-        const statusField = document.getElementById('globalServiceFormStatus');
-        if (statusField) {
-            statusField.value = 'Pending Approval';
-            statusField.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    };
-
-    const setMultiSelect = (id, values) => {
-        const select = document.getElementById(id);
-        const selected = Array.isArray(values) ? values : [];
-        Array.from(select.options).forEach((option) => {
-            option.selected = selected.includes(option.value);
-        });
-        select.dispatchEvent(new Event('change'));
-    };
-
-    const fillForm = (service) => {
-        document.getElementById('globalServiceFormCompany').value = service.company_id ?? '';
-        document.getElementById('globalServiceFormServiceName').value = service.service_name ?? '';
-        document.getElementById('globalServiceFormServiceDescription').value = service.service_description ?? '';
-        document.getElementById('globalServiceFormServiceOutput').value = service.service_activity_output ?? '';
-        setMultiSelect('globalServiceFormServiceArea', service.service_area ?? []);
-        document.getElementById('globalServiceFormServiceAreaOther').value = service.service_area_other ?? '';
-        document.getElementById('globalServiceFormCategory').value = service.category ?? '';
-        document.getElementById('globalServiceFormFrequency').value = service.frequency ?? '';
-        document.getElementById('globalServiceFormFrequency').dispatchEvent(new Event('change'));
-        document.getElementById('globalServiceFormScheduleRule').value = service.schedule_rule ?? '';
-        document.getElementById('globalServiceFormDeadline').value = formatDateTimeLocal(service.deadline ?? '');
-        document.getElementById('globalServiceFormReminder').value = service.reminder_lead_time ?? '';
-        const requirementGroups = service.requirements?.groups ?? {};
-        document.getElementById('globalServiceFormRequirementCategory').value = service.requirement_category ?? service.requirements?.category ?? '';
-        document.getElementById('globalServiceFormRequirements').value = Array.isArray(service.requirements?.items) ? service.requirements.items.join('\n') : '';
-        document.getElementById('globalServiceFormRequirementsIndividual').value = Array.isArray(requirementGroups.individual) ? requirementGroups.individual.join('\n') : '';
-        document.getElementById('globalServiceFormRequirementsJuridical').value = Array.isArray(requirementGroups.juridical) ? requirementGroups.juridical.join('\n') : '';
-        document.getElementById('globalServiceFormRequirementsOther').value = Array.isArray(requirementGroups.other) ? requirementGroups.other.join('\n') : '';
-
-        if (service.requirements?.category && Array.isArray(service.requirements?.items)) {
-            if (service.requirements.category === 'SOLE / NATURAL PERSON / INDIVIDUAL') {
-                document.getElementById('globalServiceFormRequirementsIndividual').value = service.requirements.items.join('\n');
-            } else if (service.requirements.category === 'JURIDICAL ENTITY (Corporation / OPC / Partnership / Cooperative)') {
-                document.getElementById('globalServiceFormRequirementsJuridical').value = service.requirements.items.join('\n');
-            } else {
-                document.getElementById('globalServiceFormRequirementsOther').value = service.requirements.items.join('\n');
-            }
-        }
-        ['globalServiceFormRequirementsIndividual', 'globalServiceFormRequirementsJuridical', 'globalServiceFormRequirementsOther'].forEach((id) => {
-            document.getElementById(id)?.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        setMultiSelect('globalServiceFormEngagement', service.engagement_structure ?? []);
-        document.getElementById('globalServiceFormUnit').value = service.unit ?? '';
-        document.getElementById('globalServiceFormRatePerUnit').value = service.rate_per_unit ?? '';
-        document.getElementById('globalServiceFormMinUnits').value = service.min_units ?? '';
-        document.getElementById('globalServiceFormMaxCap').value = service.max_cap ?? '';
-        document.getElementById('globalServiceFormPriceFee').value = service.price_fee ?? '';
-        document.getElementById('globalServiceFormCost').value = service.cost_of_service ?? '';
-        const globalTaxType = service.tax_type ?? 'Tax Exclusive';
-        document.querySelectorAll('#globalServiceForm input[name="tax_type"]').forEach((input) => {
-            input.checked = input.value === globalTaxType;
-        });
-        document.getElementById('globalServiceFormAssignedUnit').value = service.assigned_unit ?? '';
-        document.getElementById('globalServiceFormAssignedUnit').dispatchEvent(new Event('change', { bubbles: true }));
-        const statusField = document.getElementById('globalServiceFormStatus');
-        if (statusField) {
-            statusField.value = service.status ?? 'Pending Approval';
-            statusField.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        Object.entries(service.custom_field_values ?? {}).forEach(([key, value]) => {
-            const input = form.querySelector(`[name="custom_fields[${key}]"]`);
-            if (!input) return;
-            if (input.type === 'checkbox') {
-                input.checked = value === '1' || value === 1 || value === true;
-            } else {
-                input.value = value ?? '';
-            }
-        });
-    };
-
-    openButton?.addEventListener('click', function () {
-        resetForm();
-        openModal();
-    });
-
-    closeButtons.forEach((button) => button.addEventListener('click', closeModal));
-
-    editButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            const service = JSON.parse(this.dataset.globalServiceEdit);
-            resetForm();
-            form.action = updateUrlTemplate.replace('__SERVICE__', service.id);
-            methodInput.value = 'PUT';
-            title.textContent = 'Edit Service';
-            submit.textContent = 'Update';
-            fillForm(service);
-            openModal();
-        });
-    });
-
-    const buildPicklistOptionRow = (value = '') => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-2';
-        row.innerHTML = `
-            <input name="options[]" value="${value}" placeholder="Option value" class="h-10 flex-1 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-            <button type="button" class="remove-picklist-option h-8 w-8 rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50">
-                <i class="fas fa-minus text-xs"></i>
-            </button>
-        `;
-        return row;
-    };
-
-    const ensurePicklistOptionRows = () => {
-        if (!picklistOptionsContainer) {
-            return;
-        }
-
-        if (picklistOptionsContainer.querySelectorAll('input[name="options[]"]').length === 0) {
-            picklistOptionsContainer.appendChild(buildPicklistOptionRow(''));
-        }
-    };
-
-    const closeCreateFieldDropdown = () => {
-        createFieldDropdownMenu?.classList.add('hidden');
-        createFieldDropdownOpen = false;
-    };
-
-    const openCreateFieldDropdownMenu = () => {
-        if (!createFieldDropdownMenu || !createFieldDropdownButton) {
-            return;
-        }
-
-        const rect = createFieldDropdownButton.getBoundingClientRect();
-        const menuWidth = createFieldDropdownMenu.offsetWidth || 256;
-        const viewportWidth = window.innerWidth;
-        const left = Math.min(
-            Math.max(16, rect.right - menuWidth),
-            Math.max(16, viewportWidth - menuWidth - 16)
-        );
-
-        createFieldDropdownMenu.style.left = `${left}px`;
-        createFieldDropdownMenu.style.top = `${rect.bottom + 8}px`;
-        createFieldDropdownMenu.classList.remove('hidden');
-        createFieldDropdownOpen = true;
-    };
-
-    const getColumnHeader = (columnKey) => document.querySelector(`th[data-column-key="${columnKey}"]`);
-    const getColumnCells = (columnKey) => Array.from(document.querySelectorAll(`td[data-column-key="${columnKey}"]`));
-
-    const applyRowFilters = () => {
-        const rows = Array.from(document.querySelectorAll('.service-row'));
-        rows.forEach((row) => {
-            let isVisible = true;
-
-            Object.entries(columnFilters).forEach(([columnKey, filterText]) => {
-                if (!isVisible || filterText === '') {
-                    return;
-                }
-
-                const cellText = (row.querySelector(`td[data-column-key="${columnKey}"]`)?.textContent || '')
-                    .trim()
-                    .toLowerCase();
-
-                if (!cellText.includes(filterText)) {
-                    isVisible = false;
-                }
-            });
-
-            row.classList.toggle('hidden', !isVisible);
-        });
-    };
-
-    const sortByColumn = (columnKey) => {
-        if (!tableBody) {
-            return;
-        }
-
-        const rows = Array.from(tableBody.querySelectorAll('.service-row'));
-        const nextDirection = columnSortState[columnKey] === 'asc' ? 'desc' : 'asc';
-        columnSortState[columnKey] = nextDirection;
-
-        rows.sort((left, right) => {
-            const leftText = (left.querySelector(`td[data-column-key="${columnKey}"]`)?.textContent || '').trim().toLowerCase();
-            const rightText = (right.querySelector(`td[data-column-key="${columnKey}"]`)?.textContent || '').trim().toLowerCase();
-            return nextDirection === 'asc'
-                ? leftText.localeCompare(rightText, undefined, { numeric: true })
-                : rightText.localeCompare(leftText, undefined, { numeric: true });
-        });
-
-        rows.forEach((row) => tableBody.appendChild(row));
-    };
-
-    const collapseColumn = (columnKey) => {
-        const header = getColumnHeader(columnKey);
-        const cells = getColumnCells(columnKey);
-        if (!header) {
-            return;
-        }
-
-        const willHide = !header.classList.contains('hidden');
-        header.classList.toggle('hidden', willHide);
-        cells.forEach((cell) => cell.classList.toggle('hidden', willHide));
-    };
-
-    const moveColumnLeft = (columnKey) => {
-        if (!tableHead || !tableBody) {
-            return;
-        }
-
-        const header = getColumnHeader(columnKey);
-        if (!header || !header.previousElementSibling || !header.previousElementSibling.hasAttribute('data-column-key')) {
-            return;
-        }
-
-        const previousHeader = header.previousElementSibling;
-        const previousKey = previousHeader.getAttribute('data-column-key');
-        if (!previousKey) {
-            return;
-        }
-
-        tableHead.querySelector('tr')?.insertBefore(header, previousHeader);
-        Array.from(tableBody.querySelectorAll('.service-row')).forEach((row) => {
-            const cell = row.querySelector(`td[data-column-key="${columnKey}"]`);
-            const previousCell = row.querySelector(`td[data-column-key="${previousKey}"]`);
-            if (cell && previousCell) {
-                row.insertBefore(cell, previousCell);
-            }
-        });
-    };
-
-    const autoFitColumn = (columnKey) => {
-        const header = getColumnHeader(columnKey);
-        const cells = getColumnCells(columnKey);
-        if (!header) {
-            return;
-        }
-
-        header.style.width = '1%';
-        header.classList.add('whitespace-nowrap');
-        cells.forEach((cell) => cell.classList.add('whitespace-nowrap'));
-    };
-
-    const removeCustomColumn = (columnKey) => {
-        if (!activeFieldIsCustom) {
-            return;
-        }
-
-        getColumnHeader(columnKey)?.remove();
-        getColumnCells(columnKey).forEach((cell) => cell.remove());
-    };
-
-    const positionFieldActionsMenu = (trigger) => {
-        if (!fieldActionsMenu || !trigger) {
-            return;
-        }
-
-        const rect = trigger.getBoundingClientRect();
-        const menuWidth = fieldActionsMenu.offsetWidth || 224;
-        const viewportPadding = 12;
-        let left = rect.right - menuWidth;
-
-        if (left < viewportPadding) {
-            left = viewportPadding;
-        }
-
-        if (left + menuWidth > window.innerWidth - viewportPadding) {
-            left = window.innerWidth - menuWidth - viewportPadding;
-        }
-
-        let top = rect.bottom + 6;
-        const menuHeight = fieldActionsMenu.offsetHeight || 300;
-        if (top + menuHeight > window.innerHeight - viewportPadding) {
-            top = Math.max(viewportPadding, rect.top - menuHeight - 6);
-        }
-
-        fieldActionsMenu.style.left = `${left}px`;
-        fieldActionsMenu.style.top = `${top}px`;
-    };
-
-    const closeFieldActionsMenu = () => {
-        if (!fieldActionsMenu) {
-            return;
-        }
-
-        fieldActionsMenu.classList.add('hidden');
-        fieldActionsMenuOpen = false;
-        activeFieldColumnKey = null;
-        activeFieldIsCustom = false;
-    };
-
-    const openFieldActionsMenu = (trigger, columnKey, isCustom) => {
-        if (!fieldActionsMenu) {
-            return;
-        }
-
-        activeFieldColumnKey = columnKey;
-        activeFieldIsCustom = isCustom;
-        const removeBtn = fieldActionsMenu.querySelector('[data-action="remove-column"]');
-        if (removeBtn) {
-            removeBtn.classList.toggle('opacity-50', !isCustom);
-            removeBtn.classList.toggle('cursor-not-allowed', !isCustom);
-            removeBtn.classList.toggle('pointer-events-none', !isCustom);
-            removeBtn.setAttribute('aria-disabled', !isCustom ? 'true' : 'false');
-        }
-
-        fieldActionsMenu.classList.remove('hidden');
-        fieldActionsMenuOpen = true;
-        positionFieldActionsMenu(trigger);
-    };
-
-    const applyCreateFieldTypeUI = (type, label) => {
-        if (!createFieldTypeInput || !createFieldTypeLabel) {
-            return;
-        }
-
-        createFieldTypeInput.value = type;
-        createFieldTypeLabel.textContent = label;
-
-        picklistOptionsSection?.classList.toggle('hidden', type !== 'picklist');
-        defaultValueSection?.classList.toggle('hidden', false);
-        lookupSection?.classList.toggle('hidden', type !== 'lookup');
-
-        if (type === 'picklist') {
-            ensurePicklistOptionRows();
-        }
-    };
-
-    const openCreateField = () => {
-        if (!createFieldModal) {
-            return;
-        }
-
-        createFieldModal.classList.remove('hidden');
-        createFieldModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('overflow-hidden');
-
-        requestAnimationFrame(() => {
-            createFieldModalOverlay?.classList.remove('opacity-0');
-            createFieldPanel?.classList.remove('translate-x-full');
-        });
-    };
-
-    createFieldDropdownButton?.addEventListener('click', function () {
-        if (createFieldDropdownOpen) {
-            closeCreateFieldDropdown();
-            return;
-        }
-
-        closeFieldActionsMenu();
-        openCreateFieldDropdownMenu();
-    });
-
-    fieldTypeButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            const value = this.dataset.fieldType;
-            const label = this.dataset.fieldLabel || 'Picklist';
-            applyCreateFieldTypeUI(value, label);
-            closeCreateFieldDropdown();
-            openCreateField();
-        });
-    });
-
-    const closeCreateField = () => {
-        createFieldModalOverlay?.classList.add('opacity-0');
-        createFieldPanel?.classList.add('translate-x-full');
-        document.body.classList.remove('overflow-hidden');
-        setTimeout(() => {
-            createFieldModal?.classList.add('hidden');
-            createFieldModal?.setAttribute('aria-hidden', 'true');
-        }, 200);
-    };
-
-    closeCreateFieldModal?.addEventListener('click', closeCreateField);
-    cancelCreateFieldModal?.addEventListener('click', closeCreateField);
-    createFieldModalOverlay?.addEventListener('click', closeCreateField);
-
-    addPicklistOption?.addEventListener('click', function () {
-        picklistOptionsContainer?.appendChild(buildPicklistOptionRow(''));
-    });
-
-    picklistOptionsContainer?.addEventListener('click', function (event) {
-        const removeButton = event.target.closest('.remove-picklist-option');
-        if (!removeButton) return;
-        if (picklistOptionsContainer.children.length === 1) {
-            const input = picklistOptionsContainer.querySelector('input');
-            if (input) input.value = '';
-            return;
-        }
-        removeButton.parentElement.remove();
-    });
-
-    document.addEventListener('click', function (event) {
-        if (!createFieldDropdownButton?.contains(event.target) && !createFieldDropdownMenu?.contains(event.target)) {
-            closeCreateFieldDropdown();
-        }
-
-        if (fieldActionsMenu && fieldActionsMenuOpen) {
-            const clickedHeaderTrigger = headerActionTriggers.some((trigger) => trigger.contains(event.target));
-            if (!fieldActionsMenu.contains(event.target) && !clickedHeaderTrigger) {
-                closeFieldActionsMenu();
-            }
-        }
-    });
-
-    headerActionTriggers.forEach((trigger) => {
-        trigger.addEventListener('click', function (event) {
-            event.stopPropagation();
-            const columnKey = trigger.dataset.columnKey || '';
-            const columnType = trigger.dataset.columnType || 'base';
-            const isCustom = columnType === 'custom';
-
-            if (fieldActionsMenuOpen && activeFieldColumnKey === columnKey) {
-                closeFieldActionsMenu();
-                return;
-            }
-
-            closeCreateFieldDropdown();
-            openFieldActionsMenu(trigger, columnKey, isCustom);
-        });
-    });
-
-    fieldActionButtons.forEach((button) => {
-        button.addEventListener('click', function () {
-            if (!activeFieldColumnKey) {
-                closeFieldActionsMenu();
-                return;
-            }
-
-            const action = button.dataset.action || '';
-
-            if (action === 'sort') {
-                sortByColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'filter') {
-                const currentFilter = columnFilters[activeFieldColumnKey] || '';
-                const input = window.prompt('Filter value', currentFilter);
-                if (input !== null) {
-                    columnFilters[activeFieldColumnKey] = input.trim().toLowerCase();
-                    applyRowFilters();
-                }
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'edit-field') {
-                window.alert('Edit Field is not available yet.');
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'add-column') {
-                closeFieldActionsMenu();
-                openCreateFieldDropdownMenu();
-                return;
-            }
-
-            if (action === 'collapse') {
-                collapseColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'move-left') {
-                moveColumnLeft(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'autofit') {
-                autoFitColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-                return;
-            }
-
-            if (action === 'remove-column') {
-                if (!activeFieldIsCustom) {
-                    return;
-                }
-                removeCustomColumn(activeFieldColumnKey);
-                closeFieldActionsMenu();
-            }
-        });
-    });
-
-    if (createFieldTypeInput && createFieldTypeLabel) {
-        const initialButton = fieldTypeButtons.find((button) => button.dataset.fieldType === createFieldTypeInput.value)
-            || fieldTypeButtons[0];
-        applyCreateFieldTypeUI(
-            initialButton?.dataset.fieldType || createFieldTypeInput.value || 'picklist',
-            initialButton?.dataset.fieldLabel || createFieldTypeLabel.textContent || 'Picklist'
-        );
+function enableNewServiceArea() {
+    const existingWrapper = document.getElementById('serviceAreaExistingWrapper');
+    const customWrapper = document.getElementById('serviceAreaCustomWrapper');
+    const select = document.getElementById('serviceAreaSelect');
+    const customInput = document.getElementById('serviceAreaCustomInput');
+    const addButton = document.getElementById('addServiceAreaBtn');
+    const existingButton = document.getElementById('useExistingServiceAreaBtn');
+
+    if (!existingWrapper || !customWrapper || !select || !customInput) return;
+
+    existingWrapper.classList.add('hidden');
+    customWrapper.classList.remove('hidden');
+    select.required = false;
+    select.disabled = true;
+    select.removeAttribute('name');
+    customInput.disabled = false;
+    customInput.required = true;
+    customInput.setAttribute('name', 'service_area');
+    customInput.focus();
+    addButton?.classList.add('hidden');
+    existingButton?.classList.remove('hidden');
+}
+
+function useExistingServiceArea() {
+    const existingWrapper = document.getElementById('serviceAreaExistingWrapper');
+    const customWrapper = document.getElementById('serviceAreaCustomWrapper');
+    const select = document.getElementById('serviceAreaSelect');
+    const customInput = document.getElementById('serviceAreaCustomInput');
+    const addButton = document.getElementById('addServiceAreaBtn');
+    const existingButton = document.getElementById('useExistingServiceAreaBtn');
+
+    if (!existingWrapper || !customWrapper || !select || !customInput) return;
+
+    customWrapper.classList.add('hidden');
+    existingWrapper.classList.remove('hidden');
+    customInput.required = false;
+    customInput.disabled = true;
+    customInput.removeAttribute('name');
+    customInput.value = '';
+    select.disabled = false;
+    select.required = true;
+    select.setAttribute('name', 'service_area_select');
+    addButton?.classList.remove('hidden');
+    existingButton?.classList.add('hidden');
+}
+
+function enableNewCategory() {
+    const existingWrapper = document.getElementById('categoryExistingWrapper');
+    const customWrapper = document.getElementById('categoryCustomWrapper');
+    const select = document.getElementById('categorySelect');
+    const customInput = document.getElementById('categoryCustomInput');
+    const addButton = document.getElementById('addCategoryBtn');
+    const existingButton = document.getElementById('useExistingCategoryBtn');
+
+    if (!existingWrapper || !customWrapper || !select || !customInput) return;
+
+    existingWrapper.classList.add('hidden');
+    customWrapper.classList.remove('hidden');
+    select.required = false;
+    select.disabled = true;
+    select.removeAttribute('name');
+    customInput.disabled = false;
+    customInput.required = true;
+    customInput.setAttribute('name', 'category');
+    customInput.focus();
+    addButton?.classList.add('hidden');
+    existingButton?.classList.remove('hidden');
+}
+
+function useExistingCategory() {
+    const existingWrapper = document.getElementById('categoryExistingWrapper');
+    const customWrapper = document.getElementById('categoryCustomWrapper');
+    const select = document.getElementById('categorySelect');
+    const customInput = document.getElementById('categoryCustomInput');
+    const addButton = document.getElementById('addCategoryBtn');
+    const existingButton = document.getElementById('useExistingCategoryBtn');
+
+    if (!existingWrapper || !customWrapper || !select || !customInput) return;
+
+    customWrapper.classList.add('hidden');
+    existingWrapper.classList.remove('hidden');
+    customInput.required = false;
+    customInput.disabled = true;
+    customInput.removeAttribute('name');
+    customInput.value = '';
+    select.disabled = false;
+    select.required = true;
+    select.setAttribute('name', 'category_select');
+    addButton?.classList.remove('hidden');
+    existingButton?.classList.add('hidden');
+}
+
+function handleServiceAreaChange(selectElement) {
+    if (selectElement.value === 'Others') {
+        enableNewServiceArea();
+        selectElement.value = '';
+    } else {
+        selectElement.setAttribute('name', 'service_area');
     }
+}
 
-    if (defaultValueInput) {
-        defaultValueInput.value = defaultValueInput.value ?? '';
+function handleCategoryChange(selectElement) {
+    if (selectElement.value === 'Others') {
+        enableNewCategory();
+        selectElement.value = '';
+    } else {
+        selectElement.setAttribute('name', 'category');
     }
+}
 
-    window.addEventListener('resize', function () {
-        if (createFieldDropdownOpen) {
-            openCreateFieldDropdownMenu();
-        }
-        if (fieldActionsMenuOpen) {
-            const activeTrigger = headerActionTriggers.find((trigger) => trigger.dataset.columnKey === activeFieldColumnKey) || null;
-            positionFieldActionsMenu(activeTrigger);
-        }
+function toggleBulkActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('bulkActionsMenu');
+    menu.classList.toggle('hidden');
+}
+
+function toggleCreateFieldMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('createFieldMenu');
+    menu.classList.toggle('hidden');
+}
+
+function openFieldModal(fieldType) {
+    document.getElementById('createFieldMenu').classList.add('hidden');
+    document.getElementById('modalFieldTypeName').innerText = fieldType;
+    const picklistContainer = document.getElementById('picklistOptionsContainer');
+    if (fieldType === 'Picklist') {
+        picklistContainer.classList.remove('hidden');
+    } else {
+        picklistContainer.classList.add('hidden');
+    }
+    document.getElementById('createFieldModal').classList.remove('hidden');
+}
+
+function closeFieldModal() {
+    document.getElementById('createFieldModal').classList.add('hidden');
+}
+
+function toggleServiceDropdown(event, elementId) {
+    event.stopPropagation();
+    const dropdowns = document.querySelectorAll('.svc-action-dropdown');
+    dropdowns.forEach(menu => {
+        if (menu.id !== elementId) menu.classList.add('hidden');
     });
+    const targetMenu = document.getElementById(elementId);
+    if (targetMenu) targetMenu.classList.toggle('hidden');
+}
 
-    document.addEventListener('scroll', function () {
-        if (createFieldDropdownOpen) {
-            openCreateFieldDropdownMenu();
-        }
-        if (fieldActionsMenuOpen) {
-            const activeTrigger = headerActionTriggers.find((trigger) => trigger.dataset.columnKey === activeFieldColumnKey) || null;
-            positionFieldActionsMenu(activeTrigger);
-        }
-    }, true);
+function toggleSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.service-checkbox');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+}
 
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-            closeCreateField();
-            closeCreateFieldDropdown();
-            closeFieldActionsMenu();
-            closeModal();
-        }
-    });
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#bulkActionsMenu')) {
+        document.getElementById('bulkActionsMenu')?.classList.add('hidden');
+    }
+    if (!e.target.closest('#createFieldMenu')) {
+        document.getElementById('createFieldMenu')?.classList.add('hidden');
+    }
+    if (!e.target.closest('.svc-action-dropdown')) {
+        const dropdowns = document.querySelectorAll('.svc-action-dropdown');
+        dropdowns.forEach(menu => menu.classList.add('hidden'));
+    }
 });
 </script>
 @endsection

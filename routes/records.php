@@ -39,7 +39,14 @@ Route::middleware(['auth', 'ordo.context'])->group(function (): void {
         ->middleware('can:manageScheme')
         ->name('records.classifications.update');
 
-    Route::put('/records/indexes/{index}', [RecordClassificationController::class, 'updateIndex'])
+    Route::match(['put', 'patch', 'post'], '/records/classifications/{classification}/update', [RecordClassificationController::class, 'updateClassification'])
+        ->middleware('can:manageScheme');
+
+    Route::match(['put', 'patch', 'post'], '/records/classifications/{classification}/indexes/{index}/update', [RecordClassificationController::class, 'updateIndex'])
+        ->middleware('can:manageScheme')
+        ->name('records.classifications.indexes.update');
+
+    Route::match(['put', 'patch', 'post'], '/records/indexes/{index}', [RecordClassificationController::class, 'updateIndex'])
         ->middleware('can:manageScheme')
         ->name('records.indexes.update');
 
