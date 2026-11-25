@@ -97,8 +97,9 @@ class RecordSearchService
             ))
             ->when($this->filled($filters, 'source'), fn (Builder $q) => $q->where('source', $filters['source']))
             ->when($this->filled($filters, 'status'), fn (Builder $q) => $q->where('status', $filters['status']))
-            ->when($this->filled($filters, 'from'), fn (Builder $q) => $q->whereDate('document_date', '>=', $filters['from']))
-            ->when($this->filled($filters, 'to'), fn (Builder $q) => $q->whereDate('document_date', '<=', $filters['to']))
+            ->when($this->filled($filters, 'date'), fn (Builder $q) => $q->whereDate('document_date', '=', $filters['date']))
+            ->when(! $this->filled($filters, 'date') && $this->filled($filters, 'from'), fn (Builder $q) => $q->whereDate('document_date', '>=', $filters['from']))
+            ->when(! $this->filled($filters, 'date') && $this->filled($filters, 'to'), fn (Builder $q) => $q->whereDate('document_date', '<=', $filters['to']))
             ->when($this->filled($filters, 'currency'), fn (Builder $q) => $q->where('currency', $this->upper($filters['currency'])))
             ->when($this->filled($filters, 'amount_min'), fn (Builder $q) => $q->where('amount', '>=', $this->decimal($filters['amount_min'])))
             ->when($this->filled($filters, 'amount_max'), fn (Builder $q) => $q->where('amount', '<=', $this->decimal($filters['amount_max'])));
@@ -118,6 +119,7 @@ class RecordSearchService
             'index' => '',
             'source' => '',
             'status' => '',
+            'date' => '',
             'from' => '',
             'to' => '',
             'currency' => '',

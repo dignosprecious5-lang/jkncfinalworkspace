@@ -47,12 +47,8 @@
                     @endforeach
                 </select>
 
-                <input type="date" name="from" value="{{ $filters['from'] }}" title="Document date from"
-                       aria-label="Document date from"
-                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
-
-                <input type="date" name="to" value="{{ $filters['to'] }}" title="Document date to"
-                       aria-label="Document date to"
+                <input type="date" name="date" value="{{ $filters['date'] ?: ($filters['from'] ?: '') }}" title="Document date"
+                       aria-label="Document date"
                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
 
                 {{-- OCR text lives on the stored files, not on the record row. --}}
