@@ -38,17 +38,13 @@
                     @endforeach
                 </select>
 
-                <input type="date" name="from" value="{{ $filters['from'] }}" title="From date"
-                       aria-label="From date"
+                <input type="date" name="date" value="{{ $filters['date'] ?: ($filters['from'] ?: '') }}" title="Date"
+                       aria-label="Date"
                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
 
-                <input type="date" name="to" value="{{ $filters['to'] }}" title="To date"
-                       aria-label="To date"
-                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                <button type="submit" class="rounded-lg bg-[#111827] px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1f2937] transition-colors">Apply</button>
 
-                <x-ordo.button type="submit" variant="default">Apply</x-ordo.button>
-
-                <a href="{{ route('records.logs') }}" class="text-[11px] text-ordo-blue">Reset</a>
+                <a href="{{ route('records.logs') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">Reset</a>
             </form>
 
             <div class="mt-4 overflow-x-auto">

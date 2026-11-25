@@ -166,6 +166,17 @@ class RecordActivityLogTest extends TestCase
         $this->assertNotEmpty($entries);
     }
 
+    public function test_it_filters_by_a_single_date(): void
+    {
+        $this->record();
+
+        $today = now()->format('Y-m-d');
+        $yesterday = now()->subDay()->format('Y-m-d');
+
+        $this->assertNotEmpty($this->get(route('records.logs', ['date' => $today]))->viewData('entries'));
+        $this->assertCount(0, $this->get(route('records.logs', ['date' => $yesterday]))->viewData('entries'));
+    }
+
     public function test_the_drawer_payload_carries_entry_properties(): void
     {
         $this->record();

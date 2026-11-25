@@ -87,11 +87,13 @@ class RecordClassificationPageTest extends TestCase
         $response = $this->get(route('records.classifications'));
 
         $response->assertOk();
-        $response->assertSee('+ Add Index', false);
         $response->assertSee('>View Records</a>', false);
 
-        // The add-index control carries no button chrome.
-        $response->assertSee('border-0 bg-transparent p-0 text-[11px] text-ordo-blue', false);
+        // Edit and Add Index are inside Manage Classification setup modal
+        $setupResponse = $this->get(route('records.setup.tab', ['tab' => 'classifications']));
+        $setupResponse->assertOk();
+        $setupResponse->assertSee('+ Add Index', false);
+        $setupResponse->assertSee('border-0 bg-transparent p-0 text-[11px] text-ordo-blue', false);
     }
 
     /**
@@ -109,7 +111,7 @@ class RecordClassificationPageTest extends TestCase
         $classification = $this->classification('301', 'Entity &amp; Ownership');
         $this->index($classification, '301-6', 'General Information Sheet');
 
-        $response = $this->get(route('records.classifications'));
+        $response = $this->get(route('records.setup.tab', ['tab' => 'classifications']));
 
         $response->assertOk();
         // The per-Classification action names its parent...
@@ -379,6 +381,10 @@ class RecordClassificationPageTest extends TestCase
         config(['ordo.default_role' => UserRole::SystemAdmin->value]);
 
         $this->get(route('records.classifications'))
+            ->assertOk()
+            ->assertSee('Manage Classification');
+
+        $this->get(route('records.setup.tab', ['tab' => 'classifications']))
             ->assertOk()
             ->assertSee('+ Add Classification');
     }
