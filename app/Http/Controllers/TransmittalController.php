@@ -38,8 +38,12 @@ use Illuminate\Support\Facades\Schema;
 
 class TransmittalController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|\Illuminate\Http\RedirectResponse
     {
+        if (! auth()->check()) {
+            return redirect()->guest(route('login'));
+        }
+
         $query = Transmittal::query()
             ->with(['preparer', 'recipients'])
             ->withCount(['recipients', 'documents', 'proofs', 'receipts'])
@@ -119,8 +123,12 @@ class TransmittalController extends Controller
         return redirect()->route('transmittals.index', ['add' => 1]);
     }
 
-    public function smartUpload(): View
+    public function smartUpload(): View|\Illuminate\Http\RedirectResponse
     {
+        if (! auth()->check()) {
+            return redirect()->guest(route('login'));
+        }
+
         $recentDocuments = TransmittalDocument::query()
             ->with('transmittal:id,tracking_number,subject')
             ->latest('id')
@@ -343,8 +351,12 @@ class TransmittalController extends Controller
             ->with('status', 'Files uploaded. Complete the transmittal workspace and save or submit it.');
     }
 
-public function workspace(Request $request, Transmittal $transmittal): View
+public function workspace(Request $request, Transmittal $transmittal): View|\Illuminate\Http\RedirectResponse
     {
+        if (! auth()->check()) {
+            return redirect()->guest(route('login'));
+        }
+
         if ($transmittal->status === 'draft') {
             abort_unless($this->canEditDraft($request, $transmittal), 404);
         }
