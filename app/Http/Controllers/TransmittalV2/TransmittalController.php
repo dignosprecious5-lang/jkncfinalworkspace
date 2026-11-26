@@ -1081,7 +1081,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
     private function sessionAuthorizedDraftIds(Request $request): array
     {
-        $tokens = $request->session()->get('transmittal_draft_tokens', []);
+        $tokens = $request->hasSession() ? $request->session()->get('transmittal_draft_tokens', []) : [];
         if (! is_array($tokens) || $tokens === []) {
             return [];
         }
@@ -1141,7 +1141,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
             return true;
         }
 
-        $token = $request->session()->get("transmittal_draft_tokens.{$transmittal->id}");
+        $token = $request->hasSession() ? $request->session()->get("transmittal_draft_tokens.{$transmittal->id}") : null;
 
         return is_string($token)
             && is_string($transmittal->edit_token_hash)
@@ -2178,7 +2178,7 @@ private function storeDocument(
             return true;
         }
 
-        $token = $request->session()->get("transmittal_draft_tokens.{$transmittal->id}");
+        $token = $request->hasSession() ? $request->session()->get("transmittal_draft_tokens.{$transmittal->id}") : null;
 
         return is_string($token)
             && is_string($transmittal->edit_token_hash)
