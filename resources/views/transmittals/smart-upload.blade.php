@@ -3,7 +3,6 @@
 @section('title', 'Smart Upload')
 
 @section('content')
-@vite('resources/js/transmittal-v2-file-tools.js')
 
 <style>
     /* ==============================
@@ -946,11 +945,11 @@
         enctype="multipart/form-data"
         id="smart-upload-form"
         data-upload-start-url="{{ route('transmittals.uploads.start') }}"
-        data-upload-max-bytes="{{ config('transmittal_v2.upload.max_bytes', 52428800) }}"
-        data-chunk-bytes="{{ config('transmittal_v2.upload.chunk_bytes', 5242880) }}"
-        data-upload-analyze-url="{{ url('/transmittals/uploads') }}"
+        data-upload-max-bytes="{{ config('ordo.upload.max_bytes') }}"
+        data-chunk-bytes="{{ config('ordo.upload.chunk_bytes') }}"
+        data-upload-analyze-url="{{ url('/transmittal/uploads') }}"
         data-analyze-url="{{ route('transmittals.analyze') }}"
-        data-max-ocr-files="{{ config('transmittal_v2.upload.max_files', 50) }}"
+        data-max-ocr-files="{{ config('ordo.ocr.max_files', 50) }}"
     >
         @csrf
 
@@ -986,7 +985,7 @@
                 <strong>Drag &amp; drop your files here (Multiple Files Supported)</strong>
                 <span class="drop-hint">or <u>browse from your device</u> · Drop additional files anytime</span>
                 <small class="drop-limits">
-                    PDF, JPG, PNG, TIFF, DOC/DOCX · Up to {{ number_format(config('transmittal_v2.upload.max_bytes', 52428800) / 1048576) }} MB per file · Up to {{ number_format(config('transmittal_v2.upload.max_files', 50)) }} files per OCR batch
+                    PDF, JPG, PNG, TIFF, DOC/DOCX · Up to {{ number_format(config('ordo.upload.max_bytes') / 1048576) }} MB per file · Up to {{ number_format(config('ordo.ocr.max_files', 50)) }} files per OCR batch
                 </small>
 
                 <input
@@ -995,7 +994,7 @@
                     id="smart-document-input"
                     multiple
                     accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.doc,.docx,.txt"
-                    data-upload-max-bytes="{{ config('transmittal_v2.upload.max_bytes', 52428800) }}"
+                    data-upload-max-bytes="{{ config('ordo.upload.max_bytes') }}"
                 >
             </label>
             <input type="file" id="smart-zip-input" accept=".zip,application/zip,application/x-zip-compressed" hidden>
@@ -1350,7 +1349,7 @@
             </div>
             <div id="compress-modal-offer" style="font-size: 13px; color: #475569; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; line-height: 1.45;">
                 <strong style="color: #1d4ed8; display: block; margin-bottom: 4px;">Direct In-System Compression Available</strong>
-                Image compression can create a smaller copy. PDF compression and ZIP extraction are currently unavailable. Originals are preserved.
+                Would you like the system to automatically compress this file to fit within the 50 MB limit and proceed with the upload, or upload a compressed ZIP archive instead?
             </div>
             <div id="compress-modal-cannot-compress" style="display: none; font-size: 13px; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; line-height: 1.45;">
                 This document exceeds 50 MB. You can use Compress &amp; Upload to reduce it automatically or upload it as a compressed ZIP archive.
@@ -1372,13 +1371,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('smart-upload-form');
-    if (!window.ORDOFileTools?.UploadQueue || !window.ORDOFileTools?.prepareSubmission) {
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            alert('V2 upload safety tools are unavailable. Reload after the reviewed V2 assets are built.');
-        });
-        return;
-    }
     const fileInput = document.getElementById('smart-document-input');
     const zipInput = document.getElementById('smart-zip-input');
     const dropZone = document.getElementById('smart-dropzone');
@@ -1440,41 +1432,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnApplyDocmgmt = document.getElementById('btn-apply-docmgmt');
 
     // State
-    const uploadQueue = new window.ORDOFileTools.UploadQueue();
-    let selectedFiles = []; // Stable file identities plus review metadata
+    let selectedFiles = []; // Array of File objects + metadata
     let cameraStream = null;
     let cameraFacingMode = 'environment';
     let capturedPhotoBlob = null;
     let isAnalyzing = false;
-    let ocrTask = Promise.resolve();
-    let ocrRequested = false;
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const uploadChunkBytes = Number(form.dataset.chunkBytes || 5242880);
-    const maxOcrFiles = window.ORDOFileTools.uploadLimits.maxFiles;
-    const maxUploadBytes = window.ORDOFileTools.uploadLimits.maxFileBytes;
-    const formatUploadSize = (bytes) => {
-        const value = Number(bytes);
-        if (!Number.isFinite(value) || value < 0) return '0 B';
-        if (value < 1024) return `${value} B`;
-        const units = ['KB', 'MB', 'GB'];
-        let size = value / 1024;
-        let unit = 0;
-        while (size >= 1024 && unit < units.length - 1) {
-            size /= 1024;
-            unit++;
-        }
-        return `${size.toFixed(1)} ${units[unit]}`;
-    };
-    const analyzeUrl = form.dataset.analyzeUrl || '/transmittals/analyze';
-    const uploadStartUrl = form.dataset.uploadStartUrl || '/transmittals/uploads';
+    const maxOcrFiles = Number(form.dataset.maxOcrFiles || 50);
+    const maxUploadBytes = Number(form.dataset.uploadMaxBytes || 52428800);
+    const analyzeUrl = form.dataset.analyzeUrl || '/transmittal/analyze';
+    const uploadStartUrl = form.dataset.uploadStartUrl || '/transmittal/uploads';
 
     /* ============================================================
        1. MULTI-FILE QUEUE & ACCUMULATION
     ============================================================ */
     function syncInputFiles() {
-        selectedFiles = uploadQueue.unique(selectedFiles);
-        uploadQueue.observe(selectedFiles);
         const transfer = new DataTransfer();
         selectedFiles.forEach(function (item) {
             if (item.file instanceof File) {
@@ -1603,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', function () {
             compressModalCannotCompress.style.display = 'none';
             btnConfirmCompress.style.display = 'inline-flex';
             btnConfirmCompress.textContent = 'Compress & Upload';
-            if (btnUploadZipModal) { btnUploadZipModal.style.display = 'none'; btnUploadZipModal.disabled = true; }
+            if (btnUploadZipModal) btnUploadZipModal.style.display = 'inline-flex';
 
             compressModalLoading.style.display = 'none';
             compressModal.style.display = 'flex';
@@ -1649,52 +1623,77 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function reportUploadError(error) {
-        progressContainer.style.display = 'block';
-        progressStatusMsg.className = 'progress-status-msg error';
-        progressStatusMsg.setAttribute('role', 'alert');
-        progressStatusMsg.textContent = error instanceof Error ? error.message : String(error);
-    }
+    async function addFiles(files) {
+        if (!files || files.length === 0) return;
 
-    function addFiles(files) {
-        if (form.dataset.submitting === 'true') {
-            return Promise.reject(new Error('Upload preparation is in progress. Wait before adding files.'));
-        }
-        const incoming = Array.from(files || []);
-        if (!incoming.length) return Promise.resolve(0);
-        return uploadQueue.trackAddition(async () => {
-            const revision = uploadQueue.revision;
-            const candidates = [];
-            for (const original of incoming) {
-                let file = original;
-                if (!(file instanceof File)) throw new Error('Choose a valid file.');
-                if (file.size > maxUploadBytes) {
-                    const extension = (file.name.split('.').pop() || '').toLowerCase();
-                    if (file.type === 'application/pdf' || extension === 'pdf') {
-                        throw new Error('PDF compression is unavailable. Choose a PDF of at most 50 MiB.');
-                    }
-                    const choice = await promptOversizeCompression(file);
-                    if (!choice.shouldCompress) {
-                        throw new Error('No files from this selection were added. Select smaller files or clear the queue.');
-                    }
-                    file = await compressOversizedFile(file, maxUploadBytes);
+        let rejectedOversize = [];
+        let rejectedMaxCount = false;
+        let hasNew = false;
+
+        for (let i = 0; i < files.length; i++) {
+            let file = files[i];
+
+            // If a file exceeds size limit, prompt user with error and in-system compression option
+            if (file.size > maxUploadBytes) {
+                const choice = await promptOversizeCompression(file);
+                if (choice.openZip) {
+                    zipInput?.click();
+                    continue;
                 }
-                candidates.push({
-                    file, category: detectCategoryFromName(file.name), analysis: null,
-                    duplicateWarning: false, matchedRecord: null, ocrStatus: 'pending',
+                if (choice.shouldCompress) {
+                    const compressed = await compressOversizedFile(file, maxUploadBytes);
+                    if (compressed && compressed.size <= maxUploadBytes) {
+                        file = compressed;
+                    }
+                } else if (choice.cancelled) {
+                    continue;
+                }
+            }
+
+            // Check file size limit
+            if (file.size > maxUploadBytes) {
+                const maxMb = Math.round(maxUploadBytes / (1024 * 1024));
+                rejectedOversize.push(`${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB exceeds ${maxMb} MB limit)`);
+                continue;
+            }
+
+            // Check max files limit
+            if (selectedFiles.length >= maxOcrFiles) {
+                rejectedMaxCount = true;
+                break;
+            }
+
+            // Check duplicate in current batch
+            const isDuplicate = selectedFiles.some(function (existing) {
+                return existing.file.name === file.name && existing.file.size === file.size;
+            });
+
+            if (!isDuplicate) {
+                selectedFiles.push({
+                    file: file,
+                    category: detectCategoryFromName(file.name),
+                    analysis: null,
+                    duplicateWarning: false,
+                    matchedRecord: null,
+                    ocrStatus: 'pending' // pending, running, completed, error
                 });
+                hasNew = true;
             }
-            if (revision !== uploadQueue.revision) {
-                throw new Error('The queue changed while files were being prepared. Select those files again.');
-            }
-            const previousCount = uploadQueue.unique(selectedFiles).length;
-            selectedFiles = uploadQueue.admit(selectedFiles, candidates);
+        }
+
+        if (rejectedOversize.length > 0) {
+            alert(`The following file(s) exceeded the maximum upload limit of 50 MB and were not uploaded:\n• ` + rejectedOversize.join('\n• '));
+        }
+        if (rejectedMaxCount) {
+            alert(`Maximum upload limit reached: A maximum of ${maxOcrFiles} files can be added to this batch.`);
+        }
+
+        if (hasNew) {
             syncInputFiles();
             renderQueue();
             updateSectionsVisibility();
-            void triggerOcrAnalysis();
-            return selectedFiles.length - previousCount;
-        });
+            triggerOcrAnalysis();
+        }
     }
 
     function detectCategoryFromName(name) {
@@ -1705,11 +1704,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'document';
     }
 
-    function removeFile(id) {
-        if (form.dataset.submitting === 'true') return;
-        const index = selectedFiles.findIndex((item) => uploadQueue.identify(item) === id);
-        if (index < 0) return;
-        uploadQueue.clearError();
+    function removeFile(index) {
         selectedFiles.splice(index, 1);
         syncInputFiles();
         renderQueue();
@@ -1718,10 +1713,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function clearAllFiles() {
-        if (form.dataset.submitting === 'true') return;
-        uploadQueue.clearError();
-        // Invalidate in-flight additions even when the queue was already empty.
-        uploadQueue.revision++;
         selectedFiles = [];
         syncInputFiles();
         renderQueue();
@@ -1733,30 +1724,25 @@ document.addEventListener('DOMContentLoaded', function () {
         fileInput.click();
     });
 
-    fileInput.addEventListener('change', async function () {
-        try { await addFiles(fileInput.files); }
-        catch (error) { syncInputFiles(); reportUploadError(error); }
+    fileInput.addEventListener('change', function () {
+        addFiles(fileInput.files);
     });
 
-    zipInput.disabled = true;
     zipInput?.addEventListener('change', async function () {
         const archive = zipInput.files?.[0];
         zipInput.value = '';
         if (!archive) return;
         try {
-            if (!window.ORDOFileTools?.capabilities?.zipExtraction) {
-                throw new Error('ZIP extraction is unavailable until the V2 archive helper and fflate dependency are integrated. Select files directly instead.');
-            }
-            // Future extraction must complete admission before any success message.
-            const extractArchive = window.ORDOFileTools.extractArchive;
-            const extracted = await extractArchive(archive, {
-                maxBytes: maxUploadBytes, maxFiles: maxOcrFiles,
-                maxTotalBytes: window.ORDOFileTools.uploadLimits.maxTotalBytes,
-            });
-            const added = await addFiles(extracted);
-            progressStatusMsg.textContent = `${added} file(s) were admitted to the upload queue.`;
+            progressStatusMsg.textContent = `Expanding ${archive.name} in this browser...`;
+            progressStatusMsg.classList.remove('error');
+            const extracted = await window.ORDOFileTools.extractArchive(archive, { maxBytes: maxUploadBytes, maxFiles: maxOcrFiles });
+            selectedFiles = selectedFiles.filter((item) => item.file.size <= maxUploadBytes);
+            syncInputFiles();
+            addFiles(extracted);
+            progressStatusMsg.textContent = `${extracted.length} supported file(s) were extracted and added to the upload queue.`;
         } catch (error) {
-            reportUploadError(error);
+            progressStatusMsg.classList.add('error');
+            progressStatusMsg.textContent = error.message || 'The ZIP archive could not be processed.';
         }
     });
 
@@ -1782,15 +1768,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    dropZone.addEventListener('drop', async function (e) {
+    dropZone.addEventListener('drop', function (e) {
         e.preventDefault();
         e.stopPropagation();
         dropZone.classList.remove('drag-over');
 
         const dt = e.dataTransfer;
         if (dt && dt.files && dt.files.length > 0) {
-            try { await addFiles(dt.files); }
-            catch (error) { syncInputFiles(); reportUploadError(error); }
+            addFiles(dt.files);
         }
     });
 
@@ -1815,7 +1800,6 @@ document.addEventListener('DOMContentLoaded', function () {
         dropZone.classList.add('compact');
 
         selectedFiles.forEach(function (item, index) {
-            uploadQueue.identify(item);
             const card = document.createElement('div');
             card.className = 'file-card';
 
@@ -1825,74 +1809,47 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (['doc', 'docx'].includes(ext)) extClass += ' doc';
             else if (['jpg', 'jpeg', 'png', 'tiff', 'tif'].includes(ext)) extClass += ' img';
 
-            const fileMain = document.createElement('div');
-            fileMain.className = 'file-card-main';
-            const fileBadge = document.createElement('span');
-            fileBadge.className = extClass;
-            fileBadge.textContent = ext.slice(0, 4);
-
-            const fileMeta = document.createElement('div');
-            fileMeta.className = 'file-meta-col';
-            const fileName = document.createElement('p');
-            fileName.className = 'file-meta-name';
-            fileName.title = item.file.name;
-            fileName.textContent = item.file.name;
-
-            const fileDetails = document.createElement('div');
-            fileDetails.className = 'file-meta-details';
-            const fileSize = document.createElement('span');
-            fileSize.textContent = `${(item.file.size / 1024).toFixed(1)} KB`;
-            const status = document.createElement('span');
-            status.className = 'badge-confidence review';
+            // Status Badge
+            let statusBadge = '<span class="badge-confidence review">Pending OCR</span>';
             if (item.ocrStatus === 'running') {
-                status.className = 'badge-confidence ocr';
-                status.textContent = 'Analyzing OCR...';
+                statusBadge = '<span class="badge-confidence ocr">Analyzing OCR...</span>';
             } else if (item.ocrStatus === 'completed') {
-                status.className = item.matchedRecord ? 'badge-confidence matched' : 'badge-confidence ocr';
-                status.textContent = item.matchedRecord
-                    ? `Matched Record: ${item.matchedRecord.tracking_number || 'DB Match'}`
-                    : 'OCR Extracted';
+                if (item.matchedRecord) {
+                    statusBadge = `<span class="badge-confidence matched">Matched Record: ${item.matchedRecord.tracking_number || 'DB Match'}</span>`;
+                } else {
+                    statusBadge = '<span class="badge-confidence ocr">OCR Extracted</span>';
+                }
             } else if (item.ocrStatus === 'error') {
-                status.textContent = item.ocrError || 'Review Required';
-                status.title = 'OCR failed. Retry analysis or continue with manual review.';
-            } else {
-                status.textContent = 'Pending OCR';
+                statusBadge = '<span class="badge-confidence review">Review Required</span>';
             }
-            fileDetails.append(fileSize, status);
 
+            let dupBadge = '';
             if (item.duplicateWarning) {
-                const duplicate = document.createElement('span');
-                duplicate.className = 'badge-confidence duplicate';
-                duplicate.title = item.duplicateWarning;
-                duplicate.textContent = item.duplicateWarning;
-                fileDetails.append(duplicate);
+                dupBadge = `<span class="badge-confidence duplicate" title="${item.duplicateWarning}">${item.duplicateWarning}</span>`;
             }
-            fileMeta.append(fileName, fileDetails);
-            fileMain.append(fileBadge, fileMeta);
 
-            const actions = document.createElement('div');
-            actions.className = 'file-card-actions';
-            const categorySelect = document.createElement('select');
-            categorySelect.className = 'file-category-select';
-            categorySelect.dataset.fileId = item.id;
-            categorySelect.setAttribute('aria-label', `Category for ${item.file.name}`);
-            [['document', 'Document'], ['receipt', 'Receipt'], ['proof', 'Proof'], ['attachment', 'Attachment']]
-                .forEach(([value, label]) => {
-                    const option = document.createElement('option');
-                    option.value = value;
-                    option.textContent = label;
-                    option.selected = item.category === value;
-                    categorySelect.append(option);
-                });
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.className = 'btn-remove-file';
-            removeButton.dataset.removeId = item.id;
-            removeButton.title = 'Remove file';
-            removeButton.setAttribute('aria-label', `Remove ${item.file.name}`);
-            removeButton.textContent = '×';
-            actions.append(categorySelect, removeButton);
-            card.append(fileMain, actions);
+            card.innerHTML = `
+                <div class="file-card-main">
+                    <span class="${extClass}">${ext.slice(0, 4)}</span>
+                    <div class="file-meta-col">
+                        <p class="file-meta-name" title="${item.file.name}">${item.file.name}</p>
+                        <div class="file-meta-details">
+                            <span>${(item.file.size / 1024).toFixed(1)} KB</span>
+                            ${statusBadge}
+                            ${dupBadge}
+                        </div>
+                    </div>
+                </div>
+                <div class="file-card-actions">
+                    <select class="file-category-select" data-file-index="${index}">
+                        <option value="document" ${item.category === 'document' ? 'selected' : ''}>Document</option>
+                        <option value="receipt" ${item.category === 'receipt' ? 'selected' : ''}>Receipt</option>
+                        <option value="proof" ${item.category === 'proof' ? 'selected' : ''}>Proof</option>
+                        <option value="attachment" ${item.category === 'attachment' ? 'selected' : ''}>Attachment</option>
+                    </select>
+                    <button type="button" class="btn-remove-file" data-remove-index="${index}" title="Remove file">&times;</button>
+                </div>
+            `;
 
             if (item.file.size > maxUploadBytes) {
                 const assist = document.createElement('div');
@@ -1903,7 +1860,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const message = document.createElement('p');
                 message.className = 'upload-size-message error';
                 message.setAttribute('role', 'alert');
-                message.textContent = `This file exceeds the 50 MiB maximum. Choose a smaller file or use available image compression.`;
+                message.textContent = `You've reached the maximum upload limit. Please reduce the file size or upload your documents as a supported compressed archive.`;
                 const choose = document.createElement('span');
                 choose.className = 'upload-limit-choice';
                 choose.textContent = 'Choose an option';
@@ -1912,35 +1869,34 @@ document.addEventListener('DOMContentLoaded', function () {
                 compress.className = 'upload-compress-button';
                 compress.textContent = 'Compress and use';
                 compress.addEventListener('click', async function () {
-                    if (form.dataset.submitting === 'true') return;
                     compress.disabled = true;
                     message.textContent = `Compressing ${item.file.name}...`;
-                    const ticket = uploadQueue.beginOcr(item);
                     try {
-                        await uploadQueue.trackAddition(async () => {
-                            const compressed = await compressOversizedFile(item.file, maxUploadBytes);
-                            if (!uploadQueue.isCurrent(selectedFiles, ticket)) throw new Error('The file changed while compression was running.');
-                            const replacement = { ...item, file: compressed, analysis: null, duplicateWarning: false, matchedRecord: null, ocrStatus: 'pending' };
-                            selectedFiles = uploadQueue.validate(selectedFiles.map((entry) => entry === item ? replacement : entry));
-                            syncInputFiles();
-                            renderQueue();
-                            updateSectionsVisibility();
-                            void triggerOcrAnalysis();
-                        });
+                        const compressed = await window.ORDOFileTools.compress(item.file, maxUploadBytes);
+                        item.file = compressed;
+                        item.analysis = null;
+                        item.duplicateWarning = false;
+                        item.matchedRecord = null;
+                        item.ocrStatus = 'pending';
+                        syncInputFiles();
+                        renderQueue();
+                        updateSectionsVisibility();
+                        progressStatusMsg.classList.remove('error');
+                        triggerOcrAnalysis();
                     } catch (error) {
-                        reportUploadError(error);
+                        message.classList.add('error');
+                        message.textContent = error.message || 'The selected file could not be compressed.';
                         compress.disabled = false;
                     }
                 });
                 const archiveButton = document.createElement('button');
                 archiveButton.type = 'button';
                 archiveButton.className = 'upload-compress-button';
-                archiveButton.textContent = 'ZIP extraction unavailable';
-                archiveButton.disabled = true;
+                archiveButton.textContent = 'Upload Compressed File';
                 archiveButton.addEventListener('click', () => zipInput?.click());
                 const archiveHint = document.createElement('small');
                 archiveHint.className = 'upload-limit-archive-hint';
-                archiveHint.textContent = 'ZIP extraction is unavailable; select the source files directly.';
+                archiveHint.textContent = 'Upload supported ZIP archives to combine multiple documents into one upload.';
                 assist.append(heading, message, choose, compress, archiveButton, archiveHint);
                 card.append(assist);
             }
@@ -1951,16 +1907,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // Category change listener
         queueList.querySelectorAll('.file-category-select').forEach(function (sel) {
             sel.addEventListener('change', function () {
-                if (form.dataset.submitting === 'true') return;
-                const item = selectedFiles.find((entry) => uploadQueue.identify(entry) === this.dataset.fileId);
-                if (item) item.category = this.value;
+                const idx = Number(this.dataset.fileIndex);
+                if (selectedFiles[idx]) {
+                    selectedFiles[idx].category = this.value;
+                }
             });
         });
 
         // Remove button listener
-        queueList.querySelectorAll('[data-remove-id]').forEach(function (btn) {
+        queueList.querySelectorAll('[data-remove-index]').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                removeFile(this.dataset.removeId);
+                const idx = Number(this.dataset.removeIndex);
+                removeFile(idx);
             });
         });
     }
@@ -1977,22 +1935,13 @@ document.addEventListener('DOMContentLoaded', function () {
     /* ============================================================
        4. OCR / AI EXTRACTION PER FILE & DUPLICATE DETECTION
     ============================================================ */
-    function triggerOcrAnalysis() {
-        if (isAnalyzing) { ocrRequested = true; return ocrTask; }
-        ocrRequested = false;
-        ocrTask = runOcrAnalysis();
-        return ocrTask;
-    }
-
-    async function runOcrAnalysis() {
+    async function triggerOcrAnalysis() {
         if (isAnalyzing || selectedFiles.length === 0) return;
-        try { uploadQueue.validate(selectedFiles); }
-        catch (error) { reportUploadError(error); return; }
         const oversized = selectedFiles.filter((item) => item.file.size > maxUploadBytes);
         if (oversized.length) {
             progressContainer.style.display = 'block';
             progressStatusMsg.className = 'progress-status-msg error';
-            progressStatusMsg.textContent = `${oversized.length} file(s) exceed the ${formatUploadSize(maxUploadBytes)} per-file maximum. Compress them from the file list before OCR.`;
+            progressStatusMsg.textContent = `${oversized.length} file(s) exceed the ${window.ORDOFileTools.formatSize(maxUploadBytes)} per-file maximum. Compress them from the file list before OCR.`;
             return;
         }
         isAnalyzing = true;
@@ -2017,16 +1966,12 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        let activeOcrTicket = null;
         try {
             let processed = 0;
             const total = Math.min(ocrCandidates.length, maxOcrFiles);
 
             for (let i = 0; i < total; i++) {
                 const item = ocrCandidates[i];
-                if (!selectedFiles.includes(item)) continue;
-                const ticket = uploadQueue.beginOcr(item);
-                activeOcrTicket = ticket;
                 item.ocrStatus = 'running';
                 renderQueue();
 
@@ -2035,8 +1980,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Support chunked upload if file > 20MB
                 if (item.file.size > 20 * 1024 * 1024) {
                     progressStatusMsg.textContent = `Uploading large file chunks for ${item.file.name}...`;
-                    const uploadId = await uploadResumableFile(ticket.file);
-                    if (!uploadQueue.isCurrent(selectedFiles, ticket)) continue;
+                    const uploadId = await uploadResumableFile(item.file);
                     const analyzeRes = await fetch(`${uploadStartUrl}/${uploadId}/analyze`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' }
@@ -2045,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!analyzeRes.ok) throw new Error(analysisData.message || `OCR failed for ${item.file.name}`);
                 } else {
                     const formData = new FormData();
-                    formData.append('documents[]', ticket.file);
+                    formData.append('documents[]', item.file);
 
                     const res = await fetch(analyzeUrl, {
                         method: 'POST',
@@ -2057,11 +2001,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     analysisData = resJson.documents ? resJson.documents[0] : resJson;
                 }
 
-                if (!uploadQueue.isCurrent(selectedFiles, ticket)) continue;
                 if (analysisData) {
                     item.analysis = analysisData;
                     item.ocrStatus = 'completed';
-                    if (analysisData.category && item.category === ticket.category) item.category = analysisData.category;
+                    if (analysisData.category) item.category = analysisData.category;
                     if (analysisData.matched_record) {
                         item.matchedRecord = analysisData.matched_record;
                         item.duplicateWarning = analysisData.matched_record.label + (analysisData.matched_record.tracking_number ? ` (${analysisData.matched_record.tracking_number})` : '');
@@ -2087,124 +2030,51 @@ document.addEventListener('DOMContentLoaded', function () {
             rebuildItemsTable();
 
         } catch (err) {
-            const failedItem = uploadQueue.isCurrent(selectedFiles, activeOcrTicket) ? activeOcrTicket.item : null;
-            if (failedItem) {
-                failedItem.ocrStatus = 'error';
-                failedItem.ocrError = err instanceof Error ? err.message : 'OCR analysis failed.';
-            }
-            if (failedItem) reportUploadError(err);
+            console.error('OCR Error:', err);
+            progressStatusMsg.className = 'progress-status-msg error';
+            progressStatusMsg.textContent = err.message || 'OCR extraction encountered an issue. You can complete fields manually.';
         } finally {
             isAnalyzing = false;
             renderQueue();
-            if (ocrRequested && selectedFiles.length) {
-                ocrRequested = false;
-                await runOcrAnalysis();
-            }
         }
     }
 
     // Helper for large chunked uploads
-    async function uploadResumableFile(file, restartCount = 0) {
-        if (file.resumableUploadId) return file.resumableUploadId;
+    async function uploadResumableFile(file) {
+        const startRes = await fetch(uploadStartUrl, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: file.name, size: file.size, type: file.type || 'application/octet-stream' })
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok) throw new Error(startData.message || `Could not start upload for ${file.name}`);
 
-        const resumeKey = uploadQueue.resumeKey(file);
-        const readJson = async (response) => response.json().catch(() => ({}));
-        const forgetResume = () => {
-            try { sessionStorage.removeItem(resumeKey); } catch { /* Session storage is optional. */ }
-            delete file.resumableUploadId;
-        };
-        let upload = null;
-        try {
-            const saved = JSON.parse(sessionStorage.getItem(resumeKey) || 'null');
-            if (saved && /^[0-9a-f-]{36}$/i.test(saved.upload_id)) upload = saved;
-        } catch {
-            upload = null;
-        }
+        const uploadId = startData.upload_id;
+        const chunkCount = Number(startData.chunk_count);
+        const chunkSize = Number(startData.chunk_size || uploadChunkBytes);
 
-        if (upload) {
-            const check = await fetch(`${uploadStartUrl}/${upload.upload_id}/complete`, {
+        for (let idx = 0; idx < chunkCount; idx++) {
+            const chunk = file.slice(idx * chunkSize, Math.min(file.size, (idx + 1) * chunkSize));
+            const chunkBody = new FormData();
+            chunkBody.append('chunk', chunk, `${file.name}.part`);
+
+            const chunkRes = await fetch(`${uploadStartUrl}/${uploadId}/chunks/${idx}`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+                body: chunkBody
             });
-            const checked = await readJson(check);
-            if (check.ok) {
-                file.resumableUploadId = checked.upload_id;
-                return checked.upload_id;
-            }
-            if (check.status !== 409 || checked.message !== 'Some upload chunks are missing.') {
-                forgetResume();
-                if (restartCount >= 1) throw new Error(checked.message || `Could not resume ${file.name}.`);
-                return uploadResumableFile(file, restartCount + 1);
-            }
-        } else {
-            const start = await fetch(uploadStartUrl, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: file.name, size: file.size, type: file.type || 'application/octet-stream' }),
-            });
-            upload = await readJson(start);
-            if (!start.ok) throw new Error(upload.message || `Could not start upload for ${file.name}.`);
-            try {
-                sessionStorage.setItem(resumeKey, JSON.stringify({
-                    upload_id: upload.upload_id,
-                    chunk_size: upload.chunk_size,
-                    chunk_count: upload.chunk_count,
-                }));
-            } catch { /* Upload remains usable for the current page session. */ }
+            if (!chunkRes.ok) throw new Error(`Upload chunk ${idx + 1} failed for ${file.name}`);
         }
 
-        const uploadId = upload.upload_id;
-        const chunkCount = Number(upload.chunk_count);
-        const chunkSize = Number(upload.chunk_size || uploadChunkBytes);
-        if (!/^[0-9a-f-]{36}$/i.test(uploadId) || !Number.isInteger(chunkCount) || chunkCount < 1 || !Number.isInteger(chunkSize) || chunkSize < 1) {
-            forgetResume();
-            throw new Error(`The server returned invalid upload details for ${file.name}.`);
-        }
-
-        progressContainer.style.display = 'block';
-        for (let index = 0; index < chunkCount; index++) {
-            const chunk = file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize));
-            let response = null;
-            let result = {};
-            for (let attempt = 0; attempt < 3; attempt++) {
-                try {
-                    const body = new FormData();
-                    body.append('chunk', chunk, `${file.name}.part`);
-                    response = await fetch(`${uploadStartUrl}/${uploadId}/chunks/${index}`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
-                        body,
-                    });
-                    result = await readJson(response);
-                    if (response.ok || (response.status < 500 && response.status !== 429)) break;
-                } catch (error) {
-                    if (attempt === 2) throw error;
-                }
-                if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
-            }
-            if (!response?.ok) {
-                if (response?.status === 409 && restartCount < 1) {
-                    forgetResume();
-                    return uploadResumableFile(file, restartCount + 1);
-                }
-                throw new Error(result.message || `Upload chunk ${index + 1} failed for ${file.name}.`);
-            }
-            const percent = Math.round(((index + 1) / chunkCount) * 100);
-            progressFill.style.width = `${percent}%`;
-            progressPercentage.textContent = `${percent}%`;
-            progressStatusMsg.textContent = `Uploading ${file.name}: ${index + 1} of ${chunkCount} chunks...`;
-        }
-
-        const complete = await fetch(`${uploadStartUrl}/${uploadId}/complete`, {
+        const completeRes = await fetch(`${uploadStartUrl}/${uploadId}/complete`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' }
         });
-        const completed = await readJson(complete);
-        if (!complete.ok) throw new Error(completed.message || `Verification failed for ${file.name}.`);
-        if (completed.upload_id !== uploadId) throw new Error(`The upload identifier for ${file.name} changed unexpectedly.`);
+        const completeData = await completeRes.json();
+        if (!completeRes.ok) throw new Error(completeData.message || `Verification failed for ${file.name}`);
 
-        file.resumableUploadId = completed.upload_id;
-        return completed.upload_id;
+        file.resumableUploadId = completeData.upload_id;
+        return completeData.upload_id;
     }
 
     /* ============================================================
@@ -2331,7 +2201,6 @@ document.addEventListener('DOMContentLoaded', function () {
             addItemRowElement({
                 index: index,
                 docIndex: index,
-                fileId: uploadQueue.identify(item),
                 fileName: item.file.name,
                 particular: particular,
                 uniqueId: uniqueId,
@@ -2350,75 +2219,63 @@ document.addEventListener('DOMContentLoaded', function () {
         row.className = 'item-row';
         const rowIndex = itemsTbody.children.length;
 
-        const addCell = (className) => {
-            const cell = document.createElement('td');
-            cell.className = className;
-            row.append(cell);
-            return cell;
-        };
-        const positionCell = addCell('col-pos');
-        positionCell.textContent = String(rowIndex + 1);
+        row.innerHTML = `
+            <td class="col-pos">${rowIndex + 1}</td>
+            <td class="col-file">
+                <span class="file-attachment-pill" title="${data.fileName || 'Custom Item'}">
+                    ${data.fileName ? data.fileName.slice(0, 15) + (data.fileName.length > 15 ? '...' : '') : 'Manual item'}
+                </span>
+                <input type="hidden" name="items[${rowIndex}][document_index]" value="${data.docIndex !== undefined ? data.docIndex : ''}">
+            </td>
+            <td class="col-particular">
+                <input type="text" name="items[${rowIndex}][particular]" value="${data.particular || ''}" required placeholder="Particular / item title">
+            </td>
+            <td class="col-unique">
+                <input type="text" name="items[${rowIndex}][unique_id]" value="${data.uniqueId || ''}" placeholder="Ref / serial ID">
+            </td>
+            <td class="col-qty">
+                <input type="text" name="items[${rowIndex}][quantity]" value="${data.qty || '1'}" placeholder="1">
+            </td>
+            <td class="col-desc">
+                <input type="text" name="items[${rowIndex}][description]" value="${data.desc || ''}" placeholder="Description / specifications">
+            </td>
+            <td class="col-remarks">
+                <input type="text" name="items[${rowIndex}][remarks]" value="${data.remarks || 'User reviewed'}" placeholder="Remarks">
+            </td>
+            <td class="col-source"><div class="item-source-cell"></div></td>
+            <td class="col-action">
+                <button type="button" class="btn-remove-file" title="Delete row" style="font-size: 14px;">&times;</button>
+            </td>
+        `;
 
-        const fileCell = addCell('col-file');
-        const fileLabel = document.createElement('span');
-        fileLabel.className = 'file-attachment-pill';
-        fileLabel.title = data.fileName || 'Custom Item';
-        fileLabel.textContent = data.fileName
-            ? `${data.fileName.slice(0, 15)}${data.fileName.length > 15 ? '...' : ''}`
-            : 'Manual item';
-        fileCell.append(fileLabel);
-        const documentIndex = document.createElement('input');
-        documentIndex.type = 'hidden';
-        documentIndex.name = `items[${rowIndex}][document_index]`;
-        documentIndex.value = data.docIndex !== undefined ? String(data.docIndex) : '';
-        if (data.fileId) documentIndex.dataset.fileId = data.fileId;
-        fileCell.append(documentIndex);
 
-        const addTextInput = (cellClass, name, value, placeholder, required = false) => {
-            const cell = addCell(cellClass);
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.name = `items[${rowIndex}][${name}]`;
-            input.value = value ?? '';
-            input.placeholder = placeholder;
-            input.required = required;
-            cell.append(input);
-        };
-        addTextInput('col-particular', 'particular', data.particular, 'Particular / item title', true);
-        addTextInput('col-unique', 'unique_id', data.uniqueId, 'Ref / serial ID');
-        addTextInput('col-qty', 'quantity', data.qty ?? '1', '1');
-        addTextInput('col-desc', 'description', data.desc, 'Description / specifications');
-        addTextInput('col-remarks', 'remarks', data.remarks || 'User reviewed', 'Remarks');
-
-        const sourceCell = addCell('col-source');
-        const sourceContent = document.createElement('div');
-        sourceContent.className = 'item-source-cell';
-        sourceCell.append(sourceContent);
-        const actionCell = addCell('col-action');
-        const removeButton = document.createElement('button');
-        removeButton.type = 'button';
-        removeButton.className = 'btn-remove-file';
-        removeButton.title = 'Delete row';
-        removeButton.style.fontSize = '14px';
-        removeButton.textContent = '×';
-        actionCell.append(removeButton);
-
+        // Awtomatikong i-attach ang file galing sa selectedFiles gamit ang DataTransfer API
+        if (data.docIndex !== undefined && selectedFiles[data.docIndex]) {
+            const fileInputElem = row.querySelector('.item-file-input');
+            const targetFile = selectedFiles[data.docIndex].file;
+            if (fileInputElem && targetFile instanceof File) {
+                const dt = new DataTransfer();
+                dt.items.add(targetFile);
+                fileInputElem.files = dt.files;
+            }
+        }
+        
+        const sourceCell = row.querySelector('.item-source-cell');
         const sourceBadge = document.createElement('span');
         sourceBadge.className = `badge-confidence ${['ocr', 'matched', 'review', 'autofilled'].includes(data.sourceClass) ? data.sourceClass : 'autofilled'}`;
         sourceBadge.textContent = data.sourceLabel || 'Manual';
-        sourceContent.appendChild(sourceBadge);
+        sourceCell.appendChild(sourceBadge);
 
         if (data.sourceFileName) {
             const sourceFile = document.createElement('small');
             sourceFile.className = 'item-source-file';
             sourceFile.textContent = `OCR source file: ${data.sourceFileName}`;
             sourceFile.title = data.sourceFileName;
-            sourceContent.appendChild(sourceFile);
+            sourceCell.appendChild(sourceFile);
         }
 
         // Row deletion
         row.querySelector('.col-action button').addEventListener('click', function () {
-            if (form.dataset.submitting === 'true') return;
             row.remove();
             renumberItemRows();
         });
@@ -2504,14 +2361,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 'image/jpeg', 0.92);
     });
 
-    btnUsePhoto.addEventListener('click', async function () {
+    btnUsePhoto.addEventListener('click', function () {
         if (capturedPhotoBlob) {
             const fileName = `captured-doc-${Date.now()}.jpg`;
             const photoFile = new File([capturedPhotoBlob], fileName, { type: 'image/jpeg' });
-            try {
-                await addFiles([photoFile]);
-                closeCamera();
-            } catch (error) { reportUploadError(error); }
+            addFiles([photoFile]);
+            closeCamera();
         }
     });
 
@@ -2596,81 +2451,95 @@ document.addEventListener('DOMContentLoaded', function () {
        9. FORM SUBMISSION (CREATE DRAFT & PERMANENT TRN)
     ============================================================ */
     form.addEventListener('submit', async function (e) {
-        // Cancel native submission synchronously, before the first await.
-        e.preventDefault();
-        if (form.dataset.submitting === 'true') return;
+        if (form.dataset.submitting === 'true') {
+            e.preventDefault();
+            return;
+        }
+
+        // Validate at least one file or item
+        if (selectedFiles.length === 0) {
+            e.preventDefault();
+            alert('Please upload or drag at least one document before submitting.');
+            return;
+        }
+
+        const oversized = selectedFiles.filter((item) => item.file.size > maxUploadBytes);
+        if (oversized.length) {
+            e.preventDefault();
+            alert(`${oversized.length} file(s) exceed the ${window.ORDOFileTools.formatSize(maxUploadBytes)} per-file maximum. Use Compress and use or select smaller files.`);
+            renderQueue();
+            return;
+        }
+
+        // Validate subject
+        if (!subjectInput.value.trim()) {
+            e.preventDefault();
+            alert('Please provide a Transmittal Subject.');
+            subjectInput.focus();
+            return;
+        }
+
         form.dataset.submitting = 'true';
-        const originalButtonText = submitDraftBtn.textContent;
-        const controls = [
-            fileInput, zipInput, browseTrigger, cameraTrigger, docmgmtTrigger, clearAllBtn,
-            reanalyzeBtn, btnUsePhoto, btnApplyDocmgmt, submitDraftBtn,
-            ...queueList.querySelectorAll('button, select'), ...itemsTbody.querySelectorAll('button'),
-        ].filter(Boolean);
-        const disabledStates = controls.map((control) => [control, control.disabled]);
-        controls.forEach((control) => { control.disabled = true; });
-        submitDraftBtn.textContent = 'Preparing complete upload submission...';
-        let submitted = false;
-        const originalIndices = [];
+        submitDraftBtn.disabled = true;
+        submitDraftBtn.textContent = 'Creating Working Draft & TRN...';
+
+        // Check if any large files need resumable chunked upload first
         try {
-            await window.ORDOFileTools.prepareSubmission({
-                queue: uploadQueue,
-                readItems: () => selectedFiles,
-                waitForAnalysis: () => ocrTask,
-                prepareResumable: uploadResumableFile,
-                commit: (plan) => {
-                    if (!subjectInput.value.trim()) {
-                        subjectInput.focus();
-                        throw new Error('Please provide a Transmittal Subject.');
-                    }
-                    if (!form.reportValidity()) throw new Error('Review the highlighted fields before submitting.');
-                    const transfer = new DataTransfer();
-                    const fragment = document.createDocumentFragment();
-                    const append = (name, value) => {
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = name;
-                        input.value = value;
-                        input.dataset.v2UploadField = 'true';
-                        fragment.appendChild(input);
-                    };
-                    plan.direct.forEach((item) => {
-                        transfer.items.add(item.file);
-                        append('categories[]', item.category || 'document');
-                        append('ocr_tokens[]', item.analysis?.analysis_token || '');
-                    });
-                    plan.resumable.forEach((item) => {
-                        append('upload_ids[]', item.file.resumableUploadId);
-                        append('upload_categories[]', item.category || 'document');
-                        append('upload_ocr_tokens[]', item.analysis?.analysis_token || '');
-                    });
-                    itemsTbody.querySelectorAll('input[data-file-id]').forEach((input) => {
-                        const index = plan.documentIndices.get(input.dataset.fileId);
-                        if (index === undefined) throw new Error('An item refers to a removed file. Review the item list.');
-                        originalIndices.push([input, input.value]);
-                        input.value = String(index);
-                    });
-                    form.querySelectorAll('[data-v2-upload-field]').forEach((input) => input.remove());
-                    form.appendChild(fragment);
-                    fileInput.files = transfer.files;
-                    fileInput.disabled = false; // Only direct files are successful form controls.
-                    HTMLFormElement.prototype.submit.call(form);
-                    submitted = true;
-                },
-            });
-        } catch (error) {
-            form.querySelectorAll('[data-v2-upload-field]').forEach((input) => input.remove());
-            originalIndices.forEach(([input, value]) => { input.value = value; });
-            syncInputFiles();
-            reportUploadError(error);
-        } finally {
-            if (!submitted) {
-                form.dataset.submitting = 'false';
-                disabledStates.forEach(([control, disabled]) => { control.disabled = disabled; });
-                submitDraftBtn.textContent = originalButtonText;
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const item = selectedFiles[i];
+                if (item.file.size > 20 * 1024 * 1024 && !item.file.resumableUploadId) {
+                    submitDraftBtn.textContent = `Uploading ${item.file.name}...`;
+                    await uploadResumableFile(item.file);
+                }
             }
+
+            // Append OCR tokens and categories as hidden inputs
+            selectedFiles.forEach(function (item, idx) {
+                // Category
+                const catInput = document.createElement('input');
+                catInput.type = 'hidden';
+                catInput.name = 'categories[]';
+                catInput.value = item.category || 'document';
+                form.appendChild(catInput);
+
+                // OCR token
+                const tokInput = document.createElement('input');
+                tokInput.type = 'hidden';
+                tokInput.name = 'ocr_tokens[]';
+                tokInput.value = item.analysis && item.analysis.analysis_token ? item.analysis.analysis_token : '';
+                form.appendChild(tokInput);
+
+                // Upload IDs for resumable files
+                if (item.file.resumableUploadId) {
+                    const upIdInput = document.createElement('input');
+                    upIdInput.type = 'hidden';
+                    upIdInput.name = 'upload_ids[]';
+                    upIdInput.value = item.file.resumableUploadId;
+                    form.appendChild(upIdInput);
+
+                    const upCatInput = document.createElement('input');
+                    upCatInput.type = 'hidden';
+                    upCatInput.name = 'upload_categories[]';
+                    upCatInput.value = item.category || 'document';
+                    form.appendChild(upCatInput);
+
+                    const upTokInput = document.createElement('input');
+                    upTokInput.type = 'hidden';
+                    upTokInput.name = 'upload_ocr_tokens[]';
+                    upTokInput.value = item.analysis && item.analysis.analysis_token ? item.analysis.analysis_token : '';
+                    form.appendChild(upTokInput);
+                }
+            });
+
+            // Allow the form to submit natively to create draft and redirect
+        } catch (err) {
+            e.preventDefault();
+            form.dataset.submitting = 'false';
+            submitDraftBtn.disabled = false;
+            submitDraftBtn.textContent = 'Confirm & Create Working Draft (TRN) →';
+            alert('Upload preparation failed: ' + err.message);
         }
     });
-
 });
 </script>
 

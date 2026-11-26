@@ -1,3 +1,6 @@
+import { PDFDocument } from 'pdf-lib';
+import { compressUploadFile, formatUploadSize } from './upload-compression';
+import { Unzip, UnzipInflate, UnzipPassThrough } from 'fflate';
 import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;
