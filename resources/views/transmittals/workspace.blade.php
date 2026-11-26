@@ -100,25 +100,50 @@
                     ->first();
 
                 $draftRecipient = $transmittal->recipients->first();
+                if (! $draftRecipient && ($transmittal->party_name || $transmittal->recipient_email)) {
+                    $draftRecipient = (object)[
+                        'id' => null,
+                        'name' => $transmittal->party_name ?? '',
+                        'email' => $transmittal->recipient_email ?? '',
+                        'organization' => $transmittal->related_company ?? '',
+                        'designation' => '',
+                        'channel' => 'email',
+                    ];
+                }
                 $employees = $employees ?? collect();
                 $contacts = $contacts ?? collect();
                 $companies = $companies ?? collect();
 
-                $formItems = old('items', $transmittal->workspaceItems->map(fn ($item) => [
-                    'id' => $item->id,
-                    'line_number' => $item->line_number,
-                    'document_id' => $item->document_id,
-                    'particular' => $item->particular,
-                    'unique_id' => $item->unique_id,
-                    'quantity' => $item->quantity,
-                    'description' => $item->description,
-                    'remarks' => $item->remarks,
-                ])->all() ?: [['particular' => '', 'unique_id' => '', 'quantity' => '', 'description' => '', 'remarks' => '']]);
-    if (! is_array($formItems)) {
-        $formItems = $transmittal->workspaceItems->map(fn ($item) => $item->only([
-            'id', 'line_number', 'document_id', 'particular', 'unique_id', 'quantity', 'description', 'remarks',
-        ]))->all();
-    }
+                $formItems = old('items');
+                if (! is_array($formItems)) {
+                    $formItems = $transmittal->workspaceItems->map(fn ($item) => [
+                        'id' => $item->id,
+                        'line_number' => $item->line_number,
+                        'document_id' => $item->document_id,
+                        'particular' => $item->particular,
+                        'unique_id' => $item->unique_id,
+                        'quantity' => $item->quantity,
+                        'description' => $item->description,
+                        'remarks' => $item->remarks,
+                    ])->all();
+
+                    if (empty($formItems) && $transmittal->items && $transmittal->items->isNotEmpty()) {
+                        $formItems = $transmittal->items->map(fn ($item, $idx) => [
+                            'id' => $item->id,
+                            'line_number' => $idx + 1,
+                            'document_id' => null,
+                            'particular' => $item->particular,
+                            'unique_id' => $item->unique_id,
+                            'quantity' => $item->quantity,
+                            'description' => $item->description,
+                            'remarks' => $item->remarks,
+                        ])->all();
+                    }
+                }
+
+                if (empty($formItems)) {
+                    $formItems = [['particular' => '', 'unique_id' => '', 'quantity' => '', 'description' => '', 'remarks' => '']];
+                }
             @endphp
 
             {{-- Distinct Block: Transmittal Form Details --}}

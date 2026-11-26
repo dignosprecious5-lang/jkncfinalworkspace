@@ -143,7 +143,6 @@
                         <th>Actions</th>
                         <th>Workflow Status</th>
                         <th>Approval Status</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
 
@@ -192,12 +191,11 @@
                             $actionsValue = $transmittal->actions_summary ?: '—';
                             $workflowStatus = $transmittal->workflow_status ?: ($workflow ?: 'Uploaded');
                             $approvalStatus = $transmittal->approval_status ?: ($approval ?: 'Pending');
-                            $isV2 = ($transmittal->workflow_version === 'v2');
-                            $targetUrl = $isV2 ? route('transmittals.workspace', $transmittal) : route('transmittal.preview', $transmittal);
+                            $targetUrl = route('transmittals.workspace', $transmittal);
                         @endphp
 
                         <tr class="record-row-clickable" onclick="window.location.href='{{ $targetUrl }}'" style="cursor: pointer;">
-                            {{-- Ref#: Click to open the Workspace or Preview --}}
+                            {{-- Ref#: Click to open the Workspace --}}
                             <td>
                                 <a
                                     class="tracking-link"
@@ -248,22 +246,10 @@
                                     {{ $approvalStatus }}
                                 </span>
                             </td>
-
-                            {{-- Action --}}
-                            <td>
-                                <a
-                                    href="{{ $targetUrl }}"
-                                    class="button secondary"
-                                    onclick="event.stopPropagation();"
-                                    style="display: inline-flex; align-items: center; justify-content: center; padding: 4px 12px; font-size: 13px; font-weight: 500; text-decoration: none; border-radius: 6px;"
-                                >
-                                    Open
-                                </a>
-                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10">
+                            <td colspan="9">
                                 <div class="empty-state">
                                     <strong>No records found.</strong>
 

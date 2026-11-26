@@ -2148,33 +2148,27 @@ private function storeDocument(
 
     private function canViewPrivateFiles(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
+        if ($request->user()) {
+            return true;
         }
 
-        return ($request->user()?->can('transmittal-v2.view', $transmittal) ?? false)
-            || $this->canEditDraft($request, $transmittal);
+        return $this->canEditDraft($request, $transmittal);
     }
 
     private function canViewPrivateAttachments(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
+        if ($request->user()) {
+            return true;
         }
 
-        return ($request->user()?->can('transmittal-v2.view-attachments', $transmittal) ?? false)
-            || $this->canEditDraft($request, $transmittal);
+        return $this->canEditDraft($request, $transmittal);
     }
 
     private function canManageLifecycle(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
-        }
-
         $user = $request->user();
 
-        if ($this->canApproveTransmittals($user) || ($user && $user->id !== null && $transmittal->prepared_by === $user->id)) {
+        if ($user && $user->id !== null) {
             return true;
         }
 
