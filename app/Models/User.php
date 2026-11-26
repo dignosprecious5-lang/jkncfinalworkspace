@@ -17,6 +17,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'transmittal_role',
         'can_edit_user_roles',
         'can_delete_users',
         'is_active',
@@ -35,6 +36,11 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function canApproveTransmittals(): bool
+    {
+        return $this->transmittal_role === 'administrator' || $this->isSuperAdmin() || $this->isAdmin();
+    }
 
     protected function casts(): array
     {

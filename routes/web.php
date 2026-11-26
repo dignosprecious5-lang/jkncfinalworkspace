@@ -203,10 +203,8 @@ Route::post('/acknowledgments/{token}', [ExternalAcknowledgmentController::class
     ->middleware('throttle:6,1');
 
 // Public transmittal V2 routes
-Route::get('/transmittal', [\App\Http\Controllers\TransmittalController::class, 'index'])->name('transmittals.index');
-Route::get('/transmittals', function (\Illuminate\Http\Request $request) {
-    return redirect()->to('/transmittal' . ($request->getQueryString() ? '?' . $request->getQueryString() : ''));
-});
+Route::get('/transmittal', [\App\Http\Controllers\TransmittalController::class, 'index'])->name('transmittal.index');
+Route::get('/transmittals', [\App\Http\Controllers\TransmittalController::class, 'index'])->name('transmittals.index');
 
 Route::get('/transmittal/create', [\App\Http\Controllers\TransmittalController::class, 'create'])->name('transmittals.create');
 Route::get('/transmittals/create', function () {
@@ -1455,7 +1453,6 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     | TRANSMITTAL MODULE
     |--------------------------------------------------------------------------
     */
-    Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
 
     Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
         ->middleware('throttle:5,1,transmittal-ocr:')

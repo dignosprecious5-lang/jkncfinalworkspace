@@ -108,9 +108,7 @@ class TransmittalController extends Controller
             'filter' => $filter,
             'search' => $request->string('q')->toString(),
             'summary' => $summary,
-            'deletedCount' => $request->user()?->canApproveTransmittals()
-                ? Transmittal::onlyTrashed()->count()
-                : 0,
+            'deletedCount' => 0,
             'editableDraftIds' => $editableDraftIds,
             'editTransmittal' => $editTransmittal,
         ] + $this->signatoryDirectory());
