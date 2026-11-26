@@ -1374,7 +1374,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     | TRANSMITTAL MODULE
     |--------------------------------------------------------------------------
     */
-    Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+    Route::get('/transmittal', [\App\Http\Controllers\TransmittalV2\TransmittalController::class, 'index'])->name('transmittal.index');
 
     Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
         ->middleware('throttle:5,1,transmittal-ocr:')

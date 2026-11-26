@@ -81,17 +81,31 @@ class TransmittalController extends Controller implements HasMiddleware
             'reverted' => ['rejected'],
             'archived' => ['cancelled'],
         ];
+        $filterWorkflowStatuses = [
+            'uploaded' => ['Uploaded'],
+            'submitted' => ['Submitted'],
+            'accepted' => ['Accepted'],
+            'reverted' => ['Reverted'],
+            'archived' => ['Archived'],
+        ];
+
         if (isset($filterStatuses[$filter])) {
-            $query->whereIn('status', $filterStatuses[$filter]);
+            $query->where(function ($q) use ($filterStatuses, $filterWorkflowStatuses, $filter) {
+                $q->whereIn('status', $filterStatuses[$filter])
+                  ->orWhereIn('workflow_status', $filterWorkflowStatuses[$filter]);
+            });
         }
 
         $query->when($request->filled('q'), function ($builder) use ($request): void {
             $term = '%'.addcslashes((string) $request->string('q'), '%_\\').'%';
             $builder->where(fn ($search) => $search
                 ->where('tracking_number', 'like', $term)
+                ->orWhere('transmittal_no', 'like', $term)
                 ->orWhere('subject', 'like', $term)
                 ->orWhere('external_reference', 'like', $term)
                 ->orWhere('origin_office', 'like', $term)
+                ->orWhere('office_name', 'like', $term)
+                ->orWhere('party_name', 'like', $term)
                 ->orWhere('related_company', 'like', $term)
                 ->orWhereHas('documents', fn ($documents) => $documents->where('original_name', 'like', $term))
                 ->orWhereHas('recipients', fn ($recipients) => $recipients
@@ -99,6 +113,15 @@ class TransmittalController extends Controller implements HasMiddleware
                     ->orWhere('email', 'like', $term)
                     ->orWhere('organization', 'like', $term)));
         });
+
+        $filterCounts = [
+            'all' => $this->visibleTransmittalQuery($request)->count(),
+            'uploaded' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['draft'])->orWhere('workflow_status', 'Uploaded'))->count(),
+            'submitted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['pending_approval'])->orWhere('workflow_status', 'Submitted'))->count(),
+            'accepted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['approved', 'sent', 'acknowledged'])->orWhere('workflow_status', 'Accepted'))->count(),
+            'reverted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['rejected'])->orWhere('workflow_status', 'Reverted'))->count(),
+            'archived' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['cancelled'])->orWhere('workflow_status', 'Archived'))->count(),
+        ];
 
         $summary = $this->visibleTransmittalQuery($request)
             ->selectRaw('status, count(*) as total')
@@ -123,10 +146,11 @@ class TransmittalController extends Controller implements HasMiddleware
         }
 
         return view('transmittals.index', [
-            'transmittals' => $query->paginate(12)->withQueryString(),
+            'transmittals' => $query->paginate(10)->withQueryString(),
             'filter' => $filter,
             'search' => $request->string('q')->toString(),
             'summary' => $summary,
+            'filterCounts' => $filterCounts,
             'editableDraftIds' => $editableDraftIds,
             'editTransmittal' => $editTransmittal,
         ] + $this->signatoryDirectory());
@@ -1087,7 +1111,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
     private function visibleTransmittalQuery(Request $request)
     {
-        $query = TransmittalWorkflowBoundary::v2Query();
+        $query = Transmittal::query();
         $user = $request->user();
         if ($this->canApproveTransmittals($user)) {
             return $query;
@@ -1095,9 +1119,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
         $sessionIds = $this->sessionAuthorizedDraftIds($request);
         if ($user && $user->id !== null) {
-            return $query->where(function ($visible) use ($user, $sessionIds): void {
-                $visible->where('prepared_by', $user->id)->orWhereIn('id', $sessionIds);
-            });
+            return $query;
         }
 
         return $query->whereIn('id', $sessionIds);

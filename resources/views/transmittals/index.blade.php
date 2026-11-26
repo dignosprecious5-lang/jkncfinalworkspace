@@ -13,10 +13,8 @@
 @section('content')
 <div class="page transmittal-index-page">
     @php
-        $total = $summary->sum();
-
-        $filterCounts = [
-            'all' => $total,
+        $filterCounts = $filterCounts ?? [
+            'all' => $summary->sum(),
             'uploaded' => $summary['draft'] ?? 0,
             'submitted' => $summary['pending_approval'] ?? 0,
             'accepted' => ($summary['approved'] ?? 0)
@@ -24,8 +22,8 @@
                 + ($summary['acknowledged'] ?? 0),
             'reverted' => $summary['rejected'] ?? 0,
             'archived' => $summary['cancelled'] ?? 0,
-
         ];
+        $total = $filterCounts['all'];
 
         $filters = [
             'all' => 'All',
@@ -66,12 +64,12 @@
     <div class="metric-row">
         <div class="metric-card">
             <span class="metric-label">Total</span>
-            <strong>{{ $total }}</strong>
+            <strong>{{ $filterCounts['all'] }}</strong>
         </div>
 
         <div class="metric-card">
             <span class="metric-label">Pending Approval</span>
-            <strong>{{ $summary['pending_approval'] ?? 0 }}</strong>
+            <strong>{{ $filterCounts['submitted'] }}</strong>
         </div>
 
         <div class="metric-card">
@@ -81,7 +79,7 @@
 
         <div class="metric-card">
             <span class="metric-label">Received</span>
-            <strong>{{ $summary['acknowledged'] ?? 0 }}</strong>
+            <strong>{{ $filterCounts['accepted'] }}</strong>
         </div>
     </div>
 
@@ -100,7 +98,7 @@
                 )
                     <a
                         class="status-tab {{ $filter === $key ? 'active' : '' }}"
-                        href="{{ route('transmittals.index', array_filter([
+                        href="{{ route('transmittal.index', array_filter([
                             'filter' => $key === 'all' ? null : $key,
                             'q' => $search,
                         ])) }}"
@@ -142,8 +140,10 @@
                         <th>From</th>
                         <th>To</th>
                         <th>Delivery Type</th>
+                        <th>Actions</th>
                         <th>Workflow Status</th>
                         <th>Approval Status</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
 
@@ -181,79 +181,89 @@
                             $officeName = $transmittal->origin_office
                                 ?: config('ordo.office_name');
 
-                            $from = $transmittal->direction === 'receive'
-                                ? ($recipientNames ?: '—')
-                                : $officeName;
-
-                            $to = $transmittal->direction === 'receive'
-                                ? $officeName
-                                : (
-                                    $recipientNames
-                                    ?: $transmittal->related_company
-                                    ?: '—'
-                                );
+                            $refNo = $transmittal->tracking_number ?: $transmittal->transmittal_no ?: '—';
+                            $dateFormatted = $transmittal->transmittal_date?->format('Y-m-d')
+                                ?? $transmittal->created_at?->format('Y-m-d')
+                                ?? '—';
+                            $modeValue = $transmittal->mode ?: strtoupper($transmittal->direction ?? 'SEND');
+                            $fromValue = $transmittal->from_value ?: ($transmittal->direction === 'receive' ? ($recipientNames ?: '—') : $officeName);
+                            $toValue = $transmittal->to_value ?: ($transmittal->direction === 'receive' ? $officeName : ($recipientNames ?: $transmittal->related_company ?: '—'));
+                            $deliveryType = $transmittal->delivery_summary ?: str($transmittal->delivery_type ?? 'by_person')->replace('_', ' ')->title();
+                            $actionsValue = $transmittal->actions_summary ?: '—';
+                            $workflowStatus = $transmittal->workflow_status ?: ($workflow ?: 'Uploaded');
+                            $approvalStatus = $transmittal->approval_status ?: ($approval ?: 'Pending');
+                            $isV2 = ($transmittal->workflow_version === 'v2');
+                            $targetUrl = $isV2 ? route('transmittals.workspace', $transmittal) : route('transmittal.preview', $transmittal);
                         @endphp
 
-                        <tr>
-                            {{-- Ref#: Click to open the Workspace --}}
+                        <tr class="record-row-clickable" onclick="window.location.href='{{ $targetUrl }}'" style="cursor: pointer;">
+                            {{-- Ref#: Click to open the Workspace or Preview --}}
                             <td>
                                 <a
                                     class="tracking-link"
-                                    href="{{ route('transmittals.workspace', $transmittal) }}"
+                                    href="{{ $targetUrl }}"
+                                    onclick="event.stopPropagation();"
                                 >
-                                    {{ $transmittal->tracking_number ?: '—' }}
+                                    {{ $refNo }}
                                 </a>
                             </td>
 
                             {{-- Date --}}
-                            <td>
-                                {{ $transmittal->transmittal_date?->format('M j, Y')
-                                    ?? $transmittal->created_at?->format('M j, Y')
-                                    ?? '—' }}
-                            </td>
+                            <td>{{ $dateFormatted }}</td>
 
                             {{-- Mode --}}
                             <td>
-                                <span class="mode-badge" style="color: #374151; background: #f1f5f9; font-weight: 400;">
-                                    {{ strtoupper($transmittal->direction ?? 'send') }}
+                                <span class="mode-badge" style="color: #374151; background: #f1f5f9; font-weight: 500;">
+                                    {{ $modeValue }}
                                 </span>
                             </td>
 
                             {{-- From --}}
-                            <td>{{ $from }}</td>
+                            <td>{{ $fromValue }}</td>
 
                             {{-- To --}}
                             <td
                                 class="recipient-cell"
-                                title="{{ $to }}"
+                                title="{{ $toValue }}"
                             >
-                                {{ $to }}
+                                {{ $toValue }}
                             </td>
 
                             {{-- Delivery Type --}}
-                            <td>
-                                {{ str($transmittal->delivery_type ?? 'by_person')
-                                    ->replace('_', ' ')
-                                    ->title() }}
-                            </td>
+                            <td>{{ $deliveryType }}</td>
+
+                            {{-- Actions --}}
+                            <td>{{ $actionsValue }}</td>
 
                             {{-- Workflow Status --}}
                             <td>
-                                <span class="status-badge status-{{ $transmittal->status }}">
-                                    {{ $workflow }}
+                                <span class="status-badge status-{{ strtolower($workflowStatus) }}">
+                                    {{ $workflowStatus }}
                                 </span>
                             </td>
 
                             {{-- Approval Status --}}
                             <td>
-                                <span class="status-badge status-{{ strtolower($approval) }}">
-                                    {{ $approval }}
+                                <span class="status-badge status-{{ strtolower($approvalStatus) }}">
+                                    {{ $approvalStatus }}
                                 </span>
+                            </td>
+
+                            {{-- Action --}}
+                            <td>
+                                <a
+                                    href="{{ $targetUrl }}"
+                                    class="button secondary"
+                                    onclick="event.stopPropagation();"
+                                    style="display: inline-flex; align-items: center; justify-content: center; padding: 4px 12px; font-size: 13px; font-weight: 500; text-decoration: none; border-radius: 6px;"
+                                >
+                                    Open
+                                </a>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8">
+                            <td colspan="10">
                                 <div class="empty-state">
                                     <strong>No records found.</strong>
 
