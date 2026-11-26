@@ -110,6 +110,7 @@ use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\AssessmentQuestionController;
 
+require __DIR__.'/transmittal-v2.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -183,187 +184,6 @@ Route::get('/finance/supplier/completion/{token}', [FinanceController::class, 's
     ->name('finance.supplier.completion');
 Route::post('/finance/supplier/completion/{token}', [FinanceController::class, 'submitSupplierCompletion'])
     ->name('finance.supplier.completion.submit');
-
-/*
-|--------------------------------------------------------------------------
-| TRANSMITTAL V2 (ORDO) - Public & Protected Routes
-|--------------------------------------------------------------------------
-*/
-
-use App\Http\Controllers\ExternalAcknowledgmentController;
-use App\Http\Controllers\TransmittalUploadController as TransmittalV2UploadController;
-
-// Public external acknowledgment routes (no auth required)
-Route::get('/acknowledgments/{token}', [ExternalAcknowledgmentController::class, 'show'])
-    ->name('acknowledgments.show')
-    ->middleware('throttle:20,1');
-Route::get('/acknowledgments/{token}/documents/{document}', [\App\Http\Controllers\TransmittalController::class, 'downloadForRecipient'])
-    ->whereNumber('document')
-    ->name('acknowledgments.documents.download')
-    ->middleware('throttle:30,1');
-Route::get('/acknowledgments/{token}/receipts/{receipt}/pdf', [\App\Http\Controllers\TransmittalController::class, 'receiptPdfForRecipient'])
-    ->whereNumber('receipt')
-    ->name('acknowledgments.receipts.pdf')
-    ->middleware('throttle:20,1');
-Route::post('/acknowledgments/{token}', [ExternalAcknowledgmentController::class, 'store'])
-    ->name('acknowledgments.store')
-    ->middleware('throttle:6,1');
-
-// Public transmittal V2 routes
-Route::get('/transmittal', [\App\Http\Controllers\TransmittalController::class, 'index'])->name('transmittal.index');
-Route::get('/transmittals', [\App\Http\Controllers\TransmittalController::class, 'index'])->name('transmittals.index');
-
-Route::get('/transmittal/create', [\App\Http\Controllers\TransmittalController::class, 'create'])->name('transmittals.create');
-Route::get('/transmittals/create', function () {
-    return redirect()->to('/transmittal/create');
-});
-
-Route::get('/transmittal/smart-upload', [\App\Http\Controllers\TransmittalController::class, 'smartUpload'])->name('transmittals.smart-upload');
-Route::get('/transmittals/smart-upload', function () {
-    return redirect()->to('/transmittal/smart-upload');
-});
-
-Route::post('/transmittal/smart-upload', [\App\Http\Controllers\TransmittalController::class, 'createFromSmartUpload'])
-    ->name('transmittals.smart-upload.store')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/smart-upload', [\App\Http\Controllers\TransmittalController::class, 'createFromSmartUpload'])
-    ->middleware('throttle:10,1');
-
-Route::get('/transmittal/{transmittal}/workspace', [\App\Http\Controllers\TransmittalController::class, 'workspace'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.workspace');
-Route::get('/transmittals/{transmittal}/workspace', function ($transmittal) {
-    return redirect()->to("/transmittal/{$transmittal}/workspace");
-})->whereNumber('transmittal');
-
-Route::get('/transmittal/{transmittal}/edit', [\App\Http\Controllers\TransmittalController::class, 'edit'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.edit');
-Route::get('/transmittals/{transmittal}/edit', function ($transmittal) {
-    return redirect()->to("/transmittal/{$transmittal}/edit");
-})->whereNumber('transmittal');
-
-Route::put('/transmittal/{transmittal}', [\App\Http\Controllers\TransmittalController::class, 'update'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.update')
-    ->middleware('throttle:10,1');
-Route::put('/transmittals/{transmittal}', [\App\Http\Controllers\TransmittalController::class, 'update'])
-    ->whereNumber('transmittal')
-    ->middleware('throttle:10,1');
-
-Route::post('/transmittal/analyze', [\App\Http\Controllers\TransmittalController::class, 'analyze'])
-    ->name('transmittals.analyze')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/analyze', [\App\Http\Controllers\TransmittalController::class, 'analyze'])
-    ->middleware('throttle:10,1');
-
-Route::post('/transmittal/uploads', [TransmittalV2UploadController::class, 'start'])
-    ->name('transmittals.uploads.start')
-    ->middleware('throttle:30,1');
-Route::post('/transmittals/uploads', [TransmittalV2UploadController::class, 'start'])
-    ->middleware('throttle:30,1');
-
-Route::post('/transmittal/uploads/{uploadId}/chunks/{index}', [TransmittalV2UploadController::class, 'putChunk'])
-    ->whereUuid('uploadId')
-    ->whereNumber('index')
-    ->name('transmittals.uploads.chunks.store')
-    ->middleware('throttle:120,1');
-Route::post('/transmittals/uploads/{uploadId}/chunks/{index}', [TransmittalV2UploadController::class, 'putChunk'])
-    ->whereUuid('uploadId')
-    ->whereNumber('index')
-    ->middleware('throttle:120,1');
-
-Route::post('/transmittal/uploads/{uploadId}/complete', [TransmittalV2UploadController::class, 'complete'])
-    ->whereUuid('uploadId')
-    ->name('transmittals.uploads.complete')
-    ->middleware('throttle:30,1');
-Route::post('/transmittals/uploads/{uploadId}/complete', [TransmittalV2UploadController::class, 'complete'])
-    ->whereUuid('uploadId')
-    ->middleware('throttle:30,1');
-
-Route::post('/transmittal/uploads/{uploadId}/analyze', [TransmittalV2UploadController::class, 'analyze'])
-    ->whereUuid('uploadId')
-    ->name('transmittals.uploads.analyze')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/uploads/{uploadId}/analyze', [TransmittalV2UploadController::class, 'analyze'])
-    ->whereUuid('uploadId')
-    ->middleware('throttle:10,1');
-
-Route::post('/transmittal', [\App\Http\Controllers\TransmittalController::class, 'store'])
-    ->name('transmittals.store')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals', [\App\Http\Controllers\TransmittalController::class, 'store'])
-    ->middleware('throttle:10,1');
-
-Route::post('/transmittal/{transmittal}/recall', [\App\Http\Controllers\TransmittalController::class, 'recall'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.recall')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/{transmittal}/recall', [\App\Http\Controllers\TransmittalController::class, 'recall'])
-    ->whereNumber('transmittal')
-    ->middleware('throttle:10,1');
-
-Route::post('/transmittal/{transmittal}/cancel', [\App\Http\Controllers\TransmittalController::class, 'cancel'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.cancel')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/{transmittal}/cancel', [\App\Http\Controllers\TransmittalController::class, 'cancel'])
-    ->whereNumber('transmittal')
-    ->middleware('throttle:10,1');
-
-Route::get('/transmittal/{transmittal}', [\App\Http\Controllers\TransmittalController::class, 'show'])->name('transmittals.show');
-Route::get('/transmittals/{transmittal}', function ($transmittal) {
-    return redirect()->to("/transmittal/{$transmittal}");
-})->whereNumber('transmittal');
-
-Route::get('/transmittal/{transmittal}/receipts/{receipt}/pdf', [\App\Http\Controllers\TransmittalController::class, 'receiptPdf'])
-    ->whereNumber('receipt')
-    ->name('transmittals.receipts.pdf');
-Route::get('/transmittals/{transmittal}/receipts/{receipt}/pdf', function ($transmittal, $receipt) {
-    return redirect()->to("/transmittal/{$transmittal}/receipts/{$receipt}/pdf");
-})->whereNumber('receipt');
-
-Route::get('/transmittal/{transmittal}/documents/{document}', [\App\Http\Controllers\TransmittalController::class, 'download'])
-    ->whereNumber('document')
-    ->name('transmittals.documents.download');
-Route::get('/transmittals/{transmittal}/documents/{document}', function ($transmittal, $document) {
-    return redirect()->to("/transmittal/{$transmittal}/documents/{$document}");
-})->whereNumber('document');
-
-Route::get('/transmittal/{transmittal}/pdf', [\App\Http\Controllers\TransmittalController::class, 'pdf'])->name('transmittals.pdf');
-Route::get('/transmittals/{transmittal}/pdf', function ($transmittal) {
-    return redirect()->to("/transmittal/{$transmittal}/pdf");
-})->whereNumber('transmittal');
-
-Route::post('/transmittal/{transmittal}/proofs', [\App\Http\Controllers\TransmittalController::class, 'uploadProof'])->name('transmittals.proofs.store');
-Route::post('/transmittals/{transmittal}/proofs', [\App\Http\Controllers\TransmittalController::class, 'uploadProof']);
-
-Route::post('/transmittal/{transmittal}/transmit', [\App\Http\Controllers\TransmittalController::class, 'transmit'])
-    ->whereNumber('transmittal')
-    ->name('transmittals.transmit')
-    ->middleware('throttle:10,1');
-Route::post('/transmittals/{transmittal}/transmit', [\App\Http\Controllers\TransmittalController::class, 'transmit'])
-    ->whereNumber('transmittal')
-    ->middleware('throttle:10,1');
-
-// Authenticated-only transmittal V2 routes
-Route::middleware('auth')->group(function () {
-    Route::post('/transmittal/{transmittal}/approve', [\App\Http\Controllers\TransmittalController::class, 'approve'])->name('transmittals.approve');
-    Route::post('/transmittals/{transmittal}/approve', [\App\Http\Controllers\TransmittalController::class, 'approve']);
-
-    Route::post('/transmittal/{transmittal}/reject', [\App\Http\Controllers\TransmittalController::class, 'reject'])->name('transmittals.reject');
-    Route::post('/transmittals/{transmittal}/reject', [\App\Http\Controllers\TransmittalController::class, 'reject']);
-
-    Route::put('/transmittal/{transmittal}/proofs/{proof}', [\App\Http\Controllers\TransmittalController::class, 'updateProof'])
-        ->whereNumber('proof')
-        ->name('transmittals.proofs.update');
-    Route::put('/transmittals/{transmittal}/proofs/{proof}', [\App\Http\Controllers\TransmittalController::class, 'updateProof'])
-        ->whereNumber('proof');
-
-    Route::delete('/transmittal/{transmittal}', [\App\Http\Controllers\TransmittalController::class, 'destroy'])->name('transmittals.destroy');
-    Route::post('/transmittal/{transmittal}/submit-for-approval', [\App\Http\Controllers\TransmittalController::class, 'submitForApproval'])->name('transmittals.submit-for-approval');
-    Route::post('/transmittals/{transmittal}/submit-for-approval', [\App\Http\Controllers\TransmittalController::class, 'submitForApproval']);
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -1554,6 +1374,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     | TRANSMITTAL MODULE
     |--------------------------------------------------------------------------
     */
+    Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
 
     Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
         ->middleware('throttle:5,1,transmittal-ocr:')
@@ -1573,7 +1394,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/transmittal/create/project/{project}', [TransmittalController::class, 'createFromProject'])->name('transmittal.create.project');
     Route::get('/transmittal/create/regular/{regular}', [TransmittalController::class, 'createFromRegular'])->name('transmittal.create.regular');
     Route::get('/transmittal/data', [TransmittalController::class, 'data'])->name('transmittal.data');
-    Route::post('/transmittal-legacy-store', [TransmittalController::class, 'store'])->name('transmittal.store');
+    Route::post('/transmittal', [TransmittalController::class, 'store'])->name('transmittal.store');
     Route::post('/transmittal/{id}/submit', [TransmittalController::class, 'submit'])->name('transmittal.submit');
     Route::get('/transmittal-receipts/{id}', [TransmittalReceiptController::class, 'show'])->name('transmittal.receipts.show');
     Route::get('/transmittal/{transmittal}/preview', [TransmittalController::class, 'preview'])->name('transmittal.preview');
