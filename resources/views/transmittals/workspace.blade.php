@@ -1453,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 || (str_starts_with($initialMime, 'image/') && ! in_array($initialExtension, ['tif', 'tiff'], true))
                                 || in_array($initialExtension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                             $initialUrl = route('transmittals.documents.download', [$transmittal, $initialAttachment]);
-                            $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                            $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                         @endphp
                         @php
                             $canShowAttachments = ($canViewAttachments ?? true) || ($canViewPrivateFiles ?? false);
@@ -1471,7 +1471,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                                 || (str_starts_with($mime, 'image/') && ! in_array($extension, ['tif', 'tiff'], true))
                                                 || in_array($extension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                                             $url = route('transmittals.documents.download', [$transmittal, $document]);
-                                            $previewUrl = $url.($extension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                                            $previewUrl = $url.($extension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                                         @endphp
                                         <button class="attachment-browser-item" type="button" data-attachment-select
                                             data-attachment-url="{{ $url }}" data-attachment-fit-url="{{ $previewUrl }}"

@@ -365,12 +365,12 @@ body.proof-modal-open { overflow: hidden; }
 .attachment-copy small { margin-top: 5px; color: #62748e; font-size: 12px; }
 .download-mark { color: #2863e7; font-size: 16px; }
 .attachment-row .download-mark { font-size: 13px; font-weight: 600; }
-.attachment-preview { min-width: 0; display: flex; flex-direction: column; height: 86vh; min-height: 750px; overflow: hidden; border: 1px solid #dce5f2; border-radius: 12px; background: #f4f6f9; box-shadow: 0 4px 18px rgba(28, 43, 67, 0.06); }
+.attachment-preview { min-width: 0; display: flex; flex-direction: column; height: 88vh; min-height: 800px; overflow: hidden; border: 1px solid #dce5f2; border-radius: 12px; background: #f4f6f9; box-shadow: 0 4px 18px rgba(28, 43, 67, 0.06); }
 .attachment-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; border-bottom: 1px solid #dce5f2; background: #fff; }
 .attachment-preview-heading h3 { margin: 0; color: #142845; font-size: 17px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
 .attachment-preview-heading p { margin: 4px 0 0; color: #5a6e8b; font-size: 13px; font-weight: 500; }
 .attachment-preview-stage { display: flex; flex: 1; width: 100%; height: 100%; min-height: 0; align-items: stretch; justify-content: stretch; overflow: hidden; background: #252a31; }
-.attachment-preview-stage iframe { display: block; width: 100%; height: 100%; min-height: 680px; border: 0; background: #fff; }
+.attachment-preview-stage iframe { display: block; width: 100%; height: 100%; min-height: 740px; border: 0; background: #fff; }
 .attachment-preview-stage iframe[hidden] { display: none; }
 .attachment-preview-stage p { margin: auto; padding: 30px; color: #e2e8f0; font-size: 14px; line-height: 1.6; text-align: center; }
 .attachment-preview-stage p[hidden] { display: none; }
