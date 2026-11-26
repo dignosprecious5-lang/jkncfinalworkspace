@@ -13,55 +13,51 @@
         <x-ordo.flash wrapper />
 
         <div class="px-4 py-4">
-            <form method="GET" action="{{ route('records.index') }}" class="flex flex-col gap-2.5 rounded-lg border border-ordo-line bg-[#fbfcfe] px-4 py-3">
-                <div class="flex flex-wrap items-center gap-2">
-                    <input type="search" name="q" value="{{ $filters['q'] }}"
-                           placeholder="Search Doc Ref, title, Record ID, reference, source..."
-                           aria-label="Search records"
-                           class="min-w-[220px] flex-1 rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+            <form method="GET" action="{{ route('records.index') }}" class="flex flex-wrap items-center gap-2 rounded-lg border border-ordo-line bg-[#fbfcfe] px-4 py-3">
+                <input type="search" name="q" value="{{ $filters['q'] }}"
+                       placeholder="Search Doc Ref, title, Record ID, reference, source..."
+                       aria-label="Search records"
+                       class="min-w-[220px] flex-1 rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
 
-                    <select name="classification" aria-label="Filter by classification"
-                            class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
-                        <option value="">Select classification</option>
-                        @foreach ($classifications as $classification)
-                            <option value="{{ $classification->code }}" @selected($filters['classification'] === $classification->code)>
-                                {{ $classification->code }} — {{ $classification->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                <select name="classification" aria-label="Filter by classification"
+                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
+                    <option value="">Select classification</option>
+                    @foreach ($classifications as $classification)
+                        <option value="{{ $classification->code }}" @selected($filters['classification'] === $classification->code)>
+                            {{ $classification->code }} — {{ $classification->name }}
+                        </option>
+                    @endforeach
+                </select>
 
-                    <select name="index" aria-label="Filter by index"
-                            class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
-                        <option value="">Select index</option>
-                        @foreach ($indexes as $index)
-                            <option value="{{ $index->code }}" @selected($filters['index'] === $index->code)>
-                                {{ $index->code }} — {{ $index->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                <select name="index" aria-label="Filter by index"
+                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
+                    <option value="">Select index</option>
+                    @foreach ($indexes as $index)
+                        <option value="{{ $index->code }}" @selected($filters['index'] === $index->code)>
+                            {{ $index->code }} — {{ $index->name }}
+                        </option>
+                    @endforeach
+                </select>
 
-                <div class="flex flex-wrap items-center gap-2">
-                    <select name="source" aria-label="Filter by source"
-                            class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
-                        <option value="">All Sources</option>
-                        @foreach ($sources as $source)
-                            <option value="{{ $source->name }}" @selected($filters['source'] === $source->name)>{{ $source->name }}</option>
-                        @endforeach
-                    </select>
+                <select name="source" aria-label="Filter by source"
+                        class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue">
+                    <option value="">All Sources</option>
+                    @foreach ($sources as $source)
+                        <option value="{{ $source->name }}" @selected($filters['source'] === $source->name)>{{ $source->name }}</option>
+                    @endforeach
+                </select>
 
-                    <input type="date" name="from" value="{{ $filters['from'] }}" title="Document date from"
-                           aria-label="Document date from"
-                           class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                <input type="date" name="date" value="{{ $filters['date'] ?: ($filters['from'] ?: '') }}" title="Document date"
+                       aria-label="Document date"
+                       class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
 
-                    <input type="date" name="to" value="{{ $filters['to'] }}" title="Document date to"
-                           aria-label="Document date to"
-                           class="rounded-lg border border-ordo-line bg-white px-2.5 py-2 text-[12px] outline-none focus:border-ordo-blue" />
+                <button type="submit" class="rounded-lg bg-[#111827] px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1f2937] transition-colors">Apply</button>
 
-                    <x-ordo.button type="submit" variant="default">Apply</x-ordo.button>
+                <a href="{{ route('records.index') }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">Reset</a>
 
-                    <a href="{{ route('records.index') }}" class="text-[11px] text-ordo-blue">Reset</a>
-                </div>
+                <a href="{{ route('records.export', array_filter($filters)) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">
+                    Export CSV
+                </a>
             </form>
 
             <div class="overflow-x-auto"
