@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $transmittal->tracking_number . ' Workspace')
+@section('title', ($transmittal->tracking_number ?: $transmittal->transmittal_no) . ' Workspace')
 
 @push('styles')
     @vite(['resources/css/transmittal.css'])
@@ -20,7 +20,7 @@
 
             <h1 style="font-size: 30px; font-weight: 600; color: #1f2937; margin: 0 0 6px 0; letter-spacing: -0.025em; line-height: 1; font-family: inherit;">Transmittal Preview</h1>
 
-            <p style="font-size: 13px; font-weight: 500; color: #64748b; margin: 0;">{{ $transmittal->tracking_number }}</p>
+            <p style="font-size: 13px; font-weight: 500; color: #64748b; margin: 0;">{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}</p>
 
         </div>
 
@@ -194,7 +194,7 @@
                             <input
                                 id="draft_tracking_number"
                                 type="text"
-                                value="{{ $transmittal->tracking_number }}"
+                                value="{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}"
                                 disabled
                                 style="width: 100%; padding: 8px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; color: #6b7280;"
                             >
@@ -1373,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             <p class="receipt-reference">
                                 TRN Reference:
-                                <strong>{{ $transmittal->tracking_number }}</strong>
+                                <strong>{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}</strong>
                             </p>
 
                             <p>
