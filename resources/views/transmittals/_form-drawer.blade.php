@@ -58,7 +58,7 @@
         @csrf
         @if ($isEditing) @method('PUT') @endif
         <div class="drawer-body">
-            @if ($errors->any())
+            @if (isset($errors) && $errors->any())
                 <div class="drawer-errors" role="alert">
                     <strong>Please check these details:</strong>
                     <ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>

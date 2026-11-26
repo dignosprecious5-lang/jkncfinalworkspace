@@ -32,7 +32,7 @@
             {{ session('status') }}
         </div>
     @endif
-    @if ($errors->any())
+    @if (isset($errors) && $errors->any())
         <div style="margin: 0 0 16px 0; padding: 12px 16px; border-radius: 8px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 14px; font-weight: 500;">
             {{ $errors->first() }}
         </div>

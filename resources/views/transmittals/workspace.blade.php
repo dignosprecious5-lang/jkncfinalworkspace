@@ -128,7 +128,7 @@
                     Edit Transmittal Details
                 </h2>
 
-                @if ($errors->any())
+                @if (isset($errors) && $errors->any())
                     <div style="background-color: #fef2f2; border: 1px solid #f87171; color: #b91c1c; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
                         <strong style="display: block; margin-bottom: 4px; font-weight: 700;">Please check the following before submitting:</strong>
                         <ul style="margin: 0; padding-left: 20px;">
