@@ -21,7 +21,6 @@ class BackfillProjectsFromApprovedDeals extends Command
         }
 
         $candidateDeals = Deal::query()
-            ->active()
             ->where('deal_status', 'approved')
             ->where(function ($query) {
                 $query->where('engagement_type', 'like', '%Project%')

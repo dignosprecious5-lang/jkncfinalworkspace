@@ -13,7 +13,7 @@
                 <p style="margin:0 0 28px;font-size:28px;line-height:1.1;font-weight:700;color:#0f172a;">John Kelly &amp; Company</p>
                 <p style="margin:0 0 24px;font-size:18px;line-height:1.7;color:#1f2937;">Dear <strong>{{ $clientName }}</strong>,</p>
                 <p style="margin:0 0 30px;font-size:18px;line-height:1.7;color:#1f2937;">
-                    Good day. Your proposal is ready for review. You may download the PDF and approve it through the secure link below.
+                    Good day. Your proposal is ready for review. Use the secure link below to view the complete proposal, approve or reject individual items, and submit your final decision. Rejection comments are optional.
                 </p>
 
                 <a href="{{ $clientUrl }}" style="display:inline-block;background:#3153d4;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:18px 32px;border-radius:12px;">
@@ -21,7 +21,7 @@
                 </a>
 
                 <p style="margin:28px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
-                    This secure link is active until <strong>{{ $expiresAt->format('F j, Y g:i A') }}</strong>.
+                    This secure link is active until <strong>{{ $expiresAt->copy()->timezone('Asia/Manila')->format('F j, Y g:i A') . ' (Asia/Manila)' }}</strong>.
                 </p>
                 <div style="margin:20px 0 0;font-size:13px;line-height:1.8;color:#64748b;">
                     <p style="margin:0 0 8px;">For concerns, please contact the Finance Department of JK&amp;C Inc.</p>

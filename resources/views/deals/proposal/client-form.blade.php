@@ -10,22 +10,82 @@
         .topbar h1 { margin: 0; font-size: 18px; }
         .topbar p { margin: 3px 0 0; color: #64748b; font-size: 12px; }
         .spacer { flex: 1; }
-        .button { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
+        .button { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; transition: background 0.15s ease, transform 0.05s ease; }
         .button-blue { background: #2563eb; color: #fff; }
-        .button-green { background: #059669; color: #fff; }
+        .button-blue:hover { background: #1d4ed8; }
         .button-muted { background: #f8fafc; color: #334155; border: 1px solid #cbd5e1; }
-        .shell { max-width: 1220px; margin: 22px auto; padding: 0 16px 32px; }
+        .shell { max-width: 1500px; margin: 22px auto; padding: 0 16px 32px; }
         .preview-shell { border: 1px solid #e5e7eb; background: #f8fafc; border-radius: 16px; overflow: hidden; }
         .preview-shell-header { border-bottom: 1px solid #f1f5f9; background: #fff; padding: 16px 20px; }
         .preview-shell-title { margin: 0; font-size: 14px; font-weight: 700; color: #111827; }
         .preview-shell-subtitle { margin: 4px 0 0; color: #6b7280; font-size: 12px; }
         .preview-pane { padding: 20px; }
-        .notice { margin-bottom: 14px; border: 1px solid #bbf7d0; background: #ecfdf5; color: #047857; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; }
-        .approval { margin-bottom: 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; padding: 14px; border: 1px solid #dbe2ea; background: #fff; border-radius: 10px; }
-        .approval label { display: block; margin-bottom: 6px; font-size: 12px; color: #475569; font-weight: 700; }
-        .approval input, .approval textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 14px; }
-        .approval textarea { min-height: 42px; resize: vertical; }
-        .approval-only { display: flex; justify-content: flex-end; }
+        .notice { margin-bottom: 14px; border: 1px solid #bbf7d0; background: #ecfdf5; color: #047857; padding: 14px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+        .notice-warning { border-color: #fef08a; background: #fefce8; color: #854d0e; }
+        .notice-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+        .decision-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+        .decision-panel { min-width: 0; border: 1px solid #dbe2ea; background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 4px 12px rgba(15,23,42,0.03); }
+        .decision-panel h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #0f172a; }
+        .decision-panel label { display: block; margin-bottom: 6px; font-size: 12px; color: #475569; font-weight: 700; }
+        .decision-panel input, .decision-panel textarea, .decision-panel select { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 10px; font-size: 13px; font-family: inherit; }
+        .decision-panel input:focus, .decision-panel textarea:focus { outline: none; border-color: #2563eb; }
+        .decision-panel select:focus { outline: none; border-color: #2563eb; }
+        .decision-panel textarea { min-height: 64px; resize: vertical; }
+        .decision-representative { margin: 0 0 14px; }
+        .decision-representative label { margin-bottom: 5px; }
+        .decision-workspace .preview-shell { min-width: 0; }
+        .item-response-intro { margin: 0 0 10px; color: #64748b; font-size: 12px; line-height: 1.45; }
+        .decision-table-scroll { width: 100%; overflow-x: auto; }
+        .decision-items-table { width: 100%; min-width: 700px; border-collapse: collapse; table-layout: fixed; color: #334155; font-size: 11px; }
+        .decision-items-table th, .decision-items-table td { padding: 9px 7px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+        .decision-items-table th { background: #f8fafc; color: #475569; font-size: 10px; font-weight: 700; }
+        .decision-items-table th:nth-child(1) { width: 12%; }
+        .decision-items-table th:nth-child(2) { width: 20%; }
+        .decision-items-table th:nth-child(3) { width: 9%; }
+        .decision-items-table th:nth-child(4), .decision-items-table th:nth-child(5) { width: 14%; }
+        .decision-items-table th:nth-child(6) { width: 31%; }
+        .decision-item-type { display: inline-block; padding: 3px 6px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 9px; font-weight: 700; }
+        .decision-item-name { color: #0f172a; font-weight: 700; }
+        .decision-item-actions { min-width: 0; }
+        .item-decision-buttons { display: flex; flex-wrap: nowrap; gap: 6px; width: 100%; }
+        .item-decision-button { flex: 1 1 0; min-width: 0; border: 1px solid; border-radius: 7px; padding: 7px 6px; background: #fff; font: inherit; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+        .item-decision-approve { border-color: #059669; color: #047857; }
+        .item-decision-approve.is-selected { background: #059669; color: #fff; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.16); }
+        .item-decision-reject { border-color: #dc2626; color: #b91c1c; }
+        .item-decision-reject.is-selected { background: #dc2626; color: #fff; box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.16); }
+        .item-decision-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .decision-status { display: inline-block; margin: 0 0 5px; padding: 3px 6px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 10px; font-weight: 700; }
+        .decision-status-accepted { background: #ecfdf5; color: #047857; }
+        .decision-status-declined { background: #fef2f2; color: #b91c1c; }
+        .decision-comment-field { margin-top: 6px; }
+        .decision-comment-field[hidden] { display: none; }
+        .decision-comment-field textarea { min-height: 52px; padding: 7px; font-size: 11px; }
+        .confirm-reject-button { margin-top: 6px; border: 0; border-radius: 6px; padding: 7px 10px; background: #b91c1c; color: #fff; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+        .decision-comment-display { margin-top: 6px; color: #475569; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+        .decision-comment-display[hidden] { display: none; }
+        .decision-comment-row[hidden] { display: none; }
+        .decision-comment-row td { padding: 0 7px 9px; border-bottom: 1px solid #e2e8f0; }
+        .decision-comment-row-content { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc; text-align: left; }
+        .decision-comment-row-content > .decision-comment-display, .decision-comment-row-content > .decision-comment-field { width: 100%; }
+        .decision-pending-status { display: block; margin-top: 5px; color: #1d4ed8; font-size: 10px; font-weight: 700; }
+        .decision-pending-status[hidden] { display: none; }
+        .decision-item-cards { display: grid; gap: 10px; }
+        .decision-item-card { min-width: 0; padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #fbfdff; }
+        .decision-item-card h4 { margin: 0 0 5px; color: #0f172a; font-size: 13px; overflow-wrap: anywhere; }
+        .decision-item-card-description { margin: 0 0 9px; color: #64748b; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+        .decision-item-card .item-decision-buttons { max-width: 240px; }
+        .decision-comment-field { margin-top: 8px; }
+        .decision-comment-field label { display: block; margin-bottom: 5px; }
+        .decision-comment-field textarea { min-height: 56px; }
+        .decision-comment-field[hidden], .decision-table-layout[hidden], .decision-card-layout[hidden] { display: none; }
+        .proposal-item-response { min-width: 0; margin-top: 10px; padding: 11px 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #fbfdff; }
+        .proposal-item-name { margin-bottom: 4px; font-size: 13px; font-weight: 700; color: #0f172a; overflow-wrap: anywhere; }
+        .proposal-item-description { margin: 0 0 8px; color: #64748b; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+        .proposal-item-fields { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 10px; align-items: start; }
+        .proposal-item-fields > div { min-width: 0; }
+        .proposal-item-fields label { display: block; margin-bottom: 5px; color: #475569; font-size: 12px; font-weight: 700; }
+        .item-current-decision { margin-bottom: 7px; color: #475569; font-size: 11px; }
+        .item-response-submit { margin-top: 12px; min-width: 164px; }
         .conforme-approved-stamp { margin-top: 10px; font-size: 11px; font-style: italic; color: #047857; }
         .proposal-frame { overflow: auto; background: #eef2f7; border: 1px solid #dbe2ea; border-radius: 16px; padding: 12px; }
         .proposal-doc { font-family: Georgia, "Times New Roman", serif; color: #111827; font-size: 12px; line-height: 1.58; }
@@ -42,6 +102,16 @@
         .proposal-presented-label { margin-top: 70px; font-size: 15px; font-style: italic; }
         .proposal-presented-name, .proposal-presented-location { margin-top: 10px; font-size: 16px; font-weight: 700; font-style: italic; }
         .proposal-cover-footer { position: absolute; left: 58px; right: 58px; bottom: 54px; }
+        @media (max-width: 980px) {
+            .decision-workspace { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+            .decision-panel { padding: 16px; }
+            .proposal-item-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 8px; }
+        }
+        @media (max-width: 760px) {
+            .decision-workspace { grid-template-columns: minmax(0, 1fr); }
+            .decision-workspace .preview-shell { grid-row: 2; }
+            .decision-workspace .decision-panel { grid-row: 1; }
+        }
         .proposal-contact-strip { margin: 0; text-align: center; color: #0031af; font-style: italic; }
         .proposal-contact-inline { display: flex; justify-content: center; flex-wrap: nowrap; gap: 26px; font-size: 12px; }
         .proposal-contact-address { margin-top: 4px; text-align: center; color: #0031af; font-size: 13px; font-style: italic; }
@@ -111,6 +181,8 @@
             .topbar, .approval { grid-template-columns: 1fr; align-items: stretch; }
             .topbar { display: grid; }
             .spacer { display: none; }
+            .proposal-item-fields { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+            .item-response-submit { width: 100%; }
             .proposal-frame { padding: 10px; }
             .proposal-page { width: 210mm; max-width: 210mm; padding: 32px 20px; }
             .proposal-cover-body { margin-top: 72px; }
@@ -132,7 +204,15 @@
     <div class="topbar">
         <div>
             <h1>{{ $proposal->reference_id ?: $deal->deal_code }}</h1>
-            <p>{{ $proposal->status === 'approved' ? 'Approved proposal' : 'Proposal review and approval' }}</p>
+            <p>
+                @if ($proposal->status === 'approved')
+                    Approved proposal
+                @elseif ($proposal->status === 'rejected')
+                    Declined proposal
+                @else
+                    Proposal review and approval
+                @endif
+            </p>
         </div>
         <div class="spacer"></div>
         <a href="{{ $downloadUrl }}" class="button button-blue">Download PDF</a>
@@ -143,32 +223,209 @@
             <div class="notice">{{ session('success') }}</div>
         @endif
 
-        @if ($proposal->status === 'approved')
-            <div class="notice">
-                Approved by {{ $approvalName }} on {{ optional($approvalDate)->format('F j, Y g:i A') }}.
-            </div>
-        @else
-            <form method="POST" action="{{ $approveUrl }}" class="approval">
-                @csrf
-                <div class="approval-only">
-                    <button type="submit" class="button button-green">Approve Proposal</button>
-                </div>
-            </form>
+        @if (session('warning'))
+            <div class="notice notice-warning">{{ session('warning') }}</div>
         @endif
 
-        <div class="preview-shell">
-            <div class="preview-shell-header">
-                <h2 class="preview-shell-title">Proposal Preview</h2>
-                <p class="preview-shell-subtitle">This client view follows the same branded preview format as the proposal draft.</p>
+        @if (session('error'))
+            <div class="notice notice-danger">{{ session('error') }}</div>
+        @endif
+
+        @if ($errors->any())
+            <div class="notice notice-danger">
+                <ul style="margin: 0; padding-left: 20px;">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
             </div>
-            <div class="preview-pane">
-                <div class="proposal-frame">
-                    {!! $proposalDocumentHtml !!}
+        @endif
+
+        @include('deals.proposal.partials.decision-summary', ['showNotificationStatus'=>false])
+        <div class="decision-workspace">
+            <div class="preview-shell">
+                <div class="preview-shell-header">
+                    <h2 class="preview-shell-title">Proposal Preview</h2>
+                    <p class="preview-shell-subtitle">This client view follows the same branded preview format as the proposal draft.</p>
+                </div>
+                <div class="preview-pane">
+                    <div class="proposal-frame">
+                        {!! $proposalDocumentHtml !!}
+                    </div>
                 </div>
             </div>
+
+            <section class="decision-panel">
+                <h3>{{ ($proposal->client_submitted_at || in_array(strtolower((string) $proposal->status), ['approved', 'rejected', 'partially_approved'], true)) ? 'Proposal Decision' : ($proposalLineItems->isNotEmpty() ? 'Decide on Individual Items' : 'Proposal Decision') }}</h3>
+                @if (($proposal->client_submitted_at || in_array(strtolower((string) $proposal->status), ['approved', 'rejected', 'partially_approved'], true)))
+                    @if ($proposal->status === 'partially_approved')
+                        <div class="notice">Your final decision has been submitted. Pending items are listed below. Request a revised proposal if further changes are needed.</div>
+                    @elseif ($proposal->status === 'approved')
+                        <div class="notice">
+                            <div><strong>Proposal Approved</strong> &bull; Approved by {{ $approvalName }} on {{ optional($approvalDate)->format('F j, Y g:i A') }}.</div>
+                            @if (!empty($proposal->client_approval_note))
+                                <div style="margin-top: 6px; font-weight: normal; font-size: 13px;">
+                                    <strong>Feedback / Comments:</strong> {{ $proposal->client_approval_note }}
+                                </div>
+                            @endif
+                        </div>
+                    @else
+                        <div class="notice notice-danger">
+                            <div><strong>Proposal Declined</strong> &bull; Declined by {{ $proposal->client_approved_by_name ?: 'Client' }} on {{ optional($proposal->client_approved_at ?: $proposal->updated_at)->format('F j, Y g:i A') }}.</div>
+                            @if (!empty($proposal->client_approval_note))
+                                <div style="margin-top: 6px; font-weight: normal; font-size: 13px;">
+                                    <strong>Feedback / Reason:</strong> {{ $proposal->client_approval_note }}
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                    <div class="decision-table-scroll">
+                        <table class="decision-items-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Item / Name</th>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Total</th>
+                                    <th>Client Decisions / Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($proposalLineItems as $item)
+                                    <tr>
+                                        <td><span class="decision-item-type">{{ $item['type'] ?: 'ITEM' }}</span></td>
+                                        <td><span class="decision-item-name">{{ $item['name'] }}</span></td>
+                                        <td>
+                                            @if (is_numeric($item['qty']))
+                                                {{ rtrim(rtrim(number_format((float) $item['qty'], 2, '.', ''), '0'), '.') }}{{ $item['unit'] ? ' '.$item['unit'] : '' }}
+                                            @else
+                                                &mdash;
+                                            @endif
+                                        </td>
+                                        <td>{{ is_numeric($item['unit_price']) ? '₱'.number_format((float) $item['unit_price'], 2) : 'Needs confirmation' }}</td>
+                                        <td>{{ is_numeric($item['total']) ? '₱'.number_format((float) $item['total'], 2) : 'Needs confirmation' }}</td>
+                                        <td class="decision-item-actions">
+                                            <span class="decision-status{{ $item['decision'] === 'accepted' ? ' decision-status-accepted' : ($item['decision'] === 'declined' ? ' decision-status-declined' : '') }}">
+                                                Saved: {{ match($item['decision']) { 'accepted'=>'Approved', 'declined'=>'Rejected', default=>'Pending' } }}
+                                            </span>
+                                            <div class="item-current-decision">Client comment: {{ filled($item['comment']) ? $item['comment'] : 'No comment provided.' }}</div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <form method="POST" action="{{ $itemDecisionsUrl }}">
+                        @csrf
+                        <div class="decision-representative">
+                            <label for="item_decision_client_name">Authorized Representative Full Name</label>
+                            <input type="text" id="item_decision_client_name" name="client_name" value="{{ old('client_name', $clientName ?? '') }}" maxlength="255" required>
+                        </div>
+                        @if ($proposalLineItems->isNotEmpty())
+                            <p class="item-response-intro">Approve or reject each item you are ready to decide on. Add a comment when rejecting an item.</p>
+                        @endif
+                        <div class="decision-card-layout" data-decision-layout="cards" data-active="{{ $hasSavedItemDecisions ? 'false' : 'true' }}" @if ($hasSavedItemDecisions) hidden @endif>
+                            <fieldset data-layout-fields @disabled($hasSavedItemDecisions) style="margin:0; padding:0; border:0;">
+                                <div class="decision-item-cards">
+                                    @foreach ($proposalLineItems as $index => $item)
+                                        @php($currentDecision = old("responses.$index.decision", $item['decision'] ?? ''))
+                                        <article class="decision-item-card" data-decision-item="{{ $index }}">
+                                            <h4>{{ $item['name'] }}</h4>
+                                            @if (filled($item['description']))
+                                                <p class="decision-item-card-description">{{ $item['description'] }}</p>
+                                            @endif
+                                            <input type="hidden" name="responses[{{ $index }}][line_item_id]" value="{{ $item['id'] }}">
+                                            <input type="hidden" name="responses[{{ $index }}][decision]" value="{{ $currentDecision }}" data-item-decision>
+                                            <div class="item-decision-buttons" role="group" aria-label="Decision for {{ $item['name'] }}">
+                                                <button type="button" class="item-decision-button item-decision-approve{{ $currentDecision === 'accepted' ? ' is-selected' : '' }}" data-choice="accepted" aria-pressed="{{ $currentDecision === 'accepted' ? 'true' : 'false' }}">Approve</button>
+                                                <button type="button" class="item-decision-button item-decision-reject{{ $currentDecision === 'declined' ? ' is-selected' : '' }}" data-choice="declined" aria-pressed="{{ $currentDecision === 'declined' ? 'true' : 'false' }}">Reject</button>
+                                            </div>
+                                            <span class="decision-pending-status" data-pending-status hidden></span>
+                                            <div class="decision-comment-field" data-comment-field @if ($currentDecision !== 'declined') hidden @endif>
+                                                <label for="card_item_comment_{{ $index }}">Optional Comment for Rejection</label>
+                                                <textarea id="card_item_comment_{{ $index }}" name="responses[{{ $index }}][comment]" maxlength="2000" placeholder="Reason or comment (optional)...">{{ old("responses.$index.comment", $item['comment']) }}</textarea>
+                                                <button type="button" class="confirm-reject-button" data-confirm-reject>Confirm Reject</button>
+                                            </div>
+                                        </article>
+                                    @endforeach
+                                </div>
+                            </fieldset>
+                        </div>
+
+                        <div class="decision-table-layout" data-decision-layout="table" data-active="{{ $hasSavedItemDecisions ? 'true' : 'false' }}" @unless ($hasSavedItemDecisions) hidden @endunless>
+                            <fieldset data-layout-fields @disabled(! $hasSavedItemDecisions) style="margin:0; padding:0; border:0;">
+                                <div class="decision-table-scroll">
+                                    <table class="decision-items-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Type</th>
+                                                <th>Item / Name</th>
+                                                <th>Qty</th>
+                                                <th>Unit Price</th>
+                                                <th>Total</th>
+                                                <th>Client Decisions / Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($proposalLineItems as $index => $item)
+                                                @php($currentDecision = old("responses.$index.decision", $item['decision'] ?? ''))
+                                                @php($savedDecision = $item['decision'] ?? null)
+                                                <tr data-decision-item="{{ $index }}">
+                                                    <td><span class="decision-item-type">{{ $item['type'] ?: 'ITEM' }}</span></td>
+                                                    <td><span class="decision-item-name">{{ $item['name'] }}</span></td>
+                                                    <td>
+                                                        @if (is_numeric($item['qty']))
+                                                            {{ rtrim(rtrim(number_format((float) $item['qty'], 2, '.', ''), '0'), '.') }}{{ $item['unit'] ? ' '.$item['unit'] : '' }}
+                                                        @else
+                                                            &mdash;
+                                                        @endif
+                                                    </td>
+                                                    <td>{{ is_numeric($item['unit_price']) ? '₱'.number_format((float) $item['unit_price'], 2) : 'Needs confirmation' }}</td>
+                                                    <td>{{ is_numeric($item['total']) ? '₱'.number_format((float) $item['total'], 2) : 'Needs confirmation' }}</td>
+                                                    <td class="decision-item-actions">
+                                                        <input type="hidden" name="responses[{{ $index }}][line_item_id]" value="{{ $item['id'] }}">
+                                                        <input type="hidden" name="responses[{{ $index }}][decision]" value="{{ $currentDecision }}" data-item-decision>
+                                                        <span class="decision-status{{ $savedDecision === 'accepted' ? ' decision-status-accepted' : ($savedDecision === 'declined' ? ' decision-status-declined' : '') }}">
+                                                            Saved: {{ $savedDecision ? ucfirst($savedDecision) : 'Pending' }}
+                                                        </span>
+                                                        <span class="decision-pending-status" data-pending-status hidden></span>
+                                                        <div class="item-decision-buttons" role="group" aria-label="Decision for {{ $item['name'] }}">
+                                                            <button type="button" class="item-decision-button item-decision-approve{{ $currentDecision === 'accepted' ? ' is-selected' : '' }}" data-choice="accepted" aria-pressed="{{ $currentDecision === 'accepted' ? 'true' : 'false' }}">Approve</button>
+                                                            <button type="button" class="item-decision-button item-decision-reject{{ $currentDecision === 'declined' ? ' is-selected' : '' }}" data-choice="declined" aria-pressed="{{ $currentDecision === 'declined' ? 'true' : 'false' }}">Reject</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr class="decision-comment-row" data-comment-row="{{ $index }}" @if ($savedDecision !== 'declined' || blank($item['comment'])) hidden @endif>
+                                                    <td colspan="6">
+                                                        <div class="decision-comment-row-content">
+                                                            <div class="decision-comment-display" data-comment-display @if ($savedDecision !== 'declined' || blank($item['comment'])) hidden @endif>
+                                                                <strong>Comment / Reason for Rejection:</strong> <span data-comment-text>{{ $item['comment'] }}</span>
+                                                            </div>
+                                                            <div class="decision-comment-field" data-comment-field hidden>
+                                                                <label for="table_item_comment_{{ $index }}">Optional Comment for Rejection</label>
+                                                                <textarea id="table_item_comment_{{ $index }}" name="responses[{{ $index }}][comment]" maxlength="2000" placeholder="Reason or comment (optional)...">{{ old("responses.$index.comment", $item['comment']) }}</textarea>
+                                                                <button type="button" class="confirm-reject-button" data-confirm-reject>Confirm Reject</button>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </fieldset>
+                        </div>
+                        @if ($proposalLineItems->isNotEmpty())
+                            <button type="submit" class="button button-blue item-response-submit">Submit Final Decision</button>
+                        @endif
+                    </form>
+                @endif
+            </section>
         </div>
     </main>
-    @if ($approvalDate)
+    @if ($proposal->status === 'approved' && $approvalDate)
     <script>
         (() => {
             const clientBlock = document.querySelector('.proposal-signature-grid .proposal-signature-block');
@@ -182,7 +439,241 @@
             clientBlock.appendChild(stamp);
         })();
     </script>
+    @elseif ($proposal->status === 'rejected')
+    <script>
+        (() => {
+            const clientBlock = document.querySelector('.proposal-signature-grid .proposal-signature-block');
+            if (!clientBlock || clientBlock.querySelector('.conforme-approved-stamp')) {
+                return;
+            }
+
+            const stamp = document.createElement('div');
+            stamp.className = 'conforme-approved-stamp';
+            stamp.style.color = '#dc2626';
+            stamp.textContent = 'Declined on {{ optional($proposal->client_approved_at ?: $proposal->updated_at)->format('F j, Y g:i A') }}';
+            clientBlock.appendChild(stamp);
+        })();
+    </script>
     @endif
+    <script>
+        document.querySelectorAll('.decision-panel form').forEach((form) => {
+            const layouts = Array.from(form.querySelectorAll('[data-decision-layout]'));
+            const setActiveLayout = (activeLayout) => {
+                layouts.forEach((layout) => {
+                    const isActive = layout === activeLayout;
+                    layout.hidden = !isActive;
+                    layout.dataset.active = isActive ? 'true' : 'false';
+                    const fieldset = layout.querySelector('[data-layout-fields]');
+                    if (fieldset) {
+                        fieldset.disabled = !isActive;
+                    }
+                });
+            };
+            const updateButtons = (group, selectedDecision) => {
+                group.querySelectorAll('[data-choice]').forEach((button) => {
+                    const selected = button.dataset.choice === selectedDecision;
+                    button.classList.toggle('is-selected', selected);
+                    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                });
+            };
+            const relatedCommentContainer = (item) => {
+                if (!item) {
+                    return null;
+                }
+
+                if (!item.matches('tr')) {
+                    return item;
+                }
+
+                return item.closest('[data-decision-layout]')
+                    ?.querySelector(`[data-comment-row="${item.dataset.decisionItem}"]`);
+            };
+            const copyItemState = (sourceItem, targetItem) => {
+                const sourceDecision = sourceItem.querySelector('[data-item-decision]');
+                const targetDecision = targetItem.querySelector('[data-item-decision]');
+                const sourceCommentContainer = relatedCommentContainer(sourceItem);
+                const targetCommentContainer = relatedCommentContainer(targetItem);
+                const sourceComment = sourceCommentContainer?.querySelector('textarea');
+                const targetComment = targetCommentContainer?.querySelector('textarea');
+                const sourceCommentField = sourceCommentContainer?.querySelector('[data-comment-field]');
+                const targetCommentField = targetCommentContainer?.querySelector('[data-comment-field]');
+                const sourceCommentDisplay = sourceCommentContainer?.querySelector('[data-comment-display]');
+                const targetCommentDisplay = targetCommentContainer?.querySelector('[data-comment-display]');
+                const sourceCommentText = sourceCommentContainer?.querySelector('[data-comment-text]');
+                const targetCommentText = targetCommentContainer?.querySelector('[data-comment-text]');
+                const sourcePendingStatus = sourceItem.querySelector('[data-pending-status]');
+                const targetPendingStatus = targetItem.querySelector('[data-pending-status]');
+                const sourceButtons = sourceItem.querySelector('.item-decision-buttons');
+                const targetButtons = targetItem.querySelector('.item-decision-buttons');
+
+                if (sourceDecision && targetDecision) {
+                    targetDecision.value = sourceDecision.value;
+                }
+                if (sourceComment && targetComment) {
+                    targetComment.value = sourceComment.value;
+                    targetComment.required = sourceComment.required;
+                }
+                if (sourceCommentField && targetCommentField) {
+                    targetCommentField.hidden = sourceCommentField.hidden;
+                }
+                if (sourceCommentDisplay && targetCommentDisplay) {
+                    targetCommentDisplay.hidden = sourceCommentDisplay.hidden;
+                }
+                if (sourceCommentText && targetCommentText) {
+                    targetCommentText.textContent = sourceCommentText.textContent;
+                }
+                if (sourcePendingStatus && targetPendingStatus) {
+                    targetPendingStatus.textContent = sourcePendingStatus.textContent;
+                    targetPendingStatus.hidden = sourcePendingStatus.hidden;
+                }
+                if (sourceButtons && targetButtons && sourceDecision) {
+                    updateButtons(targetButtons, sourceButtons.querySelector('.is-selected')?.dataset.choice || sourceDecision.value);
+                }
+                if (targetCommentContainer?.matches('[data-comment-row]')) {
+                    targetCommentContainer.hidden = Boolean(sourceCommentField?.hidden && sourceCommentDisplay?.hidden);
+                }
+            };
+            const switchToTable = (sourceItem) => {
+                const tableLayout = layouts.find((layout) => layout.dataset.decisionLayout === 'table');
+                const cardsLayout = layouts.find((layout) => layout.dataset.decisionLayout === 'cards');
+                if (!tableLayout || !cardsLayout || sourceItem.closest('[data-decision-layout]') !== cardsLayout) {
+                    return;
+                }
+
+                const targetItem = tableLayout.querySelector(`[data-decision-item="${sourceItem.dataset.decisionItem}"]`);
+                if (targetItem) {
+                    copyItemState(sourceItem, targetItem);
+                }
+                setActiveLayout(tableLayout);
+            };
+
+            const initiallyActive = layouts.find((layout) => layout.dataset.active === 'true');
+            if (initiallyActive) {
+                setActiveLayout(initiallyActive);
+            }
+
+            form.querySelectorAll('.item-decision-buttons').forEach((group) => {
+                const item = group.closest('[data-decision-item]');
+                const commentContainer = relatedCommentContainer(item);
+                const decisionInput = item?.querySelector('[data-item-decision]');
+                const commentField = commentContainer?.querySelector('[data-comment-field]');
+                const commentInput = commentField?.querySelector('textarea');
+                const commentDisplay = commentContainer?.querySelector('[data-comment-display]');
+                const commentText = commentContainer?.querySelector('[data-comment-text]');
+                const pendingStatus = item?.querySelector('[data-pending-status]');
+                const confirmReject = commentContainer?.querySelector('[data-confirm-reject]');
+                if (!item || !decisionInput || !commentField || !commentInput || !pendingStatus || !confirmReject) {
+                    return;
+                }
+
+                group.querySelectorAll('[data-choice]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const decision = button.dataset.choice;
+                        updateButtons(group, decision);
+
+                        if (decision === 'declined') {
+                            decisionInput.value = 'declined';
+                            pendingStatus.hidden = true;
+                            if (commentDisplay) {
+                                commentDisplay.hidden = true;
+                            }
+                            commentField.hidden = false;
+                            if (commentContainer?.matches('[data-comment-row]')) {
+                                commentContainer.hidden = false;
+                            }
+                            commentInput.required = false;
+                            switchToTable(item);
+                            const activeItem = form.querySelector(`[data-decision-layout][data-active="true"] [data-decision-item="${item.dataset.decisionItem}"]`);
+                            relatedCommentContainer(activeItem)?.querySelector('textarea')?.focus();
+                            return;
+                        }
+
+                        decisionInput.value = 'accepted';
+                        commentInput.value = '';
+                        commentInput.required = false;
+                        commentField.hidden = true;
+                        if (commentDisplay) {
+                            commentDisplay.hidden = true;
+                        }
+                        if (commentContainer?.matches('[data-comment-row]')) {
+                            commentContainer.hidden = true;
+                        }
+                        pendingStatus.textContent = 'Pending submission: Approved';
+                        pendingStatus.hidden = false;
+                        switchToTable(item);
+                        const activeItem = form.querySelector(`[data-decision-layout][data-active="true"] [data-decision-item="${item.dataset.decisionItem}"]`);
+                        if (activeItem) {
+                            updateButtons(activeItem.querySelector('.item-decision-buttons'), decision);
+                            activeItem.querySelector('[data-pending-status]')?.replaceChildren('Pending submission: Approved');
+                            activeItem.querySelector('[data-pending-status]')?.removeAttribute('hidden');
+                        }
+                    });
+                });
+
+                confirmReject.addEventListener('click', () => {
+                    const comment = commentInput.value.trim();
+
+                    decisionInput.value = 'declined';
+                    commentInput.value = comment;
+                    commentInput.required = false;
+                    commentField.hidden = true;
+                    if (commentDisplay) {
+                        commentDisplay.hidden = false;
+                    }
+                    if (commentContainer?.matches('[data-comment-row]')) {
+                        commentContainer.hidden = false;
+                    }
+                    if (commentText) {
+                        commentText.textContent = comment;
+                    }
+                    pendingStatus.textContent = 'Pending submission: Declined';
+                    pendingStatus.hidden = false;
+                    switchToTable(item);
+                    const activeItem = form.querySelector(`[data-decision-layout][data-active="true"] [data-decision-item="${item.dataset.decisionItem}"]`);
+                    if (activeItem) {
+                        updateButtons(activeItem.querySelector('.item-decision-buttons'), 'declined');
+                        const activeCommentContainer = relatedCommentContainer(activeItem);
+                        activeCommentContainer?.querySelector('[data-comment-text]')?.replaceChildren(document.createTextNode(comment));
+                        activeCommentContainer?.querySelector('[data-comment-display]')?.removeAttribute('hidden');
+                        activeCommentContainer?.querySelector('[data-comment-field]')?.setAttribute('hidden', '');
+                        if (activeCommentContainer?.matches('[data-comment-row]')) {
+                            activeCommentContainer.hidden = false;
+                        }
+                        activeItem.querySelector('[data-pending-status]')?.replaceChildren('Pending submission: Declined');
+                        activeItem.querySelector('[data-pending-status]')?.removeAttribute('hidden');
+                    }
+                });
+            });
+
+            form.addEventListener('submit', (event) => {
+                const activeLayout = form.querySelector('[data-decision-layout][data-active="true"]');
+
+                activeLayout?.querySelectorAll('[data-decision-item]').forEach((item) => {
+                    const decisionInput = item.querySelector('[data-item-decision]');
+                    const selectedDecision = item.querySelector('.item-decision-buttons [data-choice].is-selected')?.dataset.choice;
+                    if (!decisionInput || !selectedDecision) {
+                        return;
+                    }
+
+                    if (selectedDecision === 'accepted') {
+                        decisionInput.value = 'accepted';
+                        const comment = relatedCommentContainer(item)?.querySelector('textarea');
+                        if (comment) {
+                            comment.value = '';
+                        }
+                        return;
+                    }
+
+                    if (selectedDecision === 'declined' && decisionInput.value === 'declined') {
+                        const comment = relatedCommentContainer(item)?.querySelector('textarea');
+                        if (comment) {
+                            comment.value = comment.value.trim();
+                        }
+                    }
+                });
+            });
+        });
+    </script>
     @include('deals.proposal.partials.pagination-script')
 </body>
 </html>

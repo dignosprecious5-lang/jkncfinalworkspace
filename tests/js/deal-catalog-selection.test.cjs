@@ -13,7 +13,7 @@ const product = {type:'PRODUCT',product_id:1,name:'Product A',scope_of_work:'Pro
 const service = {type:'SERVICE',service_id:2,name:'Service A',scope_of_work:'Service scope',requirements:[{origin:'service'}]};
 test('loads distinct sources and submits unique numeric IDs', async () => {
     const {result,scope}=state({productIds:[1,1]});let payload;
-    global.fetch=async (_url,options) => {payload=JSON.parse(options.body);return {ok:true,json:async()=>({compatible:true,items:[service,product],conflicts:[],diagnostics:[]})};};
+    global.fetch=async (_url,options) => {payload=JSON.parse(options.body);return {ok:true,json:async()=>({items:[service,product],conflicts:[]})};};
     await result.refreshCatalogConfiguration();
     assert.deepEqual(payload.product_ids,[1]);assert.deepEqual(payload.service_ids,[2]);
     assert.equal(result.catalogItems[0].requirements[0].origin,'service');
@@ -22,13 +22,13 @@ test('loads distinct sources and submits unique numeric IDs', async () => {
 });
 test('removal discards stale display immediately and recomputes managed scope', async () => {
     const {result,scope}=state({productIds:[1]});
-    global.fetch=async()=>({ok:true,json:async()=>({compatible:true,items:[product],conflicts:[],diagnostics:[]})});
+    global.fetch=async()=>({ok:true,json:async()=>({items:[product],conflicts:[]})});
     await result.refreshCatalogConfiguration();result.selectedProductIds=[];result.selectedServiceIds=[];
     await result.refreshCatalogConfiguration();assert.deepEqual(result.catalogItems,[]);assert.equal(scope.value,'');
 });
 test('manual scope and existing Deal scope are preserved', async () => {
     for(const options of [{initialScope:'Agreed manual scope'},{dealId:9,initialScope:'Existing Deal scope'}]) {
-        const {result,scope}=state(options);global.fetch=async()=>({ok:true,json:async()=>({compatible:true,items:[service],conflicts:[],diagnostics:[]})});
+        const {result,scope}=state(options);global.fetch=async()=>({ok:true,json:async()=>({items:[service],conflicts:[]})});
         await result.refreshCatalogConfiguration();assert.equal(scope.value,options.initialScope);
     }
 });

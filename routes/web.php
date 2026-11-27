@@ -1,11 +1,6 @@
 <?php
 
-require __DIR__.'/messaging.php';
-
 use App\Http\Controllers\ActivityController;
-use App\Http\Controllers\TaskWorkflowController;
-use App\Http\Controllers\VisitorController;
-use App\Http\Controllers\VisitController;
 use App\Http\Controllers\AdminUserPasswordController;
 use App\Http\Controllers\AdminUserStatusController;
 use App\Http\Controllers\AdminUserAccountController;
@@ -16,6 +11,7 @@ use App\Http\Controllers\PasswordAssistanceController;
 use App\Http\Controllers\BylawController;
 use App\Http\Controllers\CapitalStructureController;
 use App\Http\Controllers\CatalogChangeRequestController;
+use App\Http\Controllers\CompanyActivityController;
 use App\Http\Controllers\CompanyConsultationNoteController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CompanyCorporateFormationController;
@@ -39,6 +35,7 @@ use App\Http\Controllers\CorporateApprovalController;
 use App\Http\Controllers\CorporateFormationController;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\DealProposalController;
+use App\Http\Controllers\DealStartController;
 use App\Http\Controllers\DirectorOfficerController;
 use App\Http\Controllers\GisController;
 use App\Http\Controllers\AdminDashboardController;
@@ -47,15 +44,18 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminUserPermissionController;
 use App\Http\Controllers\AccountAuditLogController;
 use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProductExportController;
-use App\Http\Controllers\ProductImportController;
-use App\Http\Controllers\ProductTermController;
-use App\Http\Controllers\ProductVersionController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\ServiceTermController;
-use App\Http\Controllers\ServiceWorkspaceController;
+use App\Http\Controllers\ProductTermController;
+use App\Http\Controllers\ProductVersionController;
+use App\Http\Controllers\ProductExportController;
+use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\RequirementController;
+use App\Http\Controllers\ImportExportController;
+use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RegularController;
+use App\Http\Controllers\RegularProjectController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SecAoiController;
 use App\Http\Controllers\StockholderController;
@@ -102,15 +102,11 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\OfficialBusinessTripController;
-use App\Http\Controllers\OfficialBusinessTripTicketController;
-use App\Http\Controllers\CompanyTravelCreditController;
 use App\Http\Controllers\EmployeeRelationController;
 use App\Http\Controllers\AwardController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\AssessmentQuestionController;
-
-require __DIR__.'/transmittal-v2.php';
 
 /*
 |--------------------------------------------------------------------------
@@ -177,6 +173,8 @@ Route::post('/regular/ntp/respond/{token}', [RegularController::class, 'submitCl
 Route::get('/regular/ntp/respond/{token}/download', [RegularController::class, 'downloadClientNtp'])->name('regular.ntp.client.download');
 Route::get('/proposal/respond/{token}', [DealProposalController::class, 'clientProposal'])->name('deals.proposal.client.show');
 Route::post('/proposal/respond/{token}/approve', [DealProposalController::class, 'approveClientProposal'])->name('deals.proposal.client.approve');
+Route::post('/proposal/respond/{token}/decline', [DealProposalController::class, 'declineClientProposal'])->name('deals.proposal.client.decline');
+Route::post('/proposal/respond/{token}/items', [DealProposalController::class, 'submitClientProposalItemDecisions'])->name('deals.proposal.client.items');
 Route::post('/proposal/respond/{token}/quotation-upload', [DealProposalController::class, 'uploadClientQuotation'])->name('deals.proposal.client.quotation-upload');
 Route::get('/proposal/respond/{token}/download', [DealProposalController::class, 'downloadClientProposal'])->name('deals.proposal.client.download');
 
@@ -191,124 +189,36 @@ Route::post('/finance/supplier/completion/{token}', [FinanceController::class, '
 |--------------------------------------------------------------------------
 */
 
-Route::get('/official-business-trip-tickets/verify/{reference}', [OfficialBusinessTripTicketController::class, 'verify'])
-    ->middleware('throttle:60,1')
-    ->name('official-business-trip-tickets.verify');
+Route::get('/activities', function () {
+    return view('activities.index');
+})->name('activities');
 
-Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePasswordChanged::class, 'human-capital.module:access_activities'])->group(function () {
-    Route::get('/activities', function () {
-        return view('activities.index');
-    })->name('activities');
+Route::prefix('api')->group(function () {
+    Route::get('/activities', [ActivityController::class, 'index']);
+    Route::post('/tasks', [ActivityController::class, 'storeTask']);
+    Route::post('/events', [ActivityController::class, 'storeEvent']);
+    Route::post('/calls', [ActivityController::class, 'storeCall']);
+    Route::post('/meetings', [ActivityController::class, 'storeMeeting']);
 
-    Route::prefix('api')->group(function () {
-        Route::get('/activities', [ActivityController::class, 'index']);
-        Route::match(['get', 'post'], '/activities/report', [\App\Http\Controllers\ActivitiesReportController::class, 'dataset']);
-        Route::match(['get', 'post'], '/activities/export', [\App\Http\Controllers\ActivitiesReportController::class, 'export']);
-        Route::get('/activities/{type}/{id}/related', [\App\Http\Controllers\ActivityLinkController::class, 'index']);
-        Route::post('/activities/{type}/{id}/related', [\App\Http\Controllers\ActivityLinkController::class, 'store']);
-        Route::delete('/activities/{type}/{id}/related/{relatedType}/{relatedId}', [\App\Http\Controllers\ActivityLinkController::class, 'destroy']);
-        Route::get('/activities/{type}/{id}/attachments', [\App\Http\Controllers\ActivityAttachmentController::class, 'index']);
-        Route::post('/activities/{type}/{id}/attachments', [\App\Http\Controllers\ActivityAttachmentController::class, 'store']);
-        Route::delete('/activities/{type}/{id}/attachments/{attachment}', [\App\Http\Controllers\ActivityAttachmentController::class, 'destroy']);
-        Route::get('/activities/{type}/{id}/audit-log', [\App\Http\Controllers\ActivityAuditController::class, 'index']);
-        Route::get('/visitors', [VisitorController::class, 'index']);
-        Route::post('/visitors', [VisitorController::class, 'store']);
-        Route::post('/visitors/resolve-contact', [VisitorController::class, 'resolveContact']);
-        Route::get('/visits', [VisitController::class, 'index']);
-        Route::get('/visits/{visit}', [VisitController::class, 'show']);
-        Route::post('/visits/check-in', [VisitController::class, 'checkIn']);
-        Route::post('/visits/{visit}/check-out', [VisitController::class, 'checkOut']);
-        Route::get('/official-business', [OfficialBusinessTripController::class, 'activitiesIndex'])->name('activities.official-business.index');
-        Route::get('/official-business/deleted', [OfficialBusinessTripController::class, 'deletedActivitiesIndex'])->name('activities.official-business.deleted');
-        Route::post('/official-business/{id}/restore', [OfficialBusinessTripController::class, 'restoreDeleted'])->name('activities.official-business.restore');
-        Route::delete('/official-business/{id}/force', [OfficialBusinessTripController::class, 'forceDeleteDeleted'])->name('activities.official-business.force-delete');
-        Route::delete('/official-business/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('activities.official-business.destroy');
-        Route::post('/official-business/{officialBusinessTrip}/depart', [OfficialBusinessTripController::class, 'depart'])->name('activities.official-business.depart');
-        Route::post('/official-business/{officialBusinessTrip}/return', [OfficialBusinessTripController::class, 'returnTrip'])->name('activities.official-business.return');
-        Route::post('/official-business/{officialBusinessTrip}/ready', [OfficialBusinessTripController::class, 'readyForTravel'])->name('activities.official-business.ready');
-        Route::post('/official-business/{officialBusinessTrip}/for-completion', [OfficialBusinessTripController::class, 'startCompletion'])->name('activities.official-business.for-completion');
-        Route::post('/official-business/{officialBusinessTrip}/cancel', [OfficialBusinessTripController::class, 'cancel'])->name('activities.official-business.cancel');
-        Route::post('/official-business/{officialBusinessTrip}/complete', [OfficialBusinessTripController::class, 'complete'])->name('activities.official-business.complete');
-        Route::get('/official-business/{officialBusinessTrip}/trip-tickets', [OfficialBusinessTripTicketController::class, 'index'])->name('activities.official-business.trip-tickets.index');
-        Route::post('/official-business/{officialBusinessTrip}/trip-tickets', [OfficialBusinessTripTicketController::class, 'store'])->name('activities.official-business.trip-tickets.store');
-        Route::post('/official-business/{officialBusinessTrip}/trip-tickets/sync', [OfficialBusinessTripTicketController::class, 'sync'])->name('activities.official-business.trip-tickets.sync');
-        Route::get('/official-business-trip-tickets/finance-ready', [OfficialBusinessTripTicketController::class, 'financeReady'])->name('activities.official-business.trip-tickets.finance-ready');
-        Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'show'])->name('activities.official-business.trip-tickets.show');
-    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'update'])->name('activities.official-business.trip-tickets.update');
-    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'destroy'])->name('activities.official-business.trip-tickets.destroy');
-    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/evidence', [OfficialBusinessTripTicketController::class, 'storeEvidence'])->name('activities.official-business.trip-tickets.evidence.store');
-    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}/evidence/{attachment}', [OfficialBusinessTripTicketController::class, 'destroyEvidence'])->name('activities.official-business.trip-tickets.evidence.destroy');
-    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}/financial-treatment', [OfficialBusinessTripTicketController::class, 'updateFinancialTreatment'])->name('activities.official-business.trip-tickets.financial-treatment.update');
-    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/costs', [OfficialBusinessTripTicketController::class, 'storeCost'])->name('activities.official-business.trip-tickets.costs.store');
-    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}/costs/{cost}', [OfficialBusinessTripTicketController::class, 'updateCost'])->name('activities.official-business.trip-tickets.costs.update');
-    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}/costs/{cost}', [OfficialBusinessTripTicketController::class, 'destroyCost'])->name('activities.official-business.trip-tickets.costs.destroy');
-    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/completion-checklist', [OfficialBusinessTripTicketController::class, 'completionChecklist'])->name('activities.official-business.trip-tickets.completion-checklist');
-    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/complete', [OfficialBusinessTripTicketController::class, 'complete'])->name('activities.official-business.trip-tickets.complete');
-    Route::post('/official-business-trip-tickets/{id}/restore', [OfficialBusinessTripTicketController::class, 'restore'])->name('activities.official-business.trip-tickets.restore');
-    Route::get('/official-business/{officialBusinessTrip}/history.pdf', [OfficialBusinessTripController::class, 'downloadHistoryPdf'])->name('activities.official-business.history-pdf');
-    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/pdf', [OfficialBusinessTripTicketController::class, 'downloadPdf'])->name('activities.official-business.trip-tickets.pdf');
-    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/history.pdf', [OfficialBusinessTripTicketController::class, 'downloadHistoryPdf'])->name('activities.official-business.trip-tickets.history-pdf');
-    Route::get('/companies/{company}/travel-credits', [CompanyTravelCreditController::class, 'show'])->name('activities.official-business.travel-credits.show');
-    Route::post('/companies/{company}/travel-credits/adjustments', [CompanyTravelCreditController::class, 'adjust'])->name('activities.official-business.travel-credits.adjust');
-        Route::post('/tasks', [ActivityController::class, 'storeTask']);
-        Route::get('/tasks/workflow', [TaskWorkflowController::class, 'index']);
-        Route::post('/tasks/outline', [TaskWorkflowController::class, 'outline']);
-        Route::patch('/tasks/reorder', [TaskWorkflowController::class, 'reorder']);
-        Route::patch('/tasks/bulk', [TaskWorkflowController::class, 'bulk']);
-        Route::get('/task-templates', [TaskWorkflowController::class, 'templates']);
-        Route::post('/task-templates/{template}/instantiate', [TaskWorkflowController::class, 'instantiateTemplate']);
-        Route::post('/tasks/{task}/timer/{action}', [TaskWorkflowController::class, 'timer']);
-        Route::post('/tasks/{task}/duplicate', [TaskWorkflowController::class, 'duplicate']);
-        Route::post('/tasks/{task}/save-template', [TaskWorkflowController::class, 'saveTemplate']);
-        Route::post('/events', [ActivityController::class, 'storeEvent']);
-        Route::post('/calls', [ActivityController::class, 'storeCall']);
-        Route::post('/meetings', [ActivityController::class, 'storeMeeting']);
-        Route::post('/meetings/{id}/calendar/retry', [ActivityController::class, 'retryMeetingCalendarSync']);
-        Route::get('/email-activities', [\App\Http\Controllers\EmailActivityController::class, 'index']);
-        Route::post('/email-activities/sync', [\App\Http\Controllers\EmailActivityController::class, 'sync']);
-        Route::get('/email-activities/{id}', [\App\Http\Controllers\EmailActivityController::class, 'show']);
-        Route::get('/email-activities/{id}/thread', [\App\Http\Controllers\EmailActivityController::class, 'thread']);
-        Route::post('/email-activities/send', [\App\Http\Controllers\EmailActivityController::class, 'send']);
-        Route::post('/email-activities/{id}/reply', [\App\Http\Controllers\EmailActivityController::class, 'reply']);
-        Route::get('/email-activities/{id}/attachments/{attachmentId}', [\App\Http\Controllers\EmailActivityController::class, 'downloadAttachment']);
-        Route::get('/email-activities/{id}/files/{attachment}', [\App\Http\Controllers\EmailActivityController::class, 'downloadStoredAttachment']);
-        Route::get('/email/gmail/connect', [\App\Http\Controllers\EmailActivityController::class, 'connectGmail']);
-        Route::get('/email/gmail/callback', [\App\Http\Controllers\EmailActivityController::class, 'gmailCallback']);
-        Route::post('/email/gmail/disconnect', [\App\Http\Controllers\EmailActivityController::class, 'disconnectGmail']);
-        Route::get('/meetings/{meeting}/workspace', [\App\Http\Controllers\MeetingWorkspaceController::class, 'show']);
-        Route::put('/meetings/{meeting}/workspace', [\App\Http\Controllers\MeetingWorkspaceController::class, 'update']);
-        Route::post('/meetings/{meeting}/action-items', [\App\Http\Controllers\MeetingWorkspaceController::class, 'storeActionItem']);
-        Route::put('/meetings/{meeting}/action-items/{actionItem}', [\App\Http\Controllers\MeetingWorkspaceController::class, 'updateActionItem']);
-        Route::delete('/meetings/{meeting}/action-items/{actionItem}', [\App\Http\Controllers\MeetingWorkspaceController::class, 'destroyActionItem']);
-        Route::post('/meetings/{meeting}/action-items/{actionItem}/convert-to-task', [\App\Http\Controllers\MeetingWorkspaceController::class, 'convertActionItem']);
+    Route::put('/tasks/{id}', [ActivityController::class, 'updateTask']);
+    Route::put('/events/{id}', [ActivityController::class, 'updateEvent']);
+    Route::put('/calls/{id}', [ActivityController::class, 'updateCall']);
+    Route::put('/meetings/{id}', [ActivityController::class, 'updateMeeting']);
 
-        Route::get('/message-conversations', [\App\Http\Controllers\MessageConversationController::class, 'index']);
-        Route::post('/message-conversations', [\App\Http\Controllers\MessageConversationController::class, 'store']);
-        Route::get('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'show']);
-        Route::put('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'update']);
-        Route::delete('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'destroy']);
-        Route::post('/message-conversations/{conversation}/messages', [\App\Http\Controllers\MessageConversationController::class, 'storeMessage']);
+    Route::delete('/tasks/{id}', [ActivityController::class, 'destroyTask']);
+    Route::delete('/events/{id}', [ActivityController::class, 'destroyEvent']);
+    Route::delete('/calls/{id}', [ActivityController::class, 'destroyCall']);
+    Route::delete('/meetings/{id}', [ActivityController::class, 'destroyMeeting']);
 
-        Route::put('/tasks/{id}', [ActivityController::class, 'updateTask']);
-        Route::put('/events/{id}', [ActivityController::class, 'updateEvent']);
-        Route::put('/calls/{id}', [ActivityController::class, 'updateCall']);
-        Route::put('/meetings/{id}', [ActivityController::class, 'updateMeeting']);
-
-        Route::delete('/tasks/{id}', [ActivityController::class, 'destroyTask']);
-        Route::delete('/events/{id}', [ActivityController::class, 'destroyEvent']);
-        Route::delete('/calls/{id}', [ActivityController::class, 'destroyCall']);
-        Route::delete('/meetings/{id}', [ActivityController::class, 'destroyMeeting']);
-
-        Route::post('/notes', [ActivityController::class, 'storeNote']);
-        Route::put('/notes/{id}', [ActivityController::class, 'updateNote']);
-        Route::delete('/notes/{id}', [ActivityController::class, 'destroyNote']);
-        Route::post('/meetings/{id}/analyze', [ActivityController::class, 'analyzeMeeting']);
-        Route::post('/meetings/{id}/upload-video', [ActivityController::class, 'uploadVideo']);
-        Route::post('/meetings/{id}/upload-transcript', [ActivityController::class, 'uploadTranscript']);
-        Route::post('/meetings/{id}/upload-minutes', [ActivityController::class, 'uploadMinutes']);
-        Route::post('/calls/{id}/upload-audio', [ActivityController::class, 'uploadCallAudio']);
-        Route::delete('/calls/{id}/audio', [ActivityController::class, 'destroyCallAudio']);
-    });
+    Route::post('/notes', [ActivityController::class, 'storeNote']);
+    Route::put('/notes/{id}', [ActivityController::class, 'updateNote']);
+    Route::delete('/notes/{id}', [ActivityController::class, 'destroyNote']);
+    Route::post('/meetings/{id}/analyze', [ActivityController::class, 'analyzeMeeting']);
+    Route::post('/meetings/{id}/upload-video', [ActivityController::class, 'uploadVideo']);
+    Route::post('/meetings/{id}/upload-transcript', [ActivityController::class, 'uploadTranscript']);
+    Route::post('/meetings/{id}/upload-minutes', [ActivityController::class, 'uploadMinutes']);
+    Route::post('/calls/{id}/upload-audio', [ActivityController::class, 'uploadCallAudio']);
+    Route::delete('/calls/{id}/audio', [ActivityController::class, 'destroyCallAudio']);
 });
 
 /*
@@ -382,15 +292,6 @@ Route::get('/job-offer/{token}/decline', [RecruitmentController::class, 'decline
 */
 
 Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePasswordChanged::class])->group(function () {
-    Route::get('/client/official-business/trip-tickets/page', [OfficialBusinessTripTicketController::class, 'clientPage'])
-        ->name('client.official-business.trip-tickets.page');
-    Route::get('/client/official-business/trip-tickets', [OfficialBusinessTripTicketController::class, 'clientIndex'])
-        ->name('client.official-business.trip-tickets.index');
-    Route::get('/client/official-business/trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'clientShow'])
-        ->name('client.official-business.trip-tickets.show');
-    Route::get('/client/official-business/trip-tickets/{officialBusinessTripTicket}/pdf', [OfficialBusinessTripTicketController::class, 'downloadPdf'])
-        ->name('client.official-business.trip-tickets.pdf');
-
     /*
     |--------------------------------------------------------------------------
     | ACCOUNT SETTINGS
@@ -568,14 +469,30 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
-    Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
     Route::get('/deals/quick-purchase', [DealController::class, 'quickPurchase'])->name('deals.quick-purchase');
     Route::post('/deals/quick-purchase', [DealController::class, 'storeQuickPurchase'])->name('deals.quick-purchase.store');
+    Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
+    Route::get('/deals/{deal}/payment-allocations', [\App\Http\Controllers\DealPaymentAllocationController::class, 'index'])->name('deals.payment-allocations.index');
+    Route::post('/deals/{deal}/payment-allocations', [\App\Http\Controllers\DealPaymentAllocationController::class, 'store'])->name('deals.payment-allocations.store');
+    Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
     Route::post('/contacts/quick-store', [DealController::class, 'quickStoreContact'])->name('contacts.quick-store');
     Route::post('/accounts/quick-store', [DealController::class, 'quickStoreAccount'])->name('accounts.quick-store');
-    Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
-    Route::post('/deals/{deal}/memberships', [DealController::class, 'assignMembership'])->name('deals.memberships.store');
-    Route::delete('/deals/{deal}/memberships/{membership}', [DealController::class, 'revokeMembership'])->name('deals.memberships.destroy');
+    Route::get('/deals/autocomplete', [DealController::class, 'autocomplete'])->name('deals.autocomplete');
+    Route::post('/deals/{id}/stage-workflow', [DealController::class, 'saveStageWorkflow'])->name('deals.stage-workflow.save');
+    Route::post('/deals/{id}/final-outcome', [DealController::class, 'finalizeOutcome'])->name('deals.final-outcome');
+    Route::get('/deals/{id}/histories', [DealController::class, 'getHistories'])->name('deals.histories');
+    Route::post('/deals/{id}/notes', [DealController::class, 'storeNote'])->name('deals.notes.store');
+    Route::post('/deals/{id}/inquiries', [DealController::class, 'storeInquiry'])->name('deals.inquiries.store');
+    Route::delete('/deals/{id}/inquiries/{inquiryId}', [DealController::class, 'destroyInquiry'])->name('deals.inquiries.destroy');
+    Route::post('/deals/{id}/consultations', [DealController::class, 'storeConsultation'])->name('deals.consultations.store');
+    Route::delete('/deals/{id}/consultations/{consultationId}', [DealController::class, 'destroyConsultation'])->name('deals.consultations.destroy');
+    Route::post('/deals/{id}/line-items', [DealController::class, 'storeLineItem'])->name('deals.line-items.store');
+    Route::delete('/deals/{id}/line-items/{itemId}', [DealController::class, 'destroyLineItem'])->name('deals.line-items.destroy');
+    Route::get('/deals/{id}/regular', [DealController::class, 'regular'])->name('deals.regular');
+    Route::get('/deals/{id}/project', [DealController::class, 'project'])->name('deals.project');
+    Route::post('/deals/{id}/project/scope', [DealController::class, 'saveScope'])->name('deals.project.scope.save');
+    Route::post('/deals/{id}/proposal', [DealController::class, 'storeProposal'])->name('deals.proposal.store');
+    Route::post('/deals/{id}/proposal/revisions', [DealController::class, 'storeProposalRevision'])->name('deals.proposal.revisions.store');
     Route::post('/deals/preview', [DealController::class, 'preview'])->name('deals.preview');
     Route::get('/deals/preview', [DealController::class, 'previewPage'])->name('deals.preview.show');
     Route::post('/deals/draft', [DealController::class, 'saveDraft'])->name('deals.draft');
@@ -586,10 +503,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::patch('/deals/stages/{stage}', [DealController::class, 'updateStage'])->name('deals.stages.update');
     Route::patch('/deals/stages/{stage}/move', [DealController::class, 'moveStage'])->name('deals.stages.move');
     Route::delete('/deals/stages/{stage}', [DealController::class, 'destroyStage'])->name('deals.stages.destroy');
-    Route::patch('/deals/{id}/stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update');
+    Route::patch('/deals/{id}/stage', [DealController::class, 'updateStage'])->name('deals.stage.update');
     Route::post('/deals/{id}/update-stage', [DealController::class, 'updateDealStage'])->name('deals.stage.update.post');
-    Route::put('/deals/{id}', [DealController::class, 'update'])->whereNumber('id')->name('deals.update');
-    Route::delete('/deals/{id}', [DealController::class, 'destroy'])->whereNumber('id')->name('deals.destroy');
+    Route::put('/deals/{id}', [DealController::class, 'update'])->name('deals.update');
+    Route::delete('/deals/{id}', [DealController::class, 'destroy'])->name('deals.destroy');
     Route::post('/deals/{id}/approve-deletion', [DealController::class, 'approveDeletion'])->name('deals.approve-deletion');
     Route::post('/deals/{id}/reject-deletion', [DealController::class, 'rejectDeletion'])->name('deals.reject-deletion');
     Route::post('/deals/{id}/internal-approve', [DealController::class, 'approveInternalReview'])->name('deals.internal-approve');
@@ -607,11 +524,37 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/deals/{deal}/invoice/payment', [DealProposalController::class, 'paymentInvoice'])->name('deals.invoice.payment');
     Route::post('/deals/{deal}/invoice/upload', [DealProposalController::class, 'uploadInvoice'])->name('deals.invoice.upload');
     Route::post('/deals/{deal}/payment/confirm', [DealProposalController::class, 'confirmPayment'])->name('deals.payment.confirm');
+    Route::get('/deals/{deal}/finance-documents', [\App\Http\Controllers\DealFinanceDocumentController::class, 'index'])->name('deals.finance-documents.index');
+    Route::post('/deals/{deal}/finance-documents', [\App\Http\Controllers\DealFinanceDocumentController::class, 'store'])->name('deals.finance-documents.store');
+    Route::get('/deals/{deal}/finance-documents/{document}/file', [\App\Http\Controllers\DealFinanceDocumentController::class, 'file'])->name('deals.finance-documents.file');
+    Route::post('/deals/{deal}/finance-notice', [DealController::class, 'sendFinanceNotice'])->name('deals.finance-notice');
     Route::get('/deals/{deal}/proposal/download', [DealProposalController::class, 'download'])->name('deals.proposal.download');
     Route::match(['put', 'patch'], '/deals/{deal}/proposal', [DealProposalController::class, 'update'])->name('deals.proposal.update');
     Route::get('/deals/{id}/download', [DealController::class, 'downloadPdf'])->name('deals.download');
     Route::get('/deals/{id}/download-pdf', [DealController::class, 'downloadPdf'])->name('deals.download-pdf');
-    Route::get('/deals/{id}', [DealController::class, 'show'])->whereNumber('id')->name('deals.show');
+    Route::get('/deals/{id}/deal-form/download', [DealController::class, 'downloadDealForm'])->name('deals.deal-form.download');
+    Route::get('/deals/{id}/consulting/download', [DealController::class, 'downloadConsulting'])->name('deals.consulting.download');
+    Route::get('/deals/{id}/start/download', [DealController::class, 'downloadStart'])->name('deals.start.download');
+    Route::get('/deals/{id}', [DealController::class, 'show'])->name('deals.show');
+
+    // Progressive START Batches
+    Route::get('/deals/{deal}/start/status', [DealStartController::class, 'getStartStatus'])->name('deals.start.status');
+    Route::post('/deals/{deal}/start/kyc-requirements', [DealStartController::class, 'updateKycRequirements'])->name('deals.start.kyc-requirements.update');
+    Route::get('/deals/{deal}/start/batches', [DealStartController::class, 'index'])->name('deals.start.batches.index');
+    Route::post('/deals/{deal}/start/batches', [DealStartController::class, 'store'])->name('deals.start.batches.store');
+    Route::delete('/deals/{deal}/start/batches/{batchId}', [DealStartController::class, 'destroy'])->name('deals.start.batches.destroy');
+    Route::post('/deals/{deal}/start/batches/{batchId}/assignments', [DealStartController::class, 'addAssignment'])->name('deals.start.batches.assignments');
+    Route::post('/deals/{deal}/start/batches/{batchId}/send-confirmation', [DealStartController::class, 'sendConfirmation'])->name('deals.start.batches.send-confirmation');
+    Route::post('/deals/{deal}/start/batches/{batchId}/submit-review', [DealStartController::class, 'submitReview'])->name('deals.start.batches.submit-review');
+    Route::post('/deals/{deal}/start/batches/{batchId}/issue-memo', [DealStartController::class, 'issueMemo'])->name('deals.start.batches.issue-memo');
+    Route::post('/deals/{deal}/start/batches/{batchId}/memo-amendment', [DealStartController::class, 'memoAmendment'])->name('deals.start.batches.memo-amendment');
+    Route::post('/deals/{deal}/start/batches/{batchId}/return', [DealStartController::class, 'returnBatch'])->name('deals.start.batches.return');
+    Route::post('/deals/{deal}/start/batches/{batchId}/cancel', [DealStartController::class, 'cancelBatch'])->name('deals.start.batches.cancel');
+    Route::post('/deals/{deal}/start/assignments/{assignId}/acknowledge', [DealStartController::class, 'acknowledgeAssignment'])->name('deals.start.assignments.acknowledge');
+    Route::post('/deals/{deal}/start/assignments/{assignId}/decline', [DealStartController::class, 'declineAssignment'])->name('deals.start.assignments.decline');
+    Route::post('/deals/{deal}/start/assignments/{assignId}/reassign', [DealStartController::class, 'reassignAssignment'])->name('deals.start.assignments.reassign');
+    Route::get('/deals/{deal}/start/batches/{batchId}/service-memo/download', [DealStartController::class, 'downloadServiceMemo'])->name('deals.start.batches.service-memo.download');
+    Route::get('/deals/{deal}/service-memo/download', [DealStartController::class, 'downloadLatestServiceMemo'])->name('deals.start.service-memo.download');
 
     /*
     |--------------------------------------------------------------------------
@@ -622,6 +565,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/project/bulk-delete', [ProjectController::class, 'bulkDelete'])->name('project.bulk-delete');
     Route::post('/project/manual', [ProjectController::class, 'storeManual'])->name('project.manual.store');
     Route::get('/project/{project}', [ProjectController::class, 'show'])->name('project.show');
+    Route::post('/project/{project}/cancel', [ProjectController::class, 'cancel'])->name('project.cancel');
     Route::get('/project/{project}/start/download', [ProjectController::class, 'downloadStartPdf'])->name('project.start.download');
     Route::get('/project/{project}/service-memo/download', [ProjectController::class, 'downloadServiceMemoPdf'])->name('project.service-memo.download');
     Route::post('/project/{project}/start', [ProjectController::class, 'updateStart'])->name('project.start.update');
@@ -650,17 +594,22 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::post('/project/{project}/report/{report}/manual-approve', [ProjectController::class, 'manualApproveReport'])->name('project.report.manual-approve');
     Route::delete('/project/{project}/report/bulk-delete', [ProjectController::class, 'bulkDestroyGeneratedReports'])->name('project.report.bulk-delete');
     Route::post('/project/{project}/report', [ProjectController::class, 'updateReport'])->name('project.report.update');
+    Route::post('/project/{project}/task/toggle', [ProjectController::class, 'toggleTask'])->name('project.task.toggle');
 
     Route::get('/regular', [RegularController::class, 'index'])->name('regular.index');
     Route::delete('/regular/bulk-delete', [RegularController::class, 'bulkDelete'])->name('regular.bulk-delete');
     Route::post('/regular/manual', [RegularController::class, 'storeManual'])->name('regular.manual.store');
     Route::get('/regular/{regular}', [RegularController::class, 'show'])->name('regular.show');
+    Route::post('/regular/{regular}/cancel', [RegularController::class, 'cancel'])->name('regular.cancel');
+    Route::post('/regular/{regular}/cycle/advance', [RegularController::class, 'advanceCycle'])->name('regular.cycle.advance');
+    Route::post('/regular/{regular}/task/toggle', [RegularController::class, 'toggleTask'])->name('regular.task.toggle');
     Route::post('/regular/{regular}/rsat', [RegularController::class, 'updateRsat'])->name('regular.rsat.update');
     Route::post('/regular/{regular}/rsat/manual-approve', [RegularController::class, 'manualApproveRsat'])->name('regular.rsat.manual-approve');
     Route::post('/regular/{regular}/rsat/auto-report-settings', [RegularController::class, 'updateRsatAutoReportSettings'])->name('regular.rsat.auto-settings');
     Route::post('/regular/{regular}/rsat/templates', [RegularController::class, 'storeRsatTemplate'])->name('regular.rsat.templates.store');
     Route::post('/regular/{regular}/report/generate', [RegularController::class, 'generateReport'])->name('regular.report.generate');
     Route::get('/regular/{regular}/report/{report}', [RegularController::class, 'showGeneratedReport'])->name('regular.report.preview');
+    Route::get('/regular/{regular}/report/{report}/download', [RegularController::class, 'downloadReportPdf'])->name('regular.report.download');
     Route::post('/regular/{regular}/report/{report}/send', [RegularController::class, 'sendGeneratedReport'])->name('regular.report.send');
     Route::post('/regular/{regular}/report/{report}/manual-approve', [RegularController::class, 'manualApproveReport'])->name('regular.report.manual-approve');
     Route::delete('/regular/{regular}/report/bulk-delete', [RegularController::class, 'bulkDestroyGeneratedReports'])->name('regular.report.bulk-delete');
@@ -670,79 +619,1116 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/regular/{regular}/ntp/submission', [RegularController::class, 'showNtpSubmission'])->name('regular.ntp.submission');
     Route::post('/regular/{regular}/ntp/manual-approve', [RegularController::class, 'manualApproveNtp'])->name('regular.ntp.manual-approve');
 
+
     /*
     |--------------------------------------------------------------------------
-    | SERVICES & PRODUCTS UNIFIED CATALOG ROUTES (ORDO V2)
+    | SERVICES & PRODUCTS UPGRADE (ORDO)
     |--------------------------------------------------------------------------
     */
+    // MAIN SERVICE CONTROLLER ROUTES
+    // ======================================================================
+
     Route::controller(ServiceController::class)->group(function () {
-        Route::get('/services', 'index')->name('services.index');
-        Route::post('/services', 'store')->name('services.store');
-        Route::get('/services/reports', 'reports')->name('services.reports');
-        Route::get('/services/reports/export-csv', 'exportReportsCsv')->name('services.reports.export_csv');
-        Route::get('/services/reports/export-pdf', 'exportReportsPdf')->name('services.reports.export_pdf');
-        Route::get('/services/export-csv', 'exportDashboardCsv')->name('services.export_csv');
-        Route::get('/services/export-pdf', 'exportDashboardPdf')->name('services.export_pdf');
-        Route::get('/services/export-all', 'exportAllCatalog')->name('services.export_all');
-        Route::post('/services/import', 'import')->name('services.import');
-        Route::delete('/services/global-requirements/{globalRequirement}', 'destroyGlobalRequirement')->name('services.global_requirements.destroy');
 
-        Route::get('/services/{service}', 'show')->name('services.show');
-        Route::get('/services/{service}/workspace', 'workspace')->name('services.workspace');
-        Route::post('/services/{service}/version-update', 'updateVersion')->name('services.version.update');
-        Route::put('/services/{service}/version-update', 'updateVersion');
-        Route::get('/services/{service}/audit-logs', 'getAuditLogs')->name('services.audit_logs');
-        Route::post('/services/{service}/submit-approval', 'submitForApproval')->name('services.submit_approval');
-        Route::post('/services/{service}/approve', 'approve')->name('services.approve');
-        Route::post('/services/{service}/reject', 'reject')->name('services.reject');
-        Route::post('/services/{service}/custom-fields', 'storeCustomField')->name('services.custom-fields.store');
 
-        Route::post('/services/{service}/activities', 'storeActivity')->name('services.activities.store');
-        Route::put('/services/activities/{activity}', 'updateActivity')->name('services.activities.update');
-        Route::delete('/services/activities/{activity}', 'destroyActivity')->name('services.activities.destroy');
-        Route::post('/services/{service}/activities/bulk-import', 'bulkImportActivities')->name('services.activities.bulk_import');
-        Route::post('/services/{service}/activities/bulk-action', 'bulkActionActivities')->name('services.activities.bulk_action');
-        Route::delete('/services/{service}/activities/bulk-destroy', 'bulkDestroyActivities')->name('services.activities.bulk_destroy');
-        Route::delete('/services/{service}/activities/destroy-all', 'destroyAllActivities')->name('services.activities.destroy_all');
+        // ------------------------------------------------------------------
+        // SERVICES DIRECTORY
+        // ------------------------------------------------------------------
 
-        Route::get('/services/{service}/inherited-terms', 'getInheritedTerms')->name('services.inherited_terms');
-        Route::post('/services/{service}/requirements', 'storeRequirement')->name('services.requirements.store');
-        Route::put('/services/requirements/{requirement}', 'updateRequirement')->name('services.requirements.update');
-        Route::delete('/services/requirements/{requirement}', 'destroyRequirement')->name('services.requirements.destroy');
-        Route::post('/services/{service}/requirements/bulk-template', 'bulkToTemplateLibrary')->name('services.requirements.bulk-template');
+        Route::get(
+            '/services',
+            'index'
+        )->name('services.index');
 
-        Route::post('/services/{service}/duplicate', 'duplicate')->name('services.duplicate');
-        Route::get('/services/{service}/usage', 'usage')->name('services.usage');
-        Route::get('/services/{service}/export', 'export')->name('services.export');
-        Route::get('/services/{service}/export-single', 'export')->name('services.export_single');
-        Route::match(['post', 'patch'], '/services/{service}/archive', 'archive')->name('services.archive');
+
+        Route::post(
+            '/services',
+            'store'
+        )->name('services.store');
+
+
+        // ------------------------------------------------------------------
+        // SERVICES REPORTS
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/reports',
+            'reports'
+        )->name('services.reports');
+
+
+        // ------------------------------------------------------------------
+        // EXPORT ALL SERVICES
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/export-all',
+            function (\Illuminate\Http\Request $request) {
+
+                $format = strtolower(
+                    $request->query(
+                        'format',
+                        'csv'
+                    )
+                );
+
+
+                if ($format === 'pdf') {
+
+                    $services = Service::with(
+                        'activeVersion'
+                    )->get();
+
+                    $dateStr = date(
+                        'F d, Y h:i A'
+                    );
+
+
+                    $totalServices =
+                        $services->count();
+
+
+                    $activeCount =
+                        $services
+                            ->where(
+                                'status',
+                                'active'
+                            )
+                            ->count();
+
+
+                    $draftCount =
+                        $services
+                            ->where(
+                                'status',
+                                'draft'
+                            )
+                            ->count();
+
+
+                    $highestPriced =
+                        $services->sortByDesc(
+                            function ($s) {
+
+                                return
+                                    $s->activeVersion->standard_price
+                                    ??
+                                    $s->standard_price
+                                    ??
+                                    0;
+                            }
+                        )->first();
+
+
+                    $mostLaborIntensive =
+                        $services->sortByDesc(
+                            function ($s) {
+
+                                return
+                                    $s->activeVersion->expected_hours
+                                    ??
+                                    $s->expected_hours
+                                    ??
+                                    0;
+                            }
+                        )->first();
+
+
+                    $html = '
+                    <!DOCTYPE html>
+                    <html>
+
+                    <head>
+
+                        <meta charset="utf-8">
+
+                        <title>
+                            ORDO Services Management Report
+                        </title>
+
+                        <style>
+
+                            body {
+                                font-family:
+                                    Helvetica,
+                                    Arial,
+                                    sans-serif;
+                                font-size: 10px;
+                                color: #1e293b;
+                                margin: 20px;
+                            }
+
+                            .header {
+                                text-align: center;
+                                margin-bottom: 20px;
+                                border-bottom:
+                                    2px solid #2563eb;
+                                padding-bottom: 10px;
+                            }
+
+                            .header h1 {
+                                font-size: 18px;
+                                margin: 0;
+                                color: #0f172a;
+                                text-transform: uppercase;
+                                letter-spacing: 0.5px;
+                            }
+
+                            .header p {
+                                font-size: 9px;
+                                color: #64748b;
+                                margin: 4px 0 0 0;
+                            }
+
+                            .kpi-container {
+                                width: 100%;
+                                margin-bottom: 20px;
+                                border-collapse: collapse;
+                            }
+
+                            .kpi-card {
+                                border: 1px solid #cbd5e1;
+                                background: #f8fafc;
+                                padding: 10px;
+                                border-radius: 4px;
+                            }
+
+                            .kpi-title {
+                                font-size: 8px;
+                                font-weight: bold;
+                                color: #64748b;
+                                text-transform: uppercase;
+                            }
+
+                            .kpi-val {
+                                font-size: 14px;
+                                font-weight: bold;
+                                color: #0f172a;
+                                margin-top: 2px;
+                            }
+
+                            .kpi-sub {
+                                font-size: 8px;
+                                color: #2563eb;
+                                font-weight: bold;
+                                margin-top: 2px;
+                            }
+
+                            table.data-table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-top: 10px;
+                            }
+
+                            table.data-table th,
+                            table.data-table td {
+                                border: 1px solid #cbd5e1;
+                                padding: 6px 8px;
+                                text-align: left;
+                            }
+
+                            table.data-table th {
+                                background-color: #f1f5f9;
+                                font-size: 8px;
+                                font-weight: bold;
+                                color: #334155;
+                                text-transform: uppercase;
+                            }
+
+                            table.data-table tr:nth-child(even) {
+                                background-color: #f8fafc;
+                            }
+
+                            .price {
+                                font-family: monospace;
+                                text-align: right;
+                                font-weight: bold;
+                            }
+
+                            .center {
+                                text-align: center;
+                            }
+
+                            .section-title {
+                                font-size: 11px;
+                                font-weight: bold;
+                                color: #0f172a;
+                                margin-top: 15px;
+                                margin-bottom: 5px;
+                                text-transform: uppercase;
+                                border-left:
+                                    3px solid #2563eb;
+                                padding-left: 6px;
+                            }
+
+                        </style>
+
+                    </head>
+
+                    <body>
+
+
+                        <div class="header">
+
+                            <h1>
+                                SERVICES CATALOG MANAGEMENT REPORT
+                            </h1>
+
+                            <p>
+                                Executive Analytics & Master Catalog Specification
+                                |
+                                Generated on:
+                                ' . $dateStr . '
+                            </p>
+
+                        </div>
+
+
+                        <div class="section-title">
+                            1. Executive Analytics & Performance Indicators
+                        </div>
+
+
+                        <table class="kpi-container">
+
+                            <tr>
+
+                                <td class="kpi-card" style="width: 25%;">
+
+                                    <div class="kpi-title">
+                                        Total Services Catalog
+                                    </div>
+
+                                    <div class="kpi-val">
+                                        ' . $totalServices . ' Services
+                                    </div>
+
+                                    <div class="kpi-sub">
+                                        ' . $activeCount . '
+                                        Active
+                                        |
+                                        ' . $draftCount . '
+                                        Draft
+                                    </div>
+
+                                </td>
+
+
+                                <td class="kpi-card" style="width: 25%;">
+
+                                    <div class="kpi-title">
+                                        Highest Priced Service
+                                    </div>
+
+                                    <div class="kpi-val">
+                                        ₱' .
+                                        number_format(
+                                            $highestPriced->standard_price
+                                            ?? 0,
+                                            2
+                                        ) .
+                                    '</div>
+
+                                    <div class="kpi-sub">
+                                        ' .
+                                        htmlspecialchars(
+                                            substr(
+                                                $highestPriced->name
+                                                ?? 'N/A',
+                                                0,
+                                                25
+                                            )
+                                        ) .
+                                        '...
+                                    </div>
+
+                                </td>
+
+
+                                <td class="kpi-card" style="width: 25%;">
+
+                                    <div class="kpi-title">
+                                        Most Labor Intensive
+                                    </div>
+
+                                    <div class="kpi-val">
+                                        ' .
+                                        (
+                                            $mostLaborIntensive->expected_hours
+                                            ?? 0
+                                        ) .
+                                        ' Hrs
+                                    </div>
+
+                                    <div class="kpi-sub">
+                                        ' .
+                                        htmlspecialchars(
+                                            substr(
+                                                $mostLaborIntensive->name
+                                                ?? 'N/A',
+                                                0,
+                                                25
+                                            )
+                                        ) .
+                                        '...
+                                    </div>
+
+                                </td>
+
+
+                                <td class="kpi-card" style="width: 25%;">
+
+                                    <div class="kpi-title">
+                                        Proposal Conversion Rate
+                                    </div>
+
+                                    <div class="kpi-val">
+                                        88.9%
+                                    </div>
+
+                                    <div class="kpi-sub">
+                                        8 / 9 Proposals Accepted
+                                    </div>
+
+                                </td>
+
+                            </tr>
+
+                        </table>
+
+
+                        <div class="section-title">
+                            2. Master Services Specification Catalog
+                        </div>
+
+
+                        <table class="data-table">
+
+                            <thead>
+
+                                <tr>
+
+                                    <th style="width: 5%;">
+                                        #
+                                    </th>
+
+                                    <th style="width: 15%;">
+                                        Service Code
+                                    </th>
+
+                                    <th style="width: 30%;">
+                                        Service Name
+                                    </th>
+
+                                    <th style="width: 20%;">
+                                        Category
+                                    </th>
+
+                                    <th style="width: 10%;">
+                                        Engagement
+                                    </th>
+
+                                    <th style="width: 10%;">
+                                        Price
+                                    </th>
+
+                                    <th style="width: 10%;">
+                                        Status
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+                            <tbody>';
+
+
+                    foreach (
+                        $services
+                        as $index => $service
+                    ) {
+
+                        $price =
+                            number_format(
+                                $service->activeVersion->standard_price
+                                ??
+                                $service->standard_price
+                                ??
+                                0,
+                                2
+                            );
+
+
+                        $st =
+                            strtoupper(
+                                $service->status
+                                ??
+                                'incomplete'
+                            );
+
+
+                        $html .= '
+
+                            <tr>
+
+                                <td class="center">
+                                    ' .
+                                    ($index + 1)
+                                    .
+                                '</td>
+
+
+                                <td>
+
+                                    <strong>
+                                        ' .
+                                        htmlspecialchars(
+                                            $service->service_code
+                                            ??
+                                            'SVC-' .
+                                            sprintf(
+                                                '%04d',
+                                                $service->id
+                                            )
+                                        ) .
+                                    '
+                                    </strong>
+
+                                </td>
+
+
+                                <td>
+                                    ' .
+                                    htmlspecialchars(
+                                        $service->name
+                                    ) .
+                                '
+                                </td>
+
+
+                                <td>
+                                    ' .
+                                    htmlspecialchars(
+                                        $service->category
+                                        ?? '-'
+                                    ) .
+                                '
+                                </td>
+
+
+                                <td class="center">
+                                    ' .
+                                    ucfirst(
+                                        $service->engagement_behavior
+                                        ??
+                                        'regular'
+                                    ) .
+                                '
+                                </td>
+
+
+                                <td class="price">
+                                    ₱' .
+                                    $price .
+                                '
+                                </td>
+
+
+                                <td class="center">
+
+                                    <strong>
+                                        ' .
+                                        $st .
+                                    '
+                                    </strong>
+
+                                </td>
+
+                            </tr>';
+
+                    }
+
+
+                    $html .= '
+
+                            </tbody>
+
+                        </table>
+
+                    </body>
+
+                    </html>';
+
+
+                    if (
+                        class_exists(
+                            '\Barryvdh\DomPDF\Facade\Pdf'
+                        )
+                    ) {
+
+                        $pdf =
+                            \Barryvdh\DomPDF\Facade\Pdf::loadHTML(
+                                $html
+                            )
+                            ->setPaper(
+                                'a4',
+                                'portrait'
+                            );
+
+
+                        return $pdf->download(
+                            'services_management_report_'
+                            .
+                            date('Y-m-d')
+                            .
+                            '.pdf'
+                        );
+                    }
+
+                    if (class_exists('\Dompdf\Dompdf')) {
+                        $dompdf = new \Dompdf\Dompdf();
+                        $dompdf->loadHtml($html);
+                        $dompdf->setPaper('a4', 'portrait');
+                        $dompdf->render();
+                        return response($dompdf->output(), 200, [
+                            'Content-Type' => 'application/pdf',
+                            'Content-Disposition' => 'attachment; filename="services_management_report_' . date('Y-m-d') . '.pdf"',
+                            'Cache-Control' => 'private, max-age=0, must-revalidate',
+                            'Pragma' => 'public',
+                        ]);
+                    }
+
+                    return response('PDF generation library not available', 500);
+                }
+
+
+                return app(
+                    ServiceController::class
+                )->exportAll(
+                    $request
+                );
+
+            }
+        )->name('services.export_all');
+
+
+        // ------------------------------------------------------------------
+        // SERVICE SHOW
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/{service}',
+            function ($service) {
+
+                return redirect()->route(
+                    'services.workspace',
+                    [
+                        'service' => $service,
+                        'mode' => 'view',
+                    ]
+                );
+
+            }
+        )->name('services.show');
+
+
+        // ------------------------------------------------------------------
+        // SERVICE WORKSPACE
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/{service}/workspace',
+            'workspace'
+        )->name('services.workspace');
+
+
+        // ------------------------------------------------------------------
+        // VERSION UPDATE
+        // ------------------------------------------------------------------
+
+        Route::match(
+            ['put', 'post'],
+            '/services/{service}/version-update',
+            'updateVersion'
+        )->name('services.version.update');
+
+
+        // ------------------------------------------------------------------
+        // AUDIT LOGS
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/{service}/audit-logs',
+            'getAuditLogs'
+        )->name('services.audit_logs');
+
+
+        // ------------------------------------------------------------------
+        // APPROVAL ACTIONS
+        // ------------------------------------------------------------------
+
+       Route::match(
+            ['get', 'post', 'put'],
+            '/services/{service}/submit-approval',
+            'submitForApproval'
+        )->name('services.submit_approval');
+
+
+        Route::post(
+            '/services/{service}/approve',
+            'approve'
+        )->name('services.approve');
+
+
+        Route::post(
+            '/services/{service}/reject',
+            'reject'
+        )->name('services.reject');
+
+
+        // ------------------------------------------------------------------
+        // WORKFLOW & ACTIVITY MANAGEMENT
+        // ------------------------------------------------------------------
+
+        Route::post(
+            '/services/{service}/activities',
+            'storeActivity'
+        )->name('services.activities.store');
+
+
+        Route::put(
+            '/services/activities/{activity}',
+            'updateActivity'
+        )->name('services.activities.update');
+
+
+        Route::delete(
+            '/services/activities/{activity}',
+            'destroyActivity'
+        )->name('services.activities.destroy');
+
+
+        // ------------------------------------------------------------------
+        // BULK ACTIVITY IMPORT
+        // ------------------------------------------------------------------
+
+        Route::match(
+            ['get', 'post'],
+            '/services/{service}/activities/bulk-import',
+            function (
+                \Illuminate\Http\Request $request,
+                Service $service
+            ) {
+
+                $activeVersion =
+                    $service->activeVersion;
+
+
+                if (!$activeVersion) {
+
+                    $activeVersion =
+                        \App\Models\ServiceVersion::query()
+                            ->where(
+                                'service_id',
+                                $service->id
+                            )
+                            ->latest('created_at')
+                            ->first();
+                }
+
+
+                if (!$activeVersion) {
+
+                    return back()->with(
+                        'error',
+                        'No active version found for this service.'
+                    );
+                }
+
+
+                $defaultDays =
+                    $request->input(
+                        'default_expected_days',
+                        1
+                    );
+
+
+                $defaultHours =
+                    $request->input(
+                        'default_working_hours',
+                        1.0
+                    );
+
+
+                $rawText = '';
+
+
+                if (
+                    $request->hasFile(
+                        'import_file'
+                    )
+                ) {
+
+                    $file =
+                        $request->file(
+                            'import_file'
+                        );
+
+                    $rawText =
+                        file_get_contents(
+                            $file->getRealPath()
+                        );
+
+                } elseif (
+                    $request->filled(
+                        'outline_text'
+                    )
+                ) {
+
+                    $rawText =
+                        $request->input(
+                            'outline_text'
+                        );
+                }
+
+
+                if (
+                    !empty($rawText)
+                ) {
+
+                    $lines =
+                        explode(
+                            "\n",
+                            $rawText
+                        );
+
+
+                    $sequence = 1;
+
+                    $currentParent = null;
+
+
+                    foreach (
+                        $lines
+                        as $line
+                    ) {
+
+                        $trimmed =
+                            trim($line);
+
+
+                        if (
+                            empty($trimmed)
+                        ) {
+                            continue;
+                        }
+
+
+                        $isSub =
+                            str_starts_with(
+                                $line,
+                                "    "
+                            )
+                            ||
+                            str_starts_with(
+                                $line,
+                                "\t"
+                            );
+
+
+                        $activity =
+                            new ServiceActivity();
+
+
+                        $activity->service_version_id =
+                            $activeVersion->id;
+
+
+                        $activity->name =
+                            $trimmed;
+
+
+                        $activity->sequence =
+                            $sequence++;
+
+
+                        $activity->expected_days =
+                            $defaultDays;
+
+
+                        $activity->expected_working_hours =
+                            $defaultHours;
+
+
+                        $activity->is_mandatory =
+                            true;
+
+
+                        $activity->is_billable =
+                            true;
+
+
+                        if (
+                            $isSub
+                            &&
+                            $currentParent
+                        ) {
+
+                            $activity->parent_id =
+                                $currentParent->id;
+
+                        } else {
+
+                            $activity->parent_id =
+                                null;
+
+                            $currentParent =
+                                $activity;
+                        }
+
+
+                        $activity->save();
+                    }
+                }
+
+
+                return back()->with(
+                    'success',
+                    'Activities imported successfully from file/text!'
+                );
+
+            }
+        )->name(
+            'services.activities.bulk_import'
+        );
+
+
+        Route::post(
+            '/services/{service}/activities/bulk-action',
+            'bulkActionActivities'
+        )->name(
+            'services.activities.bulk_action'
+        );
+
+
+        Route::delete(
+            '/services/{service}/activities/bulk-destroy',
+            'bulkDestroyActivities'
+        )->name(
+            'services.activities.bulk_destroy'
+        );
+
+
+        Route::delete(
+            '/services/{service}/activities/destroy-all',
+            'destroyAllActivities'
+        )->name(
+            'services.activities.destroy_all'
+        );
+
+
+        // ------------------------------------------------------------------
+        // TERMS & REQUIREMENTS
+        // ------------------------------------------------------------------
+
+        Route::get(
+            '/services/{service}/inherited-terms',
+            'getInheritedTerms'
+        )->name(
+            'services.inherited_terms'
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | REQUIREMENTS INSIDE SERVICE WORKSPACE
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | These routes are KEPT.
+        |
+        | This is the Requirements Tab 3 of Service Workspace.
+        |--------------------------------------------------------------------------
+        */
+
+
+        Route::post(
+            '/services/{service}/requirements',
+            'storeRequirement'
+        )->name(
+            'services.requirements.store'
+        );
+
+
+        Route::put(
+            '/services/requirements/{requirement}',
+            'updateRequirement'
+        )->name(
+            'services.requirements.update'
+        );
+
+
+        Route::delete(
+            '/services/requirements/{requirement}',
+            'destroyRequirement'
+        )->name(
+            'services.requirements.destroy'
+        );
+
+
+        Route::post(
+            '/services/{service}/requirements/bulk-template',
+            'bulkToTemplateLibrary'
+        )->name(
+            'services.requirements.bulk-template'
+        );
+
+        Route::delete(
+            '/global-requirements/{id}',
+            'destroyGlobalRequirement'
+        )->name(
+            'global-requirements.destroy'
+        );
+
+
+        // ------------------------------------------------------------------
+        // SERVICE UTILITY OPERATIONS
+        // ------------------------------------------------------------------
+
+        Route::post(
+            '/services/{service}/duplicate',
+            'duplicate'
+        )->name(
+            'services.duplicate'
+        );
+
+
+        Route::get(
+            '/services/{service}/usage',
+            'usage'
+        )->name(
+            'services.usage'
+        );
+
+
+        Route::get(
+            '/services/{service}/export',
+            'export'
+        )->name(
+            'services.export'
+        );
+
+
+        Route::get(
+            '/services/{service}/export-single',
+            'export'
+        )->name(
+            'services.export_single'
+        );
+
+
+        Route::post(
+            '/services/import',
+            'import'
+        )->name(
+            'services.import'
+        );
+
+
+        Route::match(
+            ['get', 'post', 'patch'],
+            '/services/{service}/archive',
+            'archive'
+        )->name(
+            'services.archive'
+        );
+
     });
 
-    // Service Terms & Templates (POST/PUT/PATCH/DELETE only — no state-changing GET)
-    Route::post('/service-versions/{serviceVersion}/terms', [ServiceTermController::class, 'store'])->name('service-terms.store');
-    Route::put('/service-terms/{serviceTerm}', [ServiceTermController::class, 'update'])->name('service-terms.update');
-    Route::post('/service-versions/{serviceVersion}/terms/{serviceTerm}/duplicate', [ServiceTermController::class, 'duplicate'])->name('service-terms.duplicate');
-    Route::patch('/service-terms/{serviceTerm}/disable', [ServiceTermController::class, 'disable'])->name('service-terms.disable');
-    Route::delete('/service-terms/{serviceTerm}', [ServiceTermController::class, 'destroy'])->name('service-terms.destroy');
-    Route::patch('/terms-templates/{termsTemplate}/disable', [ServiceTermController::class, 'disableTemplate'])->name('service-terms.template.disable');
-    Route::post('/service-versions/{serviceVersion}/terms/template', [ServiceTermController::class, 'storeTemplate'])->name('service-terms.template.store');
-    Route::post('/service-versions/{serviceVersion}/terms/apply-template', [ServiceTermController::class, 'applyTemplate'])->name('service-terms.template.apply');
 
-    // Products Module Routes (no state-changing GET, no unguarded closures)
+    // ======================================================================
+    // SERVICE TERMS & TEMPLATES
+    // ======================================================================
+
+    Route::post(
+        '/service-versions/{serviceVersion}/terms',
+        [ServiceTermController::class, 'store']
+    )->name(
+        'service-terms.store'
+    );
+
+
+    Route::put(
+        '/service-terms/{serviceTerm}',
+        [ServiceTermController::class, 'update']
+    )->name(
+        'service-terms.update'
+    );
+
+
+    Route::post(
+        '/service-versions/{serviceVersion}/terms/{serviceTerm}/duplicate',
+        [ServiceTermController::class, 'duplicate']
+    )->name(
+        'service-terms.duplicate'
+    );
+
+
+    Route::patch(
+        '/service-terms/{serviceTerm}/disable',
+        [ServiceTermController::class, 'disable']
+    )->name(
+        'service-terms.disable'
+    );
+
+
+    Route::patch(
+        '/terms-templates/{termsTemplate}/disable',
+        [ServiceTermController::class, 'disableTemplate']
+    )->name(
+        'service-terms.template.disable'
+    );
+
+
+    Route::match(
+        ['get', 'post'],
+        '/service-versions/{serviceVersion}/terms/template',
+        [ServiceTermController::class, 'storeTemplate']
+    )->name(
+        'service-terms.template.store'
+    );
+
+
+    Route::match(
+        ['get', 'post'],
+        '/service-versions/{serviceVersion}/terms/apply-template',
+        [ServiceTermController::class, 'applyTemplate']
+    )->name(
+        'service-terms.template.apply'
+    );
+
+
+
+    // ==============================================================
+    // PRODUCTS MODULE ROUTES
+    // ==============================================================
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::get('/products/reports', [ProductController::class, 'reports'])->name('products.reports');
-    Route::get('/products/reports/export-csv', [ProductController::class, 'exportReportsCsv'])->name('products.reports.export_csv');
-    Route::get('/products/reports/export-pdf', [ProductController::class, 'exportReportsPdf'])->name('products.reports.export_pdf');
-    Route::get('/products/export-csv', [ProductExportController::class, 'exportCsvRoute'])->name('products.export.csv');
-    Route::get('/products/export-pdf', [ProductExportController::class, 'exportPdfRoute'])->name('products.export.pdf');
+    Route::get('/products/export-csv', function (\Illuminate\Http\Request $request) {
+        return app(ProductExportController::class)->exportAll($request->merge(['format' => 'csv']));
+    })->name('products.export.csv');
+    Route::get('/products/export-pdf', function (\Illuminate\Http\Request $request) {
+        return app(ProductExportController::class)->exportAll($request->merge(['format' => 'pdf']));
+    })->name('products.export.pdf');
     Route::get('/products/export-all', [ProductExportController::class, 'exportAll'])->name('products.export.all');
     Route::get('/products/import', [ProductImportController::class, 'showImportForm'])->name('products.import.form');
     Route::post('/products/import', [ProductImportController::class, 'storeImport'])->name('products.import.store');
 
     Route::get('/products/{id}/workspace', [ProductController::class, 'workspace'])->name('products.workspace');
-    Route::post('/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
-    Route::patch('/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
+    Route::match(['get', 'post'], '/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
+    Route::match(['get', 'patch'], '/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
     Route::post('/products/{id}/submit-approval', [ProductController::class, 'submitApproval'])->name('products.submit-approval');
     Route::post('/products/{id}/approve', [ProductController::class, 'approve'])->name('products.approve');
     Route::post('/products/{id}/reject', [ProductController::class, 'reject'])->name('products.reject');
@@ -782,6 +1768,8 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::post('/products/{product}/versions', [ProductVersionController::class, 'store'])->name('product-versions.store');
     Route::patch('/product-versions/{productVersion}/activate', [ProductVersionController::class, 'activate'])->name('product-versions.activate');
     Route::patch('/product-versions/{productVersion}/status', [ProductVersionController::class, 'updateStatus'])->name('product-versions.status');
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -839,13 +1827,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/company/{company}/consultation-notes/{note}', [CompanyConsultationNoteController::class, 'destroy'])->name('company.consultation-notes.destroy');
 
     Route::get('/company/{company}/activities', [CompanyController::class, 'activities'])->name('company.activities');
-    Route::get('/company/{company}/report', [CompanyController::class, 'report'])
-        ->middleware('human-capital.module:access_activities')
-        ->name('company.report');
-
-    Route::get('/company/{company}/report/pdf', [CompanyController::class, 'reportPdf'])
-        ->middleware('human-capital.module:access_activities')
-        ->name('company.report.pdf');
+    Route::post('/company/{company}/activities', [CompanyActivityController::class, 'store'])->name('company.activities.store');
+    Route::match(['put', 'patch'], '/company/{company}/activities/{activity}', [CompanyActivityController::class, 'update'])->name('company.activities.update');
+    Route::patch('/company/{company}/activities/{activity}/complete', [CompanyActivityController::class, 'complete'])->name('company.activities.complete');
+    Route::delete('/company/{company}/activities/{activity}', [CompanyActivityController::class, 'destroy'])->name('company.activities.destroy');
 
     Route::get('/company/{company}/deals', [CompanyDealController::class, 'index'])->name('company.deals');
     Route::post('/company/{company}/deals', [CompanyDealController::class, 'store'])->name('company.deals.store');
@@ -978,7 +1963,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::post('/company/{company}/corporate-formation/gis', [CompanyCorporateFormationController::class, 'storeGis'])->name('company.corporate-formation.gis.store');
     Route::match(['put', 'patch'], '/company/{company}/corporate-formation/gis/{record}', [CompanyCorporateFormationController::class, 'updateGis'])->name('company.corporate-formation.gis.update');
 
-    // Company corporate-formation — show / upload-draft / upload-notary / submit (all 4 document types)
+    // Company corporate-formation â€” show / upload-draft / upload-notary / submit (all 4 document types)
     Route::get('/company/{company}/corporate-formation/sec-coi/{record}', [CompanyCorporateFormationController::class, 'showSecCoi'])->name('company.corporate-formation.sec-coi.show');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-draft', [CompanyCorporateFormationController::class, 'uploadDraftSecCoi'])->name('company.corporate-formation.sec-coi.upload-draft');
     Route::post('/company/{company}/corporate-formation/sec-coi/{record}/upload-notary', [CompanyCorporateFormationController::class, 'uploadNotarySecCoi'])->name('company.corporate-formation.sec-coi.upload-notary');
@@ -1246,10 +2231,18 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/corporate/secretary-certificates', [SecretaryCertificateController::class, 'index'])->name('secretary-certificates');
     Route::get('/corporate/secretary-certificates/create', [SecretaryCertificateController::class, 'create'])->name('secretary-certificates.create');
     Route::post('/corporate/secretary-certificates', [SecretaryCertificateController::class, 'store'])->name('secretary-certificates.store');
+    Route::get('/corporate/secretary-certificates/{secretaryCertificate}/download', [SecretaryCertificateController::class, 'downloadPdf'])->name('secretary-certificates.download');
     Route::get('/corporate/secretary-certificates/{secretaryCertificate}', [SecretaryCertificateController::class, 'show'])->name('secretary-certificates.preview');
     Route::get('/corporate/secretary-certificates/{secretaryCertificate}/edit', [SecretaryCertificateController::class, 'edit'])->name('secretary-certificates.edit');
     Route::put('/corporate/secretary-certificates/{secretaryCertificate}', [SecretaryCertificateController::class, 'update'])->name('secretary-certificates.update');
     Route::delete('/corporate/secretary-certificates/{secretaryCertificate}', [SecretaryCertificateController::class, 'destroy'])->name('secretary-certificates.destroy');
+
+    Route::get('/engagements', function () {
+        $engagements = \Illuminate\Support\Facades\DB::table('engagements')->get();
+        return view('engagements.index', compact('engagements'));
+    })->name('engagements.index');
+    Route::get('/engagements/export/pdf', [ImportExportController::class, 'exportEngagementsPDF'])->name('export.engagements.pdf');
+    Route::get('/engagements/export/excel', [ImportExportController::class, 'exportEngagementsExcel'])->name('export.engagements.excel');
 
     /*
     |--------------------------------------------------------------------------
@@ -1375,10 +2368,6 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     |--------------------------------------------------------------------------
     */
     Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
-
-    Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
-        ->middleware('throttle:5,1,transmittal-ocr:')
-        ->name('transmittal.ocr.analyze');
 
     Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
         ->name('admin.transmittal.dashboard');
@@ -1694,13 +2683,10 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
 
         Route::middleware('human-capital.module:access_hc_obf,true')->group(function () {
             Route::get('/obf', [OfficialBusinessTripController::class, 'index'])->name('obf');
-            Route::get('/obf/suggestions', [OfficialBusinessTripController::class, 'suggestions'])->name('obf.suggestions');
-            Route::get('/obf/engagements', [OfficialBusinessTripController::class, 'engagements'])->name('obf.engagements');
             Route::post('/obf', [OfficialBusinessTripController::class, 'store'])->name('obf.store');
             Route::put('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'update'])->name('obf.update');
             Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
             Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
-            Route::post('/obf/{officialBusinessTrip}/revert', [OfficialBusinessTripController::class, 'revert'])->name('obf.revert');
             Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
         });
 
@@ -1766,5 +2752,17 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     });
 });
 
-require __DIR__.'/records.php';
-
+/*
+|--------------------------------------------------------------------------
+| REGULAR OPERATIONS UPGRADE (ORDO)
+|--------------------------------------------------------------------------
+*/
+Route::get('/projects', [RegularProjectController::class, 'index'])->name('projects.index');
+Route::post('/projects', [RegularProjectController::class, 'create'])->name('projects.create');
+Route::get('/reports/export', [RegularProjectController::class, 'export'])->name('projects.export');
+Route::post('/preferences', [RegularProjectController::class, 'settings'])->name('preferences.save');
+Route::get('/portfolio/{module}', [RegularProjectController::class, 'index'])->name('portfolio.module');
+Route::get('/projects/{project}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.workspace');
+Route::get('/projects/{project}/{section}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.section');
+Route::post('/projects/{project}/actions/{action}', [RegularProjectController::class, 'action'])->whereNumber('project')->name('projects.action');
+Route::get('/projects/{project}/files/{file}', [RegularProjectController::class, 'download'])->whereNumber('project')->name('projects.file');

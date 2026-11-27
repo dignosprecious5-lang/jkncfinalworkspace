@@ -1,180 +1,354 @@
 @php
-    $data = $dealFormData ?? [];
-    $formatDisplayDate = static function ($value, string $fallback = '-'): string {
-        if (! filled($value)) {
-            return $fallback;
+    $data = $dealFormData ?? ($detail ?? []);
+    $logoBase64 = $data['logo_base64'] ?? ($logoBase64 ?? '');
+    if (! filled($logoBase64)) {
+        $logoPath = public_path('images/imaglogo.png');
+        if (file_exists($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
         }
+    }
 
-        try {
-            return \Illuminate\Support\Carbon::parse((string) $value)->format('M d, Y');
-        } catch (\Throwable) {
-            return (string) $value;
+    $val = static function ($key, $fallback = '-') use ($data): string {
+        $v = $data[$key] ?? null;
+        if (is_array($v)) {
+            $v = collect($v)->flatten()->filter(fn ($i) => filled($i))->implode(', ');
         }
+        return filled($v) ? (string) $v : $fallback;
     };
-    $text = static function (string $key, string $fallback = '-') use ($data): string {
-        $value = $data[$key] ?? null;
 
-        if (is_array($value)) {
-            $value = collect($value)
-                ->flatten()
-                ->filter(fn ($item) => filled($item))
-                ->map(function ($item) {
-                    if (is_array($item)) {
-                        return json_encode($item);
-                    }
-
-                    return (string) $item;
-                })
-                ->implode(', ');
-        }
-
-        return filled($value) ? (string) $value : $fallback;
-    };
-    $listText = static function (string $key, string $fallback = '-') use ($data): string {
-        $value = $data[$key] ?? null;
-
-        if (is_array($value)) {
-            $flattened = collect($value)
-                ->flatten()
-                ->filter(fn ($item) => filled($item))
-                ->map(fn ($item) => trim((string) $item))
-                ->filter()
-                ->values()
-                ->all();
-
-            return $flattened === [] ? $fallback : implode(', ', $flattened);
-        }
-
-        return filled($value) ? (string) $value : $fallback;
-    };
-    $list = static fn (string $key): array => collect($data[$key] ?? [])->filter(fn ($value) => filled($value))->values()->all();
-    $statusMap = is_array($data['requirements_status_map'] ?? null) ? $data['requirements_status_map'] : [];
+    $requirements = $data['client_requirements'] ?? [];
+    if (! is_array($requirements) || count($requirements) === 0) {
+        $statusMap = is_array($data['requirements_status_map'] ?? null) ? $data['requirements_status_map'] : [];
+        $requirements = [
+            [
+                'requirement' => 'Client Contact Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Deal Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Business Information Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Client Information Form',
+                'provided' => '-',
+                'pending' => 'Yes',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Service Task Activation & Routing Tracker (Start)',
+                'provided' => '-',
+                'pending' => 'Yes',
+                'required_action' => '-',
+            ],
+        ];
+    }
 @endphp
 
-<div class="mx-auto w-full max-w-6xl border border-gray-700 bg-white text-[11px] leading-tight text-black">
-    <div class="border-b border-gray-700 px-4 py-2 text-center">
-        <h1 class="text-2xl font-bold">Consulting & Deal Form</h1>
-    </div>
+<div class="mx-auto w-full max-w-5xl bg-white shadow-sm border border-[#203354] text-[11px] font-sans leading-tight text-[#0f172a]">
 
-    <div class="grid grid-cols-12 border-b border-gray-700 text-[10px]">
-        <div class="col-span-3 border-r border-gray-700 p-2">Deal Name<div class="mt-1 min-h-5 text-[11px]">{{ $text('deal_name') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2">Stage<div class="mt-1 min-h-5 text-[11px]">{{ $text('stage') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2">Engagement Type<div class="mt-1 min-h-5 text-[11px]">{{ $text('engagement_type') }}</div></div>
-        <div class="col-span-3 p-2">Total Value<div class="mt-1 min-h-5 text-[11px]">{{ $text('total_estimated_engagement_value') }}</div></div>
-    </div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Contact Information</div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Salutation</div><div class="mt-1 min-h-5">{{ $text('salutation') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">First Name</div><div class="mt-1 min-h-5">{{ $text('first_name') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Middle Initial</div><div class="mt-1 min-h-5">{{ $text('middle_initial') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Last Name</div><div class="mt-1 min-h-5">{{ $text('last_name') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Name Extension</div><div class="mt-1 min-h-5">{{ $text('name_extension') }}</div></div>
-        <div class="col-span-2 p-2"><div class="text-[10px]">Sex</div><div class="mt-1 min-h-5">{{ $text('sex') }}</div></div>
-    </div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Date of Birth</div><div class="mt-1 min-h-5">{{ $formatDisplayDate($data['date_of_birth'] ?? null) }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Email Address</div><div class="mt-1 min-h-5">{{ $text('email') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Mobile Number</div><div class="mt-1 min-h-5">{{ $text('mobile') }}</div></div>
-        <div class="col-span-3 p-2"><div class="text-[10px]">Position / Designation</div><div class="mt-1 min-h-5">{{ $text('position') }}</div></div>
-    </div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-6 border-r border-gray-700 p-2"><div class="text-[10px]">Address</div><div class="mt-1 min-h-6">{{ $text('address') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Company</div><div class="mt-1 min-h-6">{{ $text('company_name') }}</div></div>
-        <div class="col-span-3 p-2"><div class="text-[10px]">Company Address</div><div class="mt-1 min-h-6">{{ $text('company_address') }}</div></div>
-    </div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Service Identification</div>
-    <div class="border-b border-gray-700 p-2">
-        <div class="text-[10px] font-semibold">Service Area</div>
-        <div class="mt-1 min-h-5">{{ $text('service_area') }}</div>
-    </div>
-    <div class="border-b border-gray-700 p-2">
-        <div class="text-[10px] font-semibold">Services</div>
-        <div class="mt-1 min-h-6">{{ $text('services') }}</div>
-    </div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Products</div>
-    <div class="border-b border-gray-700 p-2"><div class="text-[10px] font-semibold">Products / Deliverables</div><div class="mt-1 min-h-6">{{ $text('products') }}</div></div>
-    <div class="border-b border-gray-700 p-2"><div class="text-[10px] font-semibold">Scope of Work</div><div class="mt-1 min-h-8">{{ $text('scope_of_work') }}</div></div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Client Requirements</div>
-    <div class="grid grid-cols-12 border-b border-gray-700 text-[10px]">
-        <div class="col-span-6 border-r border-gray-700 p-2 font-semibold">Requirement</div>
-        <div class="col-span-3 border-r border-gray-700 p-2 text-center font-semibold">Provided</div>
-        <div class="col-span-3 p-2 text-center font-semibold">Pending</div>
-    </div>
-    @foreach ([
-        'client_contact_form' => 'Client Contact Form',
-        'deal_form' => 'Deal Form',
-        'business_information_form' => 'Business Information Form',
-        'client_information_form' => 'Client Information Form',
-        'service_task_activation_routing_tracker' => 'Service Task Activation & Routing Tracker (Start)',
-        'others' => 'Others',
-    ] as $key => $label)
-        @php $status = strtolower((string) ($statusMap[$key] ?? '')); @endphp
-        <div class="grid grid-cols-12 border-b border-gray-700 text-[10px]">
-            <div class="col-span-6 border-r border-gray-700 p-2">{{ $label }}</div>
-            <div class="col-span-3 border-r border-gray-700 p-2 text-center">{{ $status === 'provided' ? 'Yes' : '-' }}</div>
-            <div class="col-span-3 p-2 text-center">{{ $status === 'pending' ? 'Yes' : '-' }}</div>
+    <!-- 1. HEADER -->
+    <div class="flex items-center justify-between border-b border-[#203354] px-4 py-3 bg-white">
+        <div class="w-1/2">
+            @if(filled($logoBase64))
+                <img src="{{ $logoBase64 }}" class="h-10 max-h-12 w-auto object-contain" alt="John Kelly & Company">
+            @else
+                <div class="font-serif text-xl font-bold tracking-tight text-[#0b1d3a]">John Kelly</div>
+                <div class="font-serif text-sm italic text-[#0b1d3a]">&amp; Company</div>
+            @endif
         </div>
-    @endforeach
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Fees & Payment</div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Professional Fee</div><div class="mt-1 min-h-5">{{ $text('estimated_professional_fee') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Government Fees</div><div class="mt-1 min-h-5">{{ $text('estimated_government_fees') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Service Support Fee</div><div class="mt-1 min-h-5">{{ $text('estimated_service_support_fee') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Discount</div><div class="mt-1 min-h-5">{{ $text('deal_discount') }}</div></div>
-        <div class="col-span-2 p-2"><div class="text-[10px]">Total Value</div><div class="mt-1 min-h-5">{{ $text('total_estimated_engagement_value') }}</div></div>
-    </div>
-    <div class="border-b border-gray-700 p-2"><div class="text-[10px]">Payment Terms</div><div class="mt-1 min-h-5">{{ $text('payment_terms') }} {{ filled($data['payment_terms_other'] ?? null) ? '- '.$data['payment_terms_other'] : '' }}</div></div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Timeline & Assessment</div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-4 border-r border-gray-700 p-2"><div class="text-[10px]">Planned Start Date</div><div class="mt-1 min-h-5">{{ $formatDisplayDate($data['planned_start_date'] ?? null) }}</div></div>
-        <div class="col-span-4 border-r border-gray-700 p-2"><div class="text-[10px]">Estimated Duration</div><div class="mt-1 min-h-5">{{ $text('estimated_duration') }}</div></div>
-        <div class="col-span-4 p-2"><div class="text-[10px]">Estimated Completion Date</div><div class="mt-1 min-h-5">{{ $formatDisplayDate($data['estimated_completion_date'] ?? null) }}</div></div>
-    </div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-6 border-r border-gray-700 p-2"><div class="text-[10px]">Client Preferred Completion Date</div><div class="mt-1 min-h-5">{{ $formatDisplayDate($data['client_preferred_completion_date'] ?? null) }}</div></div>
-        <div class="col-span-6 p-2"><div class="text-[10px]">Confirmed Delivery Date</div><div class="mt-1 min-h-5">{{ $formatDisplayDate($data['confirmed_delivery_date'] ?? null) }}</div></div>
-    </div>
-    <div class="border-b border-gray-700 p-2"><div class="text-[10px]">Timeline Notes</div><div class="mt-1 min-h-6">{{ $text('timeline_notes') }}</div></div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-4 border-r border-gray-700 p-2"><div class="text-[10px]">Service Complexity</div><div class="mt-1 min-h-5">{{ $text('service_complexity') }}</div></div>
-        <div class="col-span-8 p-2"><div class="text-[10px]">Professional Support Required</div><div class="mt-1 min-h-5">{{ $listText('support_required_options', $listText('support_required')) }}</div></div>
-    </div>
-    <div class="border-b border-gray-700 p-2"><div class="text-[10px]">Notes / Explanation</div><div class="mt-1 min-h-6">{{ $text('complexity_notes') }}</div></div>
-
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Proposal & Internal Assignment</div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-6 border-r border-gray-700 p-2"><div class="text-[10px]">Proposal Decision</div><div class="mt-1 min-h-5">{{ $text('proposal_decision') }}</div></div>
-        <div class="col-span-6 p-2"><div class="text-[10px]">Decline Reason</div><div class="mt-1 min-h-5">{{ $text('decline_reason') }}</div></div>
-    </div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-4 border-r border-gray-700 p-2"><div class="text-[10px]">Assigned Consultant</div><div class="mt-1 min-h-5">{{ $text('assigned_consultant') }}</div></div>
-        <div class="col-span-4 border-r border-gray-700 p-2"><div class="text-[10px]">Assigned Associate</div><div class="mt-1 min-h-5">{{ $text('assigned_associate') }}</div></div>
-        <div class="col-span-4 p-2"><div class="text-[10px]">Service Department / Unit</div><div class="mt-1 min-h-5">{{ $text('service_department_unit') }}</div></div>
+        <div class="w-1/2 text-right">
+            <h1 class="text-base font-extrabold uppercase tracking-wide text-[#0f172a]">CONSULTING &amp; DEAL FORM</h1>
+            <div class="mt-1 text-[11px] text-slate-700">
+                Deal No. <strong class="font-bold text-black">{{ $val('deal_no', $val('deal_form_no', '-')) }}</strong> &nbsp;&nbsp;&nbsp;&nbsp; Date <strong class="font-bold text-black">{{ $val('header_date', $val('date', date('m/d/Y'))) }}</strong>
+            </div>
+        </div>
     </div>
 
-    <div class="border-b border-gray-700 bg-blue-900 px-3 py-1 text-center text-[12px] font-semibold text-white">Notes & Approval</div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-6 border-r border-gray-700 p-2"><div class="text-[10px]">Consultant Notes</div><div class="mt-1 min-h-8">{{ $text('consultant_notes') }}</div></div>
-        <div class="col-span-6 p-2"><div class="text-[10px]">Associate Notes</div><div class="mt-1 min-h-8">{{ $text('associate_notes') }}</div></div>
+    <!-- 2. DEAL SUMMARY -->
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Deal Name</span>
+            <div class="mt-0.5 text-[11px] font-medium text-slate-900">{{ $val('deal_name', $val('deal_title', '-')) }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Stage</span>
+            <div class="mt-0.5 text-[11px] font-medium text-slate-900">{{ $val('stage', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Engagement Type</span>
+            <div class="mt-0.5 text-[11px] font-medium text-slate-900">{{ $val('engagement_type', $val('engagement_term', '-')) }}</div>
+        </div>
+        <div class="col-span-3 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Total Value</span>
+            <div class="mt-0.5 text-[11px] font-semibold text-slate-900">{{ $val('total_value', 'P0.00') }}</div>
+        </div>
     </div>
-    <div class="grid grid-cols-12 border-b border-gray-700">
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Prepared By</div><div class="mt-1 min-h-5">{{ $text('prepared_by') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Reviewed By</div><div class="mt-1 min-h-5">{{ $text('reviewed_by') }}</div></div>
-        <div class="col-span-3 border-r border-gray-700 p-2"><div class="text-[10px]">Date</div><div class="mt-1 min-h-5">{{ $text('internal_date') }}</div></div>
-        <div class="col-span-3 p-2"><div class="text-[10px]">Client Fullname & Signature</div><div class="mt-1 min-h-5">{{ $text('client_fullname_signature') }}</div></div>
+
+    <!-- 3. CONTACT INFORMATION -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Contact Information</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Salutation</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('salutation', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">First Name</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('first_name', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Middle Initial</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('middle_initial', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Last Name</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('last_name', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Name Extension</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('name_extension', '-') }}</div>
+        </div>
+        <div class="col-span-2 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Sex</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('sex', '-') }}</div>
+        </div>
     </div>
-    <div class="grid grid-cols-12">
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Referred / Closed By</div><div class="mt-1 min-h-5">{{ $text('referred_closed_by') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Sales & Marketing</div><div class="mt-1 min-h-5">{{ $text('internal_sales_marketing') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Lead Consultant</div><div class="mt-1 min-h-5">{{ $text('lead_consultant') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Lead Associate</div><div class="mt-1 min-h-5">{{ $text('lead_associate_assigned') }}</div></div>
-        <div class="col-span-2 border-r border-gray-700 p-2"><div class="text-[10px]">Finance</div><div class="mt-1 min-h-5">{{ $text('internal_finance') }}</div></div>
-        <div class="col-span-2 p-2"><div class="text-[10px]">President</div><div class="mt-1 min-h-5">{{ $text('internal_president') }}</div></div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Date of Birth</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('date_of_birth', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Email Address</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('email', $val('email_address', '-')) }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Mobile Number</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('mobile', $val('mobile_number', '-')) }}</div>
+        </div>
+        <div class="col-span-3 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Position / Designation</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('position', $val('contact_person_position', '-')) }}</div>
+        </div>
     </div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Address</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('address', '-') }}</div>
+        </div>
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Company</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('company', $val('company_name', '-')) }}</div>
+        </div>
+        <div class="col-span-4 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Company Address</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('company_address', '-') }}</div>
+        </div>
+    </div>
+
+    <!-- 4. SERVICE IDENTIFICATION -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Service Identification</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-6 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Service Area</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('service_area', '-') }}</div>
+        </div>
+        <div class="col-span-6 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Services</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('services', '-') }}</div>
+        </div>
+    </div>
+
+    <!-- 5. PRODUCTS -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Products</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-6 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Products / Deliverables</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('products', $val('products_deliverables', '-')) }}</div>
+        </div>
+        <div class="col-span-6 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Scope of Work</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('scope_of_work', '-') }}</div>
+        </div>
+    </div>
+
+    <!-- 6. CLIENT REQUIREMENTS -->
+    <div class="border-b border-[#203354] bg-[#163b7a] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Client Requirements</div>
+    <table class="w-full border-collapse border-b border-[#203354] text-[10px]">
+        <thead>
+            <tr class="border-b border-[#203354]">
+                <th class="border-r border-[#203354] p-2 text-left font-bold uppercase text-black">Requirement</th>
+                <th class="w-24 border-r border-[#203354] p-2 text-center font-bold uppercase text-black">Provided</th>
+                <th class="w-24 border-r border-[#203354] p-2 text-center font-bold uppercase text-black">Pending</th>
+                <th class="w-36 p-2 text-center font-bold uppercase text-black">Required Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($requirements as $req)
+                <tr class="border-b border-[#203354] last:border-b-0">
+                    <td class="border-r border-[#203354] p-2 text-[11px]">{{ $req['requirement'] ?? '-' }}</td>
+                    <td class="border-r border-[#203354] p-2 text-center text-[11px]">{{ $req['provided'] ?? '-' }}</td>
+                    <td class="border-r border-[#203354] p-2 text-center text-[11px]">{{ $req['pending'] ?? '-' }}</td>
+                    <td class="p-2 text-center text-[11px]">{{ $req['required_action'] ?? '-' }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+    <!-- 7. TIMELINE & ASSESSMENT -->
+    <div class="border-b border-[#203354] bg-[#163b7a] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Timeline &amp; Assessment</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Planned Start Date</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('planned_start_date', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Estimated Duration</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('estimated_duration', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Estimated Completion Date</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('estimated_completion_date', '-') }}</div>
+        </div>
+        <div class="col-span-3 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Confirmed Delivery Date</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('confirmed_delivery_date', '-') }}</div>
+        </div>
+    </div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Timeline Notes</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('timeline_notes', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Service Complexity</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('service_complexity', '-') }}</div>
+        </div>
+        <div class="col-span-5 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Professional Support Required</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('professional_support_required', $val('support_required', '-')) }}</div>
+        </div>
+    </div>
+
+    <!-- 8. FEES & PAYMENT -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Fees &amp; Payment</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Professional Fee</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('professional_fee', $val('estimated_professional_fee', '-')) }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Government Fees</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('government_fees', $val('estimated_government_fees', 'P0.00')) }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Service Support Fee</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('service_support_fee', $val('estimated_service_support_fee', 'P0.00')) }}</div>
+        </div>
+        <div class="col-span-3 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Payment Terms</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('payment_terms', '-') }}</div>
+        </div>
+    </div>
+
+    <!-- 9. PROPOSAL & INTERNAL ASSIGNMENT -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Proposal &amp; Internal Assignment</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Proposal Decision</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('proposal_decision', '-') }}</div>
+        </div>
+        <div class="col-span-4 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Decline Reason</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('decline_reason', '-') }}</div>
+        </div>
+        <div class="col-span-4 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Service Department / Unit</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('service_department_unit', $val('service_department', '-')) }}</div>
+        </div>
+    </div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-6 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Assigned Consultant</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('assigned_consultant', $val('lead_consultant', '-')) }}</div>
+        </div>
+        <div class="col-span-6 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Assigned Associate</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('assigned_associate', $val('lead_associate_assigned', '-')) }}</div>
+        </div>
+    </div>
+
+    <!-- 10. NOTES & APPROVAL -->
+    <div class="border-b border-[#203354] bg-[#0b2a68] px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-white">Notes &amp; Approval</div>
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-6 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Consultant Notes</span>
+            <div class="mt-0.5 text-[11px] min-h-[20px]">{{ $val('consultant_notes', '-') }}</div>
+        </div>
+        <div class="col-span-6 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Associate Notes</span>
+            <div class="mt-0.5 text-[11px] min-h-[20px]">{{ $val('associate_notes', '-') }}</div>
+        </div>
+    </div>
+
+    <!-- 11. SIGNATURES AND APPROVAL RECORDS -->
+    <div class="grid grid-cols-12 border-b border-[#203354] text-[10px]">
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Prepared By</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('prepared_by', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Reviewed By</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('reviewed_by', '-') }}</div>
+        </div>
+        <div class="col-span-3 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Date</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('internal_date', date('M d, Y')) }}</div>
+        </div>
+        <div class="col-span-3 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Client Fullname &amp; Signature</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('client_fullname_signature', '-') }}</div>
+        </div>
+    </div>
+    <div class="grid grid-cols-12 text-[10px]">
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Referred / Closed By</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('referred_closed_by', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Sales &amp; Marketing</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('internal_sales_marketing', $val('sales_marketing', '-')) }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Lead Consultant</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('lead_consultant', '-') }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Lead Associate</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('lead_associate_assigned', $val('lead_associate', '-')) }}</div>
+        </div>
+        <div class="col-span-2 border-r border-[#203354] p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">Finance</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('internal_finance', $val('finance', '-')) }}</div>
+        </div>
+        <div class="col-span-2 p-2">
+            <span class="block text-[9px] font-bold uppercase text-black">President</span>
+            <div class="mt-0.5 text-[11px]">{{ $val('internal_president', $val('president', 'John Kelly Abalde')) }}</div>
+        </div>
+    </div>
+
+    <!-- 12. FOOTER -->
+    <div class="border-t border-[#203354] px-3 py-1 text-right text-[10px] italic text-slate-500">
+        John Kelly &amp; Company
+    </div>
+
 </div>

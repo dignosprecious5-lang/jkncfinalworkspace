@@ -642,7 +642,6 @@
         @submit="handleSubmit($event)"
     >
         @csrf
-        <input type="hidden" name="inquiry_request_key" value="{{ old('inquiry_request_key', $inquiryRequestKey ?? '') }}">
 
         @if(request()->boolean('drawer'))
             <input type="hidden" name="drawer" value="1">

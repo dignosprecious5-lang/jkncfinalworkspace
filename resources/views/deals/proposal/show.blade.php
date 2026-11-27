@@ -2,6 +2,11 @@
 @section('title', ($readOnlyPreview ?? false) ? 'View Proposal' : 'Create Proposal')
 
 @section('content')
+@php
+    $moneyOrConfirm = static fn ($value): string => is_numeric($value)
+        ? number_format((float) $value, 2)
+        : 'Needs confirmation';
+@endphp
 <style>
     .proposal-shell { height: calc(100vh - 7.5rem); min-height: 700px; }
     .proposal-workspace-card { height: 100%; min-height: 0; display: flex; flex-direction: column; }
@@ -151,6 +156,7 @@
 </style>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
+    @include('deals.proposal.partials.decision-summary')
     <div class="bg-white border border-gray-100 rounded-2xl overflow-hidden">
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
             <a href="{{ route('deals.show', $deal->id) }}" class="text-gray-500 hover:text-gray-700"><i class="fas fa-arrow-left"></i></a>
@@ -176,9 +182,6 @@
                 @endif
                 <form method="POST" action="{{ route('deals.proposal.send', $deal) }}" class="flex items-center gap-2">
                     @csrf
-                    @if (config('deals.versioned_proposal_issuance', false))
-                        <input type="hidden" name="issuance_request_key" value="{{ old('issuance_request_key', (string) \Illuminate\Support\Str::uuid()) }}">
-                    @endif
                     <input
                         type="email"
                         name="recipient_email"
@@ -211,6 +214,7 @@
 </div>
 
 <div class="w-full px-4 sm:px-6 lg:px-8 mt-4">
+    @include('deals.proposal.partials.decision-summary')
     <div class="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div class="proposal-shell grid grid-cols-1 xl:grid-cols-[minmax(420px,0.9fr)_minmax(0,1.6fr)] gap-4 p-4 lg:p-5">
             <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden proposal-workspace-card">
@@ -265,7 +269,12 @@
                                     <tr>
                                         <th>Service ID</th>
                                         <th>Name</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
                                         <th class="text-right">Price</th>
+                                        <th class="text-right">Discount</th>
+                                        <th class="text-right">Tax</th>
+                                        <th class="text-right">Line Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -273,16 +282,21 @@
                                         <tr>
                                             <td>{{ $row['service_id'] ?? '-' }}</td>
                                             <td>{{ $row['name'] ?? '-' }}</td>
-                                            <td class="text-right">P{{ number_format((float) ($row['price'] ?? 0), 2) }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['quantity'] ?? '') }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['unit'] ?? '') }}</td>
+                                            <td class="text-right">{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['discount'] ?? 0), 2) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
+                                            <td class="text-right">{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="3" class="text-center text-gray-500">No services selected.</td></tr>
+                                        <tr><td colspan="8" class="text-center text-gray-500">No services selected.</td></tr>
                                     @endforelse
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="2">Total Services</td>
-                                        <td class="text-right">P{{ number_format((float) ($documentData['price_regular'] ?? 0), 2) }}</td>
+                                        <td colspan="7">Total Services</td>
+                                        <td class="text-right">{{ $moneyOrConfirm($documentData['price_regular'] ?? null) }}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -295,7 +309,12 @@
                                     <tr>
                                         <th>Product ID</th>
                                         <th>Name</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
                                         <th class="text-right">Price</th>
+                                        <th class="text-right">Discount</th>
+                                        <th class="text-right">Tax</th>
+                                        <th class="text-right">Line Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -303,7 +322,12 @@
                                         <tr>
                                             <td>{{ $row['service_id'] ?? '-' }}</td>
                                             <td>{{ $row['name'] ?? '-' }}</td>
-                                            <td class="text-right">P{{ number_format((float) ($row['price'] ?? 0), 2) }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['quantity'] ?? '') }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['unit'] ?? '') }}</td>
+                                            <td class="text-right">{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['discount'] ?? 0), 2) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
+                                            <td class="text-right">{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                                         </tr>
                                     @empty
                                         <tr><td colspan="3" class="text-center text-gray-500">No products selected.</td></tr>
@@ -311,8 +335,8 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="2">Total Products</td>
-                                        <td class="text-right">P{{ number_format((float) ($documentData['price_products'] ?? 0), 2) }}</td>
+                                        <td colspan="7">Total Products</td>
+                                        <td class="text-right">{{ $moneyOrConfirm($documentData['price_products'] ?? null) }}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -322,20 +346,21 @@
                             <div class="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">Computed Totals</div>
                             <table class="proposal-summary-table">
                                 <tbody>
-                                    <tr><th>Total Services</th><td class="text-right">P{{ number_format((float) ($documentData['price_regular'] ?? 0), 2) }}</td></tr>
-                                    <tr><th>Total Products</th><td class="text-right">P{{ number_format((float) ($documentData['price_products'] ?? 0), 2) }}</td></tr>
-                                    <tr><th>Discount</th><td class="text-right">P{{ number_format((float) $proposal->price_discount, 2) }}</td></tr>
-                                    <tr><th>Tax</th><td class="text-right">P{{ number_format((float) $proposal->price_tax, 2) }}</td></tr>
-                                    <tr><th>Subtotal</th><td class="text-right">P{{ number_format((float) $proposal->price_subtotal, 2) }}</td></tr>
-                                    <tr><th>Total</th><td class="text-right font-semibold text-blue-700">P{{ number_format((float) $proposal->price_total, 2) }}</td></tr>
-                                    <tr><th>Downpayment</th><td class="text-right">P{{ number_format((float) $proposal->price_down, 2) }}</td></tr>
-                                    <tr><th>Balance</th><td class="text-right">P{{ number_format((float) $proposal->price_balance, 2) }}</td></tr>
+                                    <tr><th>Total Services</th><td class="text-right">{{ $moneyOrConfirm($documentData['price_regular'] ?? null) }}</td></tr>
+                                    <tr><th>Total Products</th><td class="text-right">{{ $moneyOrConfirm($documentData['price_products'] ?? null) }}</td></tr>
+                                    <tr><th>Discount</th><td class="text-right">P{{ number_format((float) ($documentData['price_discount'] ?? 0), 2) }}</td></tr>
+                                    <tr><th>Tax</th><td class="text-right">P{{ number_format((float) ($documentData['price_tax'] ?? 0), 2) }}</td></tr>
+                                    <tr><th>Subtotal</th><td class="text-right">{{ $moneyOrConfirm($documentData['price_subtotal'] ?? null) }}</td></tr>
+                                    <tr><th>Total</th><td class="text-right font-semibold text-blue-700">{{ $moneyOrConfirm($documentData['price_total'] ?? null) }}</td></tr>
+                                    <tr><th>Payment Terms</th><td>{{ filled($documentData['payment_terms'] ?? null) ? $documentData['payment_terms'] : 'Payment terms need confirmation.' }}</td></tr>
+                                    <tr><th>Downpayment</th><td class="text-right">{{ $moneyOrConfirm($documentData['price_down'] ?? null) }}</td></tr>
+                                    <tr><th>Balance</th><td class="text-right">{{ $moneyOrConfirm($documentData['price_balance'] ?? null) }}</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                     @else
-                    <form method="POST" action="{{ route('deals.proposal.update', $deal) }}" id="proposal-live-form" class="space-y-5" data-price-products="{{ number_format((float) ($documentData['price_products'] ?? 0), 2, '.', '') }}">
+                    <form method="POST" action="{{ route('deals.proposal.update', $deal) }}" id="proposal-live-form" class="space-y-5" data-price-products="{{ number_format((float) ($documentData['price_products'] ?? 0), 2, '.', '') }}" data-pricing-complete="{{ !empty($documentData['pricing_complete']) ? '1' : '0' }}" data-payment-terms="{{ $documentData['payment_terms'] ?? '' }}">
                         @csrf
                         @method('PUT')
 
@@ -369,7 +394,12 @@
                                     <tr>
                                         <th>Service ID</th>
                                         <th>Name</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
                                         <th class="text-right">Price</th>
+                                        <th class="text-right">Discount</th>
+                                        <th class="text-right">Tax</th>
+                                        <th class="text-right">Line Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -377,7 +407,12 @@
                                         <tr>
                                             <td>{{ $row['service_id'] ?? '-' }}</td>
                                             <td>{{ $row['name'] ?? '-' }}</td>
-                                            <td class="text-right">P{{ number_format((float) ($row['price'] ?? 0), 2) }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['quantity'] ?? '') }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['unit'] ?? '') }}</td>
+                                            <td class="text-right">{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['discount'] ?? 0), 2) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
+                                            <td class="text-right">{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                                         </tr>
                                     @empty
                                         <tr><td colspan="3" class="text-center text-gray-500">No services selected.</td></tr>
@@ -385,8 +420,8 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="2">Total Services</td>
-                                        <td class="text-right">P<span data-summary-display="price_regular">{{ number_format((float) ($documentData['price_regular'] ?? 0), 2) }}</span></td>
+                                        <td colspan="7">Total Services</td>
+                                        <td class="text-right"><span data-summary-display="price_regular">{{ $moneyOrConfirm($documentData['price_regular'] ?? null) }}</span></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -399,7 +434,12 @@
                                     <tr>
                                         <th>Product ID</th>
                                         <th>Name</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
                                         <th class="text-right">Price</th>
+                                        <th class="text-right">Discount</th>
+                                        <th class="text-right">Tax</th>
+                                        <th class="text-right">Line Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -407,7 +447,12 @@
                                         <tr>
                                             <td>{{ $row['service_id'] ?? '-' }}</td>
                                             <td>{{ $row['name'] ?? '-' }}</td>
-                                            <td class="text-right">P{{ number_format((float) ($row['price'] ?? 0), 2) }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['quantity'] ?? '') }}</td>
+                                            <td>{{ ($row['aggregate'] ?? false) ? '' : ($row['unit'] ?? '') }}</td>
+                                            <td class="text-right">{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['discount'] ?? 0), 2) }}</td>
+                                            <td class="text-right">P{{ number_format((float) ($row['tax'] ?? 0), 2) }}</td>
+                                            <td class="text-right">{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                                         </tr>
                                     @empty
                                         <tr><td colspan="3" class="text-center text-gray-500">No products selected.</td></tr>
@@ -415,8 +460,8 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="2">Total Products</td>
-                                        <td class="text-right">P<span data-summary-display="price_products">{{ number_format((float) ($documentData['price_products'] ?? 0), 2) }}</span></td>
+                                        <td colspan="7">Total Products</td>
+                                        <td class="text-right"><span data-summary-display="price_products">{{ $moneyOrConfirm($documentData['price_products'] ?? null) }}</span></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -426,35 +471,36 @@
                             <div class="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">Computed Totals</div>
                             <table class="proposal-summary-table">
                                 <tbody>
-                                    <tr><th>Total Services</th><td class="text-right">P<span data-summary-display="price_regular">{{ number_format((float) ($documentData['price_regular'] ?? 0), 2) }}</span></td></tr>
-                                    <tr><th>Total Products</th><td class="text-right">P<span data-summary-display="price_products">{{ number_format((float) ($documentData['price_products'] ?? 0), 2) }}</span></td></tr>
+                                    <tr><th>Total Services</th><td class="text-right"><span data-summary-display="price_regular">{{ $moneyOrConfirm($documentData['price_regular'] ?? null) }}</span></td></tr>
+                                    <tr><th>Total Products</th><td class="text-right"><span data-summary-display="price_products">{{ $moneyOrConfirm($documentData['price_products'] ?? null) }}</span></td></tr>
                                     <tr><th>Discount</th><td class="text-right">P<span data-summary-display="price_discount">{{ number_format((float) ($documentData['price_discount'] ?? 0), 2) }}</span></td></tr>
                                     <tr><th>Tax</th><td class="text-right">P<span data-summary-display="price_tax">{{ number_format((float) ($documentData['price_tax'] ?? 0), 2) }}</span></td></tr>
-                                    <tr><th>Subtotal</th><td class="text-right">P<span data-summary-display="price_subtotal">{{ number_format((float) ($documentData['price_subtotal'] ?? 0), 2) }}</span></td></tr>
-                                    <tr><th>Total</th><td class="text-right font-semibold text-blue-700">P<span data-summary-display="price_total">{{ number_format((float) ($documentData['price_total'] ?? 0), 2) }}</span></td></tr>
-                                    <tr><th>Downpayment</th><td class="text-right">P<span data-summary-display="price_down">{{ number_format((float) ($documentData['price_down'] ?? 0), 2) }}</span></td></tr>
-                                    <tr><th>Balance</th><td class="text-right">P<span data-summary-display="price_balance">{{ number_format((float) ($documentData['price_balance'] ?? 0), 2) }}</span></td></tr>
+                                    <tr><th>Subtotal</th><td class="text-right"><span data-summary-display="price_subtotal">{{ $moneyOrConfirm($documentData['price_subtotal'] ?? null) }}</span></td></tr>
+                                    <tr><th>Total</th><td class="text-right font-semibold text-blue-700"><span data-summary-display="price_total">{{ $moneyOrConfirm($documentData['price_total'] ?? null) }}</span></td></tr>
+                                    <tr><th>Payment Terms</th><td>{{ filled($documentData['payment_terms'] ?? null) ? $documentData['payment_terms'] : 'Payment terms need confirmation.' }}</td></tr>
+                                    <tr><th>Downpayment</th><td class="text-right"><span data-summary-display="price_down">{{ $moneyOrConfirm($documentData['price_down'] ?? null) }}</span></td></tr>
+                                    <tr><th>Balance</th><td class="text-right"><span data-summary-display="price_balance">{{ $moneyOrConfirm($documentData['price_balance'] ?? null) }}</span></td></tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        <input type="hidden" name="price_regular" value="{{ old('price_regular', $proposal->price_regular) }}">
-                        <input type="hidden" name="price_discount" value="{{ old('price_discount', $proposal->price_discount) }}">
-                        <input type="hidden" name="price_subtotal" value="{{ old('price_subtotal', $proposal->price_subtotal) }}">
-                        <input type="hidden" name="price_tax" value="{{ old('price_tax', $proposal->price_tax) }}">
-                        <input type="hidden" name="price_total" value="{{ old('price_total', $proposal->price_total) }}">
-                        <input type="hidden" name="price_down" value="{{ old('price_down', $proposal->price_down) }}">
-                        <input type="hidden" name="price_balance" value="{{ old('price_balance', $proposal->price_balance) }}">
-                        <textarea name="our_proposal_text" rows="6" class="hidden">{{ old('our_proposal_text', $proposal->our_proposal_text) }}</textarea>
+                        <input type="hidden" name="price_regular" value="{{ old('price_regular', $documentData['price_regular'] ?? '') }}">
+                        <input type="hidden" name="price_discount" value="{{ old('price_discount', $documentData['price_discount'] ?? 0) }}">
+                        <input type="hidden" name="price_subtotal" value="{{ old('price_subtotal', $documentData['price_subtotal'] ?? '') }}">
+                        <input type="hidden" name="price_tax" value="{{ old('price_tax', $documentData['price_tax'] ?? 0) }}">
+                        <input type="hidden" name="price_total" value="{{ old('price_total', $documentData['price_total'] ?? '') }}">
+                        <input type="hidden" name="price_down" value="{{ old('price_down', $documentData['price_down'] ?? '') }}">
+                        <input type="hidden" name="price_balance" value="{{ old('price_balance', $documentData['price_balance'] ?? '') }}">
+                        <textarea name="our_proposal_text" rows="6" class="hidden">{{ old('our_proposal_text', $documentData['our_proposal_text'] ?? '') }}</textarea>
                         <textarea name="document_html" id="proposal-document-html" class="hidden">{{ old('document_html', $proposal->document_html) }}</textarea>
-                        <textarea name="scope_of_service" rows="5" class="hidden">{{ old('scope_of_service', $proposal->scope_of_service) }}</textarea>
-                        <textarea name="what_you_will_receive" rows="5" class="hidden">{{ old('what_you_will_receive', $proposal->what_you_will_receive) }}</textarea>
+                        <textarea name="scope_of_service" rows="5" class="hidden">{{ old('scope_of_service', $documentData['scope_of_service'] ?? '') }}</textarea>
+                        <textarea name="what_you_will_receive" rows="5" class="hidden">{{ old('what_you_will_receive', $documentData['what_you_will_receive'] ?? '') }}</textarea>
                         @if ($requirementGroup === 'sole')
                             <textarea name="requirements_sole" rows="5" class="hidden">{{ old('requirements_sole', $proposal->requirements_sole) }}</textarea>
                         @else
                             <textarea name="requirements_juridical" rows="5" class="hidden">{{ old('requirements_juridical', $proposal->requirements_juridical) }}</textarea>
                         @endif
-                        <textarea name="requirements_optional" rows="4" class="hidden">{{ old('requirements_optional', $proposal->requirements_optional) }}</textarea>
+                        <textarea name="requirements_optional" rows="4" class="hidden">{{ old('requirements_optional', $documentData['requirements_optional'] ?? '') }}</textarea>
 
                         <div class="flex flex-wrap gap-2 pt-2">
                             <button type="submit" class="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Proposal</button>
@@ -547,6 +593,8 @@
     let previewTimer = null;
     let activeController = null;
     const productTotal = Number.parseFloat(form.dataset.priceProducts || '0') || 0;
+    const pricingComplete = form.dataset.pricingComplete === '1';
+    const paymentTerms = String(form.dataset.paymentTerms || '').trim();
 
     const inputByName = (name) => form.querySelector(`[name="${name}"]`);
     const parseNumber = (value) => {
@@ -564,25 +612,37 @@
         .trim();
     const setPreviewDisplay = (field, value) => {
         htmlPreview.querySelectorAll(`[data-proposal-display="${field}"]`).forEach((node) => {
-            node.textContent = formatMoney(value);
+            node.textContent = value === null ? 'Needs confirmation' : formatMoney(value);
         });
         document.querySelectorAll(`[data-summary-display="${field}"]`).forEach((node) => {
-            node.textContent = formatMoney(value);
+            node.textContent = value === null ? 'Needs confirmation' : formatMoney(value);
         });
     };
     const recalculateFeeFields = () => {
+        if (!pricingComplete) {
+            return;
+        }
+
         const regular = parseNumber(inputByName('price_regular')?.value || 0);
         const discount = parseNumber(inputByName('price_discount')?.value || 0);
         const tax = parseNumber(inputByName('price_tax')?.value || 0);
         const subtotal = Math.max((regular + productTotal) - discount, 0);
         const total = subtotal + tax;
-        const down = Number((total * 0.5).toFixed(2));
-        const balance = Number((total - down).toFixed(2));
+        let down = null;
+        let balance = null;
+        const paymentMatch = paymentTerms.match(/\b(\d{1,3}(?:\.\d+)?)\s*%/);
+        if (/\b100\s*%|\bfull payment\b/i.test(paymentTerms)) {
+            down = Number(total.toFixed(2));
+            balance = 0;
+        } else if (paymentMatch) {
+            down = Number((total * Math.min(Number(paymentMatch[1]), 100) / 100).toFixed(2));
+            balance = Number((total - down).toFixed(2));
+        }
 
         if (inputByName('price_subtotal')) inputByName('price_subtotal').value = subtotal.toFixed(2);
         if (inputByName('price_total')) inputByName('price_total').value = total.toFixed(2);
-        if (inputByName('price_down')) inputByName('price_down').value = down.toFixed(2);
-        if (inputByName('price_balance')) inputByName('price_balance').value = balance.toFixed(2);
+        if (inputByName('price_down')) inputByName('price_down').value = down === null ? '' : down.toFixed(2);
+        if (inputByName('price_balance')) inputByName('price_balance').value = balance === null ? '' : balance.toFixed(2);
 
         setPreviewDisplay('price_regular', regular);
         setPreviewDisplay('price_products', productTotal);
@@ -693,11 +753,19 @@
         const location = extractFieldText('.proposal-presented-location');
         const proposalText = extractFieldMultiline('.proposal-page:nth-of-type(7) .proposal-paragraph');
         const preparedByName = extractFieldText('.proposal-signature-line');
+        const scope = extractFieldMultiline('.proposal-scope-of-service');
+        const deliverables = extractFieldMultiline('.proposal-deliverables');
 
         if (inputByName('service_type') && serviceType) inputByName('service_type').value = serviceType;
         if (inputByName('location') && location) inputByName('location').value = location;
         if (inputByName('our_proposal_text') && proposalText) inputByName('our_proposal_text').value = proposalText;
         if (inputByName('prepared_by_name') && preparedByName) inputByName('prepared_by_name').value = preparedByName;
+        if (inputByName('scope_of_service')) {
+            inputByName('scope_of_service').value = scope === 'Scope of work needs confirmation.' ? '' : scope;
+        }
+        if (inputByName('what_you_will_receive')) {
+            inputByName('what_you_will_receive').value = deliverables === 'Deliverables need confirmation.' ? '' : deliverables;
+        }
 
         const requirementCells = htmlPreview.querySelectorAll('.proposal-requirements-table tbody tr td');
         if (requirementCells.length >= 5) {

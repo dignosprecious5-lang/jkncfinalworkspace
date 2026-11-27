@@ -18,9 +18,9 @@ class ProjectProvisioner
     public function resolveDealWorkspaceStartKyc(Project $project): array
     {
         $project->loadMissing([
-            'deal:id,deal_code,engagement_type,contact_id,company_name,planned_start_date,estimated_completion_date,client_preferred_completion_date,assigned_consultant,assigned_associate,internal_sales_marketing,service_area,services,products,total_estimated_engagement_value,scope_of_work,engagement_type,deal_status',
-            'contact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
-            'company.primaryContact:id,first_name,middle_name,last_name,email,phone,company_name,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
+            'deal:id,deal_code,engagement_type,contact_id,customer_type,company_name,planned_start_date,estimated_completion_date,client_preferred_completion_date,assigned_consultant,assigned_associate,internal_sales_marketing,service_area,services,products,total_estimated_engagement_value,scope_of_work,engagement_type,deal_status,client_kyc_requirements',
+            'contact:id,first_name,middle_name,last_name,email,phone,company_name,customer_type,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
+            'company.primaryContact:id,first_name,middle_name,last_name,email,phone,company_name,customer_type,cif_status,organization_type,business_type_organization,ownership_flag,foreign_business_nature',
             'company.latestBif',
         ]);
 
@@ -33,6 +33,21 @@ class ProjectProvisioner
         }
 
         return $this->defaultStartKycRequirements($project->deal, $project->contact, $project->company);
+    }
+
+    public function resolveDealStartKyc(Deal $deal): array
+    {
+        $deal->loadMissing([
+            'contact',
+            'primaryContact',
+            'companyRecord.primaryContact',
+            'companyRecord.latestBif',
+        ]);
+
+        $contact = $deal->contact ?: ($deal->primaryContact ?: $deal->companyRecord?->primaryContact);
+        $company = $deal->companyRecord;
+
+        return $this->defaultStartKycRequirements($deal, $contact, $company);
     }
 
     public function createFromApprovedDeal(Deal $deal): ?Project
@@ -71,8 +86,9 @@ class ProjectProvisioner
         }
 
         $deal = $project->deal()->first();
-        if ($deal?->isArchived()) {
-            return;
+        if ($deal) {
+            $eligibility = app(DealPaymentEligibility::class);
+            $eligibility->assertActivationAllowed($deal);
         }
         $engagementType = Str::lower(trim((string) ($project->engagement_type ?? '')));
         $isRegular = Str::contains($engagementType, 'regular');
@@ -122,10 +138,14 @@ class ProjectProvisioner
      */
     private function provisionFromDeal(Deal $deal, bool $shell): ?Project
     {
-        if ($deal->isArchived() || ! Schema::hasTable('projects')) {
+        if (! Schema::hasTable('projects')) {
             return null;
         }
 
+        if (! $shell) {
+            $eligibility = app(DealPaymentEligibility::class);
+            $eligibility->assertActivationAllowed($deal);
+        }
         $engagementType = Str::lower(trim((string) ($deal->engagement_type ?? '')));
         $isRegular = Str::contains($engagementType, 'regular');
         $isProject = Str::contains($engagementType, 'project') || Str::contains($engagementType, 'hybrid');
@@ -149,7 +169,10 @@ class ProjectProvisioner
         }
 
         if ($isRegular || $isHybrid) {
-            $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid, shell: $shell);
+            $regularWorkspace = $this->createOrSyncWorkspace($deal, $contact, $company, $clientName, regular: true, hybrid: $isHybrid, shell: $shell);
+            if (! $projectWorkspace) {
+                $projectWorkspace = $regularWorkspace;
+            }
         }
 
         return $projectWorkspace;
@@ -169,8 +192,8 @@ class ProjectProvisioner
         $workspaceType = $regular ? 'regular' : 'project';
         $workspaceEngagementType = $regular
             ? ($hybrid ? 'Hybrid Regular' : ($deal->engagement_type ?: 'Regular Retainer'))
-            : ($hybrid ? 'Hybrid Project' : $deal->engagement_type);
-        $workspaceNameSuffix = $regular ? 'Regular' : 'Project';
+            : ($hybrid ? 'Hybrid' : ($deal->engagement_type ?: 'Project'));
+        $workspaceNameSuffix = $regular ? 'Regular' : ($hybrid ? 'Hybrid' : 'Project');
 
         // Shell workspaces have a neutral holding status until START is approved
         $workspaceStatus      = $shell ? 'shell'                : ($regular ? 'RSAT' : 'SOW');
@@ -195,9 +218,9 @@ class ProjectProvisioner
             'client_name' => $clientName,
             'business_name' => $deal->company_name ?: $contact?->company_name ?: $company?->company_name,
             'service_area' => $deal->service_area,
-            'services' => $deal->services,
-            'products' => $deal->products,
-            'deal_value' => $deal->total_estimated_engagement_value,
+            'services' => is_array($deal->proposal?->line_items_snapshot) ? collect(app(DealPaymentEligibility::class)->state($deal)['items'])->where('ready', true)->where('type', 'SERVICE')->pluck('name')->all() : $deal->services,
+            'products' => is_array($deal->proposal?->line_items_snapshot) ? collect(app(DealPaymentEligibility::class)->state($deal)['items'])->where('ready', true)->where('type', 'PRODUCT')->pluck('name')->all() : $deal->products,
+            'deal_value' => is_array($deal->proposal?->line_items_snapshot) ? app(DealPaymentEligibility::class)->state($deal)['approved_total'] : $deal->total_estimated_engagement_value,
             'scope_summary' => $deal->scope_of_work,
             'client_confirmation_name' => $clientName,
             'metadata' => [
@@ -367,6 +390,17 @@ class ProjectProvisioner
             $sole[] = ['label' => 'If Foreigner: Valid Visa / ACR I-Card', 'status' => $contactDocuments['visa_or_acr'] ? 'provided' : 'pending', 'auto_checked' => true];
         }
 
+        $individual = [
+            ['label' => 'Client Contact Form', 'status' => $deal->contact_id ? 'provided' : 'pending', 'auto_checked' => true],
+            ['label' => 'Client Information Form', 'status' => $contactApproved ? 'provided' : 'pending', 'auto_checked' => true],
+            ['label' => '2 Valid Government IDs', 'status' => $contactDocuments['two_valid_ids'] ? 'provided' : 'pending', 'auto_checked' => true],
+            ['label' => 'TIN ID', 'status' => $contactDocuments['tin_proof'] ? 'provided' : 'pending', 'auto_checked' => true],
+        ];
+        if ($showForeignRows) {
+            $individual[] = ['label' => 'If Foreigner: Passport (Bio Page)', 'status' => $contactDocuments['passport_proof'] ? 'provided' : 'pending', 'auto_checked' => true];
+            $individual[] = ['label' => 'If Foreigner: Valid Visa / ACR I-Card', 'status' => $contactDocuments['visa_or_acr'] ? 'provided' : 'pending', 'auto_checked' => true];
+        }
+
         $juridical = [
             ['label' => 'Client Contact Form', 'status' => $deal->contact_id ? 'provided' : 'pending', 'auto_checked' => true],
             ['label' => 'Business Information Form', 'status' => $bifApproved ? 'provided' : 'pending', 'auto_checked' => true],
@@ -389,10 +423,33 @@ class ProjectProvisioner
             $juridical[] = ['label' => 'If Foreign Signatory/Director: Valid Visa / ACR I-Card', 'status' => $contactDocuments['visa_or_acr'] ? 'provided' : 'pending', 'auto_checked' => true];
         }
 
+        $assignment = (array) ($deal->client_kyc_requirements ?? []);
+        $normalizeRequirements = function (array $rows, string $group) use ($assignment): array {
+            $requiredLabels = collect($assignment[$group] ?? [])
+                ->map(fn ($item) => is_array($item) ? trim((string) ($item['label'] ?? '')) : trim((string) $item))
+                ->filter()
+                ->map(fn ($label) => mb_strtolower($label));
+            $normalized = collect($rows)->map(function (array $row) use ($requiredLabels): array {
+                $row['required'] = $requiredLabels->contains(mb_strtolower(trim((string) ($row['label'] ?? ''))));
+                return $row;
+            });
+            $knownLabels = $normalized->pluck('label')->map(fn ($label) => mb_strtolower(trim((string) $label)));
+            foreach ((array) data_get($assignment, "custom.{$group}", []) as $customLabel) {
+                $label = trim((string) (is_array($customLabel) ? ($customLabel['label'] ?? '') : $customLabel));
+                $key = mb_strtolower($label);
+                if ($label !== '' && ! $knownLabels->contains($key)) {
+                    $normalized->push(['label' => $label, 'status' => 'pending', 'auto_checked' => false, 'required' => true, 'custom' => true]);
+                    $knownLabels->push($key);
+                }
+            }
+            return $normalized->values()->all();
+        };
+
         return [
             'organization_type' => $organization,
-            'sole' => $organization === 'sole_proprietorship' ? $sole : [],
-            'juridical' => $this->isJuridicalOrganization($organization) ? $juridical : [],
+            'sole' => $organization === 'sole_proprietorship' ? $normalizeRequirements($sole, 'sole') : [],
+            'individual' => $organization === 'individual' ? $normalizeRequirements($individual, 'individual') : [],
+            'juridical' => $this->isJuridicalOrganization($organization) ? $normalizeRequirements($juridical, 'juridical') : [],
         ];
     }
 
@@ -494,6 +551,9 @@ class ProjectProvisioner
                 ->values();
         }
 
+        if (is_array($deal->proposal?->line_items_snapshot)) {
+            $services = collect(app(DealPaymentEligibility::class)->state($deal)['items'])->where('ready', true)->pluck('name');
+        }
         return $services
             ->take(5)
             ->map(fn ($item): array => [
@@ -556,6 +616,11 @@ class ProjectProvisioner
             ?: $contact?->business_type_organization
             ?: $contact?->organization_type
             ?: '')));
+
+        $customerType = strtolower(trim((string) ($deal->customer_type ?: $contact?->customer_type ?: $deal->account?->account_type ?: '')));
+        if ($organization === '' && in_array($customerType, ['individual', 'person', 'natural person'], true)) {
+            return 'individual';
+        }
 
         if ($organization === '' && $company) {
             return 'corporation';

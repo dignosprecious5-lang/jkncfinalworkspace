@@ -1,429 +1,455 @@
 @php
-    $data = $dealFormData ?? [];
-    $dealInfo = $deal ?? [];
-    $detailInfo = $detail ?? [];
-    $logoFilePath = public_path('images/imaglogo.png');
-    $logoUrl = asset('images/imaglogo.png');
-
-    $text = static function ($key, $fallback = '-') use ($data): string {
-        $value = $data[$key] ?? null;
-
-        if (is_array($value)) {
-            $value = collect($value)
-                ->flatten()
-                ->filter(fn ($item) => filled($item))
-                ->map(fn ($item) => trim((string) $item))
-                ->filter()
-                ->implode(', ');
+    $data = $dealFormData ?? ($detail ?? []);
+    $logoBase64 = $data['logo_base64'] ?? ($logoBase64 ?? '');
+    if (! filled($logoBase64)) {
+        $logoPath = public_path('images/imaglogo.png');
+        if (file_exists($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
         }
+    }
 
-        return filled($value) ? (string) $value : $fallback;
+    $val = static function ($key, $fallback = '-') use ($data): string {
+        $v = $data[$key] ?? null;
+        if (is_array($v)) {
+            $v = collect($v)->flatten()->filter(fn ($i) => filled($i))->implode(', ');
+        }
+        return filled($v) ? (string) $v : $fallback;
     };
 
-    $listText = static function (array $values, string $fallback = '-') : string {
-        $normalized = collect($values)
-            ->flatten()
-            ->filter(fn ($item) => filled($item))
-            ->map(fn ($item) => trim((string) $item))
-            ->filter()
-            ->values()
-            ->all();
-
-        return $normalized === [] ? $fallback : implode(', ', $normalized);
-    };
-
-    $formatDate = static function ($value, string $fallback = '-'): string {
-        if (! filled($value)) {
-            return $fallback;
-        }
-
-        try {
-            return \Illuminate\Support\Carbon::parse((string) $value)->format('M d, Y');
-        } catch (\Throwable) {
-            return (string) $value;
-        }
-    };
-
-    $money = static function ($value): string {
-        if (! filled($value)) {
-            return 'P0.00';
-        }
-
-        $raw = str_replace(['P', ',', ' '], '', (string) $value);
-        if (is_numeric($raw)) {
-            return 'P'.number_format((float) $raw, 2);
-        }
-
-        return (string) $value;
-    };
-
-    $statusMap = is_array($data['requirements_status_map'] ?? null) ? $data['requirements_status_map'] : [];
-    $requiredActions = collect($data['required_actions_options'] ?? [])
-        ->merge($data['required_actions_custom'] ?? [])
-        ->filter(fn ($item) => filled($item))
-        ->map(fn ($item) => trim(str_replace('Custom: ', '', (string) $item)))
-        ->filter()
-        ->values()
-        ->all();
-
-    $serviceArea = $listText([
-        $data['service_area_options'] ?? [],
-        collect($data['service_area_other'] ?? [])->map(fn ($item) => 'Others: '.trim((string) $item))->all(),
-    ], $text('service_area'));
-
-    $services = $listText([
-        $data['service_options'] ?? [],
-        collect($data['service_identification_custom'] ?? [])->map(fn ($item) => 'Custom: '.trim((string) $item))->all(),
-    ], $text('services'));
-
-    $products = $listText([
-        $data['product_options'] ?? [],
-        collect($data['products_other_entries'] ?? [])->map(fn ($item) => 'Custom: '.trim((string) $item))->all(),
-    ], $text('products'));
-
-    $supportRequired = $listText([
-        $data['support_required_options'] ?? [],
-        collect($data['support_required_custom'] ?? [])->map(fn ($item) => trim((string) $item))->all(),
-    ], $text('support_required'));
-
-    $requirementRows = [
-        'client_contact_form' => 'Client Contact Form',
-        'deal_form' => 'Deal Form',
-        'business_information_form' => 'Business Information Form',
-        'client_information_form' => 'Client Information Form',
-        'service_task_activation_routing_tracker' => 'Service Task Activation & Routing Tracker (Start)',
-    ];
+    $requirements = $data['client_requirements'] ?? [];
+    if (! is_array($requirements) || count($requirements) === 0) {
+        $statusMap = is_array($data['requirements_status_map'] ?? null) ? $data['requirements_status_map'] : [];
+        $requirements = [
+            [
+                'requirement' => 'Client Contact Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Deal Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Business Information Form',
+                'provided' => 'Yes',
+                'pending' => '-',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Client Information Form',
+                'provided' => '-',
+                'pending' => 'Yes',
+                'required_action' => '-',
+            ],
+            [
+                'requirement' => 'Service Task Activation & Routing Tracker (Start)',
+                'provided' => '-',
+                'pending' => 'Yes',
+                'required_action' => '-',
+            ],
+        ];
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Consulting and Deal Form</title>
+    <title>Consulting and Deal Form - {{ $val('deal_no', $val('deal_form_no', 'DEAL')) }}</title>
     <style>
         @page {
-            size: A4;
-            margin: 8mm;
+            size: a4 portrait;
+            margin: 0.75in;
+        }
+        table, td, th, div, p, span {
+            box-sizing: border-box;
         }
         body {
-            margin: 0;
-            background: #eef2f7;
+            font-family: Arial, Helvetica, sans-serif;
             color: #0f172a;
-            font-family: "Times New Roman", Georgia, serif;
-            font-size: 11px;
-            line-height: 1.2;
+            font-size: 8pt;
+            line-height: 1.15;
+            background: #ffffff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
-        .shell {
-            width: 206mm;
-            max-width: 100%;
-            margin: 0 auto;
-            padding: 12px;
-        }
         .toolbar {
-            margin: 0 auto 12px;
-            width: 206mm;
-            max-width: 100%;
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
+            width: 100%;
+            margin-bottom: 8px;
+            text-align: right;
         }
-        .toolbar-button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 8px 12px;
-            border: 1px solid #1d4ed8;
-            background: #1d4ed8;
-            color: #fff;
+        .toolbar-btn {
+            display: inline-block;
+            padding: 6px 14px;
+            background: #0b2a68;
+            color: #ffffff;
             text-decoration: none;
-            font: 600 12px Arial, sans-serif;
-            cursor: pointer;
+            font-size: 8pt;
+            font-weight: bold;
+            border-radius: 4px;
+            margin-left: 6px;
         }
-        .toolbar-button.secondary {
-            border-color: #cbd5e1;
-            background: #fff;
-            color: #334155;
+        .toolbar-btn.back {
+            background: #475569;
         }
-        .sheet {
-            background: #fff;
-            width: 188mm;
-            margin: 0 auto;
-            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-            padding: 3mm;
+        @media print {
+            .toolbar {
+                display: none !important;
+            }
         }
         .sheet-frame {
-            border: 1.5px solid #334155;
-            overflow: hidden;
-            background: #fff;
+            width: 100%;
+            border: 1.5px solid #0b2a68;
         }
-        .sheet *, .sheet *::before, .sheet *::after { box-sizing: border-box; }
-        .head {
-            display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
-            gap: 12px;
-            align-items: start;
-            border-bottom: 1px solid #334155;
-            padding: 10px 12px 8px;
+        table.grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin: 0;
+            padding: 0;
         }
-        .brand img {
-            width: 180px;
-            max-width: 100%;
-            height: auto;
+        table.grid-table td, table.grid-table th {
+            border-right: 1px solid #0b2a68;
+            border-bottom: 1px solid #0b2a68;
+            padding: 2.5px 5px;
+            vertical-align: top;
+        }
+        table.grid-table tr:last-child td {
+            border-bottom: none;
+        }
+        table.grid-table td:last-child, table.grid-table th:last-child {
+            border-right: none;
+        }
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            border-bottom: 1.5px solid #0b2a68;
+        }
+        .header-table td {
+            vertical-align: middle;
+            border: none;
+            padding: 4px 6px;
+        }
+        .brand-logo {
+            max-height: 42px;
+            width: auto;
             display: block;
         }
-        .title {
+        .brand-fallback-title {
+            font-family: "Times New Roman", Georgia, serif;
+            font-size: 17pt;
+            font-weight: bold;
+            color: #0b1d3a;
+            line-height: 1;
+        }
+        .brand-fallback-sub {
+            font-family: "Times New Roman", Georgia, serif;
+            font-size: 12pt;
+            font-style: italic;
+            color: #0b1d3a;
+            line-height: 1;
+        }
+        .doc-title {
             text-align: right;
-            font-family: Arial, sans-serif;
-            font-size: 18px;
-            font-weight: 700;
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            letter-spacing: 0.3px;
             text-transform: uppercase;
             line-height: 1.1;
         }
-        .meta {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 6px;
-            font-size: 11px;
+        .doc-meta {
+            text-align: right;
+            font-size: 8pt;
+            color: #1e293b;
+            margin-top: 3px;
         }
         .section-title {
-            padding: 5px 8px;
-            border-bottom: 1px solid #334155;
-            background: #102d79;
-            color: #fff;
+            background: #0b2a68;
+            color: #ffffff;
             text-align: center;
-            font: 700 12px Arial, sans-serif;
+            font-size: 7.5pt;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.5px;
+            padding: 2.5px 0;
+            border-bottom: 1px solid #0b2a68;
+            border-top: 1px solid #0b2a68;
+            width: 100%;
         }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(24, minmax(0, 1fr));
-        }
-        .cell {
-            min-height: 40px;
-            padding: 6px 7px;
-            border-right: 1px solid #334155;
-            border-bottom: 1px solid #334155;
-            background: #fff;
-        }
-        .grid > .cell:last-child { border-right: 0; }
         .label {
-            display: block;
-            font-size: 9px;
-            line-height: 1.05;
-            font-weight: 700;
+            font-size: 6.2pt;
+            font-weight: bold;
             text-transform: uppercase;
-            color: #111827;
-            font-family: Arial, sans-serif;
+            color: #000000;
+            display: block;
+            line-height: 1.05;
+            margin-bottom: 1.5px;
         }
         .value {
-            display: block;
-            padding-top: 3px;
-            font-size: 11px;
-            line-height: 1.22;
-            white-space: pre-wrap;
-            word-break: break-word;
+            font-size: 7.5pt;
+            color: #0f172a;
+            min-height: 9pt;
+            line-height: 1.15;
+            word-wrap: break-word;
         }
-        .mini-table {
+        .req-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
+            margin: 0;
+            padding: 0;
         }
-        .mini-table td, .mini-table th {
-            border-right: 1px solid #334155;
-            border-bottom: 1px solid #334155;
-            padding: 6px 7px;
-            vertical-align: top;
-            font-size: 11px;
-        }
-        .mini-table td:last-child, .mini-table th:last-child { border-right: 0; }
-        .mini-table th {
-            background: #f8fafc;
-            font: 700 9px Arial, sans-serif;
+        .req-table th {
+            background: #ffffff;
+            font-size: 6.2pt;
+            font-weight: bold;
             text-transform: uppercase;
+            border-right: 1px solid #0b2a68;
+            border-bottom: 1px solid #0b2a68;
+            padding: 2.5px 5px;
             text-align: left;
+            color: #000000;
+            line-height: 1.05;
         }
-        .status-provided { background: #ecfdf5; }
-        .status-pending { background: #fffbeb; }
+        .req-table td {
+            border-right: 1px solid #0b2a68;
+            border-bottom: 1px solid #0b2a68;
+            padding: 2.5px 5px;
+            font-size: 7.5pt;
+            color: #0f172a;
+            vertical-align: middle;
+            text-align: left;
+            line-height: 1.15;
+        }
+        .req-table tr:last-child td {
+            border-bottom: none;
+        }
+        .req-table td:last-child, .req-table th:last-child {
+            border-right: none;
+        }
         .footer-note {
-            padding: 4px 8px;
-            font-size: 8px;
-            color: #475569;
             text-align: right;
-            border-top: 1px solid #334155;
-        }
-        .col-3 { grid-column: span 3 / span 3; }
-        .col-4 { grid-column: span 4 / span 4; }
-        .col-5 { grid-column: span 5 / span 5; }
-        .col-6 { grid-column: span 6 / span 6; }
-        .col-7 { grid-column: span 7 / span 7; }
-        .col-8 { grid-column: span 8 / span 8; }
-        .col-10 { grid-column: span 10 / span 10; }
-        .col-12 { grid-column: span 12 / span 12; }
-        .col-24 { grid-column: span 24 / span 24; }
-        @media print {
-            body { background: #fff; }
-            .shell { width: auto; max-width: none; margin: 0; padding: 0; }
-            .toolbar { display: none !important; }
-            .sheet {
-                width: 100%;
-                margin: 0;
-                box-shadow: none;
-                padding: 0;
-            }
-            .sheet-frame {
-                border: 1.5px solid #334155;
-            }
+            font-size: 6.5pt;
+            color: #475569;
+            font-style: italic;
+            padding: 3px 2px 0 0;
         }
     </style>
 </head>
 <body>
-    <div class="toolbar">
-        <a href="{{ route('deals.show', $dealInfo['id'] ?? 0) }}" class="toolbar-button secondary">Back</a>
-        <button type="button" onclick="window.print()" class="toolbar-button">Print / Save as PDF</button>
-    </div>
 
-    <div class="shell">
-        <div class="sheet">
-            <div class="sheet-frame">
-                <div class="head">
-                    <div class="brand">
-                        @if (is_file($logoFilePath))
-                            <img src="{{ $logoUrl }}" alt="John Kelly and Company">
-                        @endif
-                    </div>
-                    <div>
-                        <div class="title">Consulting &amp; Deal Form</div>
-                        <div class="meta">
-                            <span>Deal No. {{ $dealInfo['deal_code'] ?? ('DEAL-'.$dealInfo['id']) }}</span>
-                            <span>Date {{ optional($generatedAt ?? null)->format('m/d/Y') ?? now()->format('m/d/Y') }}</span>
-                        </div>
-                    </div>
+@if(!empty($autoPrint) || request()->has('preview'))
+<div class="toolbar">
+    <a href="javascript:history.back()" class="toolbar-btn back">← Back</a>
+    <a href="javascript:window.print()" class="toolbar-btn">🖨 Print</a>
+</div>
+@endif
+
+<div class="sheet-frame">
+
+    <!-- 1. CONSULTING & DEAL FORM HEADER -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 45%;">
+                @if(filled($logoBase64))
+                    <img src="{{ $logoBase64 }}" class="brand-logo" alt="John Kelly & Company">
+                @else
+                    <div class="brand-fallback-title">John Kelly</div>
+                    <div class="brand-fallback-sub">&amp; Company</div>
+                @endif
+            </td>
+            <td style="width: 55%; text-align: right;">
+                <div class="doc-title">CONSULTING &amp; DEAL FORM</div>
+                <div class="doc-meta">
+                    Deal No. {{ $val('deal_no', $val('deal_form_no', '-')) }} &nbsp;&nbsp;&nbsp;&nbsp; Date {{ $val('header_date', $val('date', date('m/d/Y'))) }}
                 </div>
+            </td>
+        </tr>
+    </table>
 
-                <div class="grid">
-                    <div class="cell col-8"><span class="label">Deal Name</span><span class="value">{{ $dealInfo['deal_name'] ?? '-' }}</span></div>
-                    <div class="cell col-5"><span class="label">Stage</span><span class="value">{{ $dealInfo['stage'] ?? $text('stage') }}</span></div>
-                    <div class="cell col-6"><span class="label">Engagement Type</span><span class="value">{{ $text('engagement_type') }}</span></div>
-                    <div class="cell col-5"><span class="label">Total Value</span><span class="value">{{ $money($dealInfo['value'] ?? ($data['total_estimated_engagement_value'] ?? null)) }}</span></div>
-                </div>
+    <!-- 2. DEAL SUMMARY -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 33%; border-bottom: none;"><span class="label">Deal Name</span><div class="value">{{ $val('deal_name', $val('deal_title', '-')) }}</div></td>
+            <td style="width: 19%; border-bottom: none;"><span class="label">Stage</span><div class="value">{{ $val('stage', '-') }}</div></td>
+            <td style="width: 27%; border-bottom: none;"><span class="label">Engagement Type</span><div class="value">{{ $val('engagement_type', $val('engagement_term', '-')) }}</div></td>
+            <td style="width: 21%; border-bottom: none;"><span class="label">Total Value</span><div class="value">{{ $val('total_value', 'P0.00') }}</div></td>
+        </tr>
+    </table>
 
-                <div class="section-title">Contact Information</div>
-                <div class="grid">
-                    <div class="cell col-3"><span class="label">Salutation</span><span class="value">{{ $text('salutation') }}</span></div>
-                    <div class="cell col-5"><span class="label">First Name</span><span class="value">{{ $text('first_name') }}</span></div>
-                    <div class="cell col-3"><span class="label">Middle Initial</span><span class="value">{{ $text('middle_initial') }}</span></div>
-                    <div class="cell col-5"><span class="label">Last Name</span><span class="value">{{ $text('last_name') }}</span></div>
-                    <div class="cell col-4"><span class="label">Name Extension</span><span class="value">{{ $text('name_extension') }}</span></div>
-                    <div class="cell col-4"><span class="label">Sex</span><span class="value">{{ $text('sex') }}</span></div>
-                </div>
-                <div class="grid">
-                    <div class="cell col-5"><span class="label">Date of Birth</span><span class="value">{{ $formatDate($data['date_of_birth'] ?? null) }}</span></div>
-                    <div class="cell col-7"><span class="label">Email Address</span><span class="value">{{ $detailInfo['email_address'] ?? $text('email') }}</span></div>
-                    <div class="cell col-5"><span class="label">Mobile Number</span><span class="value">{{ $detailInfo['contact_number'] ?? $text('mobile') }}</span></div>
-                    <div class="cell col-7"><span class="label">Position / Designation</span><span class="value">{{ $detailInfo['contact_person_position'] ?? $text('position') }}</span></div>
-                </div>
-                <div class="grid">
-                    <div class="cell col-12"><span class="label">Address</span><span class="value">{{ $text('address') }}</span></div>
-                    <div class="cell col-5"><span class="label">Company</span><span class="value">{{ $dealInfo['company_name'] ?? $text('company_name') }}</span></div>
-                    <div class="cell col-7"><span class="label">Company Address</span><span class="value">{{ $text('company_address') }}</span></div>
-                </div>
+    <!-- 3. CONTACT INFORMATION -->
+    <div class="section-title">Contact Information</div>
+    
+    <!-- Contact Info Row 1 (6 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 11%; border-bottom: none;"><span class="label">Salutation</span><div class="value">{{ $val('salutation', '-') }}</div></td>
+            <td style="width: 23%; border-bottom: none;"><span class="label">First Name</span><div class="value">{{ $val('first_name', '-') }}</div></td>
+            <td style="width: 12%; border-bottom: none;"><span class="label">Middle Initial</span><div class="value">{{ $val('middle_initial', '-') }}</div></td>
+            <td style="width: 22%; border-bottom: none;"><span class="label">Last Name</span><div class="value">{{ $val('last_name', '-') }}</div></td>
+            <td style="width: 16%; border-bottom: none;"><span class="label">Name Extension</span><div class="value">{{ $val('name_extension', '-') }}</div></td>
+            <td style="width: 16%; border-bottom: none;"><span class="label">Sex</span><div class="value">{{ $val('sex', '-') }}</div></td>
+        </tr>
+    </table>
 
-            <div class="section-title">Service Identification</div>
-            <div class="grid">
-                <div class="cell col-12"><span class="label">Service Area</span><span class="value">{{ $serviceArea }}</span></div>
-                <div class="cell col-12"><span class="label">Services</span><span class="value">{{ $services }}</span></div>
-            </div>
+    <!-- Contact Info Row 2 (4 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 23%; border-bottom: none;"><span class="label">Date of Birth</span><div class="value">{{ $val('date_of_birth', '-') }}</div></td>
+            <td style="width: 28%; border-bottom: none;"><span class="label">Email Address</span><div class="value">{{ $val('email', $val('email_address', '-')) }}</div></td>
+            <td style="width: 22%; border-bottom: none;"><span class="label">Mobile Number</span><div class="value">{{ $val('mobile', $val('mobile_number', '-')) }}</div></td>
+            <td style="width: 27%; border-bottom: none;"><span class="label">Position / Designation</span><div class="value">{{ $val('position', $val('contact_person_position', '-')) }}</div></td>
+        </tr>
+    </table>
 
-            <div class="section-title">Products</div>
-            <div class="grid">
-                <div class="cell col-12"><span class="label">Products / Deliverables</span><span class="value">{{ $products }}</span></div>
-                <div class="cell col-12"><span class="label">Scope of Work</span><span class="value">{{ $text('scope_of_work') }}</span></div>
-            </div>
+    <!-- Contact Info Row 3 (3 columns) -->
+    <table class="grid-table">
+        <tr>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Address</span><div class="value">{{ $val('address', '-') }}</div></td>
+            <td style="width: 20%; border-bottom: none;"><span class="label">Company</span><div class="value">{{ $val('company', $val('company_name', '-')) }}</div></td>
+            <td style="width: 30%; border-bottom: none;"><span class="label">Company Address</span><div class="value">{{ $val('company_address', '-') }}</div></td>
+        </tr>
+    </table>
 
-            <div class="section-title">Client Requirements</div>
-            <table class="mini-table">
-                <tr>
-                    <th style="width:46%;">Requirement</th>
-                    <th style="width:18%;">Provided</th>
-                    <th style="width:18%;">Pending</th>
-                    <th style="width:18%;">Required Action</th>
-                </tr>
-                @foreach ($requirementRows as $key => $label)
-                    @php $status = strtolower((string) ($statusMap[$key] ?? 'pending')); @endphp
-                    <tr class="{{ $status === 'provided' ? 'status-provided' : 'status-pending' }}">
-                        <td>{{ $label }}</td>
-                        <td>{{ $status === 'provided' ? 'Yes' : '-' }}</td>
-                        <td>{{ $status === 'pending' ? 'Yes' : '-' }}</td>
-                        <td>{{ $listText($requiredActions) }}</td>
-                    </tr>
-                @endforeach
-            </table>
+    <!-- 4. SERVICE IDENTIFICATION -->
+    <div class="section-title">Service Identification</div>
+    <table class="grid-table">
+        <tr>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Service Area</span><div class="value">{{ $val('service_area', '-') }}</div></td>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Services</span><div class="value">{{ $val('services', '-') }}</div></td>
+        </tr>
+    </table>
 
-            <div class="section-title">Timeline &amp; Assessment</div>
-            <div class="grid">
-                <div class="cell col-6"><span class="label">Planned Start Date</span><span class="value">{{ $formatDate($data['planned_start_date'] ?? null) }}</span></div>
-                <div class="cell col-6"><span class="label">Estimated Duration</span><span class="value">{{ $text('estimated_duration') }}</span></div>
-                <div class="cell col-6"><span class="label">Estimated Completion Date</span><span class="value">{{ $formatDate($data['estimated_completion_date'] ?? null) }}</span></div>
-                <div class="cell col-6"><span class="label">Confirmed Delivery Date</span><span class="value">{{ $formatDate($data['confirmed_delivery_date'] ?? null) }}</span></div>
-            </div>
-            <div class="grid">
-                <div class="cell col-8"><span class="label">Timeline Notes</span><span class="value">{{ $text('timeline_notes') }}</span></div>
-                <div class="cell col-6"><span class="label">Service Complexity</span><span class="value">{{ $text('service_complexity') }}</span></div>
-                <div class="cell col-10"><span class="label">Professional Support Required</span><span class="value">{{ $supportRequired }}</span></div>
-            </div>
+    <!-- 5. PRODUCTS -->
+    <div class="section-title">Products</div>
+    <table class="grid-table">
+        <tr>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Products / Deliverables</span><div class="value">{{ $val('products', $val('products_deliverables', '-')) }}</div></td>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Scope of Work</span><div class="value">{{ $val('scope_of_work', '-') }}</div></td>
+        </tr>
+    </table>
 
-            <div class="section-title">Fees &amp; Payment</div>
-            <div class="grid">
-                <div class="cell col-6"><span class="label">Professional Fee</span><span class="value">{{ $money($data['estimated_professional_fee'] ?? null) }}</span></div>
-                <div class="cell col-6"><span class="label">Government Fees</span><span class="value">{{ $money($data['estimated_government_fees'] ?? null) }}</span></div>
-                <div class="cell col-6"><span class="label">Service Support Fee</span><span class="value">{{ $money($data['estimated_service_support_fee'] ?? null) }}</span></div>
-                <div class="cell col-6"><span class="label">Payment Terms</span><span class="value">{{ $text('payment_terms') }}</span></div>
-            </div>
+    <!-- 6. CLIENT REQUIREMENTS -->
+    <div class="section-title" style="background: #163b7a;">Client Requirements</div>
+    <table class="req-table">
+        <tr>
+            <th style="width: 46%;">Requirement</th>
+            <th style="width: 18%;">Provided</th>
+            <th style="width: 18%;">Pending</th>
+            <th style="width: 18%;">Required Action</th>
+        </tr>
+        @foreach($requirements as $req)
+        <tr>
+            <td style="{{ $loop->last ? 'border-bottom: none;' : '' }}">{{ $req['requirement'] ?? '-' }}</td>
+            <td style="{{ $loop->last ? 'border-bottom: none;' : '' }}">{{ $req['provided'] ?? '-' }}</td>
+            <td style="{{ $loop->last ? 'border-bottom: none;' : '' }}">{{ $req['pending'] ?? '-' }}</td>
+            <td style="{{ $loop->last ? 'border-bottom: none;' : '' }}">{{ $req['required_action'] ?? '-' }}</td>
+        </tr>
+        @endforeach
+    </table>
 
-                <div class="section-title">Proposal &amp; Internal Assignment</div>
-                <div class="grid">
-                    <div class="cell col-8"><span class="label">Proposal Decision</span><span class="value">{{ $text('proposal_decision') }}</span></div>
-                    <div class="cell col-8"><span class="label">Decline Reason</span><span class="value">{{ $text('decline_reason') }}</span></div>
-                    <div class="cell col-8"><span class="label">Service Department / Unit</span><span class="value">{{ $text('service_department_unit') }}</span></div>
-                </div>
-                <div class="grid">
-                    <div class="cell col-12"><span class="label">Assigned Consultant</span><span class="value">{{ $text('assigned_consultant') }}</span></div>
-                    <div class="cell col-12"><span class="label">Assigned Associate</span><span class="value">{{ $text('assigned_associate') }}</span></div>
-                </div>
+    <!-- 7. TIMELINE & ASSESSMENT -->
+    <div class="section-title" style="background: #163b7a;">Timeline &amp; Assessment</div>
+    
+    <!-- Timeline Row 1 (4 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Planned Start Date</span><div class="value">{{ $val('planned_start_date', '-') }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Estimated Duration</span><div class="value">{{ $val('estimated_duration', '-') }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Estimated Completion Date</span><div class="value">{{ $val('estimated_completion_date', '-') }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Confirmed Delivery Date</span><div class="value">{{ $val('confirmed_delivery_date', '-') }}</div></td>
+        </tr>
+    </table>
 
-                <div class="section-title">Notes &amp; Approval</div>
-                <div class="grid">
-                    <div class="cell col-12"><span class="label">Consultant Notes</span><span class="value">{{ $text('consultant_notes') }}</span></div>
-                    <div class="cell col-12"><span class="label">Associate Notes</span><span class="value">{{ $text('associate_notes') }}</span></div>
-                </div>
-                <div class="grid">
-                    <div class="cell col-6"><span class="label">Prepared By</span><span class="value">{{ $text('prepared_by') }}</span></div>
-                    <div class="cell col-6"><span class="label">Reviewed By</span><span class="value">{{ $text('reviewed_by') }}</span></div>
-                    <div class="cell col-6"><span class="label">Date</span><span class="value">{{ $formatDate($data['internal_date'] ?? null, $text('internal_date')) }}</span></div>
-                    <div class="cell col-6"><span class="label">Client Fullname &amp; Signature</span><span class="value">{{ $text('client_fullname_signature') }}</span></div>
-                </div>
-                <div class="grid">
-                    <div class="cell col-4"><span class="label">Referred / Closed By</span><span class="value">{{ $text('referred_closed_by') }}</span></div>
-                    <div class="cell col-4"><span class="label">Sales &amp; Marketing</span><span class="value">{{ $text('internal_sales_marketing') }}</span></div>
-                    <div class="cell col-4"><span class="label">Lead Consultant</span><span class="value">{{ $text('lead_consultant') }}</span></div>
-                    <div class="cell col-4"><span class="label">Lead Associate</span><span class="value">{{ $text('lead_associate_assigned') }}</span></div>
-                    <div class="cell col-4"><span class="label">Finance</span><span class="value">{{ $text('internal_finance') }}</span></div>
-                    <div class="cell col-4"><span class="label">President</span><span class="value">{{ $text('internal_president') }}</span></div>
-                </div>
+    <!-- Timeline Row 2 (3 columns) -->
+    <table class="grid-table">
+        <tr>
+            <td style="width: 35%; border-bottom: none;"><span class="label">Timeline Notes</span><div class="value">{{ $val('timeline_notes', '-') }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Service Complexity</span><div class="value">{{ $val('service_complexity', '-') }}</div></td>
+            <td style="width: 40%; border-bottom: none;"><span class="label">Professional Support Required</span><div class="value">{{ $val('professional_support_required', $val('support_required', '-')) }}</div></td>
+        </tr>
+    </table>
 
-                <div class="footer-note">John Kelly &amp; Company</div>
-            </div>
-        </div>
-    </div>
+    <!-- 8. FEES & PAYMENT -->
+    <div class="section-title">Fees &amp; Payment</div>
+    <table class="grid-table">
+        <tr>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Professional Fee</span><div class="value">{{ $val('professional_fee', $val('estimated_professional_fee', '-')) }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Government Fees</span><div class="value">{{ $val('government_fees', $val('estimated_government_fees', 'P0.00')) }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Service Support Fee</span><div class="value">{{ $val('service_support_fee', $val('estimated_service_support_fee', 'P0.00')) }}</div></td>
+            <td style="width: 25%; border-bottom: none;"><span class="label">Payment Terms</span><div class="value">{{ $val('payment_terms', '-') }}</div></td>
+        </tr>
+    </table>
 
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('autoprint') === '1') {
-            window.onload = () => window.print();
-        }
-    </script>
+    <!-- 9. PROPOSAL & INTERNAL ASSIGNMENT -->
+    <div class="section-title">Proposal &amp; Internal Assignment</div>
+    
+    <!-- Proposal Row 1 (3 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 35%; border-bottom: none;"><span class="label">Proposal Decision</span><div class="value">{{ $val('proposal_decision', '-') }}</div></td>
+            <td style="width: 35%; border-bottom: none;"><span class="label">Decline Reason</span><div class="value">{{ $val('decline_reason', '-') }}</div></td>
+            <td style="width: 30%; border-bottom: none;"><span class="label">Service Department / Unit</span><div class="value">{{ $val('service_department_unit', $val('service_department', '-')) }}</div></td>
+        </tr>
+    </table>
+
+    <!-- Proposal Row 2 (2 columns) -->
+    <table class="grid-table">
+        <tr>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Assigned Consultant</span><div class="value">{{ $val('assigned_consultant', $val('lead_consultant', '-')) }}</div></td>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Assigned Associate</span><div class="value">{{ $val('assigned_associate', $val('lead_associate_assigned', '-')) }}</div></td>
+        </tr>
+    </table>
+
+    <!-- 10. NOTES & APPROVAL -->
+    <div class="section-title">Notes &amp; Approval</div>
+    
+    <!-- Notes Row 1 (2 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Consultant Notes</span><div class="value">{{ $val('consultant_notes', '-') }}</div></td>
+            <td style="width: 50%; border-bottom: none;"><span class="label">Associate Notes</span><div class="value">{{ $val('associate_notes', '-') }}</div></td>
+        </tr>
+    </table>
+
+    <!-- Signatures Row 2 (4 columns) -->
+    <table class="grid-table" style="border-bottom: 1px solid #0b2a68;">
+        <tr>
+            <td style="width: 26%; border-bottom: none;"><span class="label">Prepared By</span><div class="value">{{ $val('prepared_by', '-') }}</div></td>
+            <td style="width: 26%; border-bottom: none;"><span class="label">Reviewed By</span><div class="value">{{ $val('reviewed_by', '-') }}</div></td>
+            <td style="width: 22%; border-bottom: none;"><span class="label">Date</span><div class="value">{{ $val('internal_date', date('M d, Y')) }}</div></td>
+            <td style="width: 26%; border-bottom: none;"><span class="label">Client Fullname &amp; Signature</span><div class="value">{{ $val('client_fullname_signature', '-') }}</div></td>
+        </tr>
+    </table>
+
+    <!-- Signatures Row 3 (6 columns) -->
+    <table class="grid-table">
+        <tr>
+            <td style="width: 16.66%; border-bottom: none;"><span class="label">Referred / Closed<br>By</span><div class="value">{{ $val('referred_closed_by', '-') }}</div></td>
+            <td style="width: 16.66%; border-bottom: none;"><span class="label">Sales &amp; Marketing</span><div class="value">{{ $val('internal_sales_marketing', $val('sales_marketing', '-')) }}</div></td>
+            <td style="width: 16.66%; border-bottom: none;"><span class="label">Lead Consultant</span><div class="value">{{ $val('lead_consultant', '-') }}</div></td>
+            <td style="width: 16.66%; border-bottom: none;"><span class="label">Lead Associate</span><div class="value">{{ $val('lead_associate_assigned', $val('lead_associate', '-')) }}</div></td>
+            <td style="width: 16.66%; border-bottom: none;"><span class="label">Finance</span><div class="value">{{ $val('internal_finance', $val('finance', '-')) }}</div></td>
+            <td style="width: 16.70%; border-bottom: none;"><span class="label">President</span><div class="value">{{ $val('internal_president', $val('president', 'John Kelly Abalde')) }}</div></td>
+        </tr>
+    </table>
+
+</div>
+
+<!-- 11. COMPANY FOOTER -->
+<div class="footer-note">John Kelly &amp; Company</div>
+
+@if(!empty($autoPrint))
+<script>
+    window.addEventListener('load', function () {
+        window.print();
+    });
+</script>
+@endif
+
 </body>
 </html>

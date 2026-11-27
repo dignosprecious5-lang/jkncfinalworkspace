@@ -1310,7 +1310,14 @@
                                 Primary Contact <span style="color:#dc2626;">*</span> <span class="ordo-tooltip-icon" tabindex="0">i</span>
                             </label>
 
-                            <span class="text-xs text-slate-500">Select an existing business contact.</span>
+                            <button
+                                type="button"
+                                class="btn"
+                                style="height:34px; padding:0 12px; border:1px solid #d1d9e3; background:#fff; color:#334155;"
+                                @click="openAddContact('Business')"
+                            >
+                                + Add Contact
+                            </button>
                         </div>
 
                         <select
@@ -1434,7 +1441,14 @@
                                 Individual Contact <span style="color:#dc2626;">*</span> <span class="ordo-tooltip-icon" tabindex="0">i</span>
                             </label>
 
-                            <span class="text-xs text-slate-500">Select an existing individual contact.</span>
+                            <button
+                                type="button"
+                                class="btn"
+                                style="height:34px; padding:0 12px; border:1px solid #d1d9e3; background:#fff; color:#334155;"
+                                @click="openAddContact('Individual')"
+                            >
+                                + Add Contact
+                            </button>
                         </div>
 
                         <select
@@ -3300,6 +3314,55 @@
                     </div>
 
 
+                    <div>
+
+                        <label class="label">
+                            Finance
+                        </label>
+
+                        <div
+                            x-data="employeeDropdown('{{ old('finance', $deal->finance ?? '') }}')"
+                            @click.outside="open = false"
+                            style="position: relative;"
+                        >
+                            <input
+                                type="text"
+                                name="finance"
+                                x-model="value"
+                                @focus="open = true"
+                                @input="open = true"
+                                placeholder="Search user or type email manually"
+                                autocomplete="off"
+                            >
+
+                            <div
+                                x-show="open && filtered.length"
+                                x-cloak
+                                class="custom-scrollbar-no-arrows"
+                                style="position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06); max-height: 260px; overflow-y: auto; z-index: 50;"
+                            >
+                                <template x-for="emp in filtered" :key="'fin-' + emp.id + '-' + emp.name">
+                                    <div
+                                        @click="select(emp.name)"
+                                        style="padding: 9px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; text-align: left; transition: background 0.12s ease;"
+                                        onmouseover="this.style.background='#f8fafc'"
+                                        onmouseout="this.style.background='#ffffff'"
+                                    >
+                                        <div style="font-size: 13px; font-weight: 600; color: #1e293b; line-height: 1.3;" x-text="emp.name"></div>
+                                        <div style="font-size: 11px; color: #64748b; margin-top: 2px; line-height: 1.3;" x-text="emp.subtitle"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div
+                            class="section-description"
+                            style="margin-top: 5px;"
+                        >
+                            Search existing registered users. If none appears, you can still type email manually.
+                        </div>
+
+                    </div>
 
 
                     <div>
@@ -3355,6 +3418,496 @@
 
             </section>
 
+            <!-- ADD CONTACT MODAL (BUSINESS & INDIVIDUAL) -->
+            <div
+                x-show="contactModalOpen"
+                x-cloak
+                style="position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); padding: 16px;"
+                @keydown.escape.window="if (!contactSaving) contactModalOpen = false"
+                role="dialog"
+                aria-modal="true"
+                :aria-labelledby="contactModalType === 'Business' ? 'modal-biz-title' : 'modal-ind-title'"
+            >
+                <div
+                    @click.outside="if (!contactSaving) contactModalOpen = false"
+                    style="background: #ffffff; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); width: 100%; max-width: 580px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0;"
+                >
+                    <!-- Modal Header -->
+                    <div style="padding: 18px 24px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; background: #ffffff; flex-shrink: 0;">
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <div style="width: 40px; height: 40px; border-radius: 50%; background: #eff6ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg style="width: 20px; height: 20px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3
+                                    :id="contactModalType === 'Business' ? 'modal-biz-title' : 'modal-ind-title'"
+                                    style="margin: 0; font-size: 17px; font-weight: 700; color: #0f172a; line-height: 1.2;"
+                                    x-text="contactModalType === 'Business' ? 'Add Business Contact' : 'Add Individual Contact'"
+                                ></h3>
+                                <div style="font-size: 12px; color: #64748b; margin-top: 2px;" x-text="contactModalType === 'Business' ? 'Register a company representative or primary corporate contact.' : 'Register a direct individual client or personal contact.'"></div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            @click="contactModalOpen = false"
+                            :disabled="contactSaving"
+                            aria-label="Close modal"
+                            style="background: transparent; border: 0; font-size: 22px; color: #94a3b8; cursor: pointer; padding: 4px; line-height: 1; border-radius: 6px; transition: color 0.15s ease;"
+                            onmouseover="this.style.color='#475569'"
+                            onmouseout="this.style.color='#94a3b8'"
+                        >&times;</button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="custom-scrollbar-no-arrows" style="padding: 22px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column;">
+                        
+                        <!-- Top Error Alert -->
+                        <div
+                            x-show="contactError"
+                            x-cloak
+                            style="padding: 10px 14px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 12px; line-height: 1.4; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 16px;"
+                        >
+                            <svg style="width: 16px; height: 16px; color: #dc2626; flex-shrink: 0; margin-top: 1px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <span x-text="contactError"></span>
+                        </div>
+
+                        <!-- Required Fields Indicator Note -->
+                        <div style="font-size: 11px; color: #64748b; margin-bottom: 20px;">
+                            Fields marked with <span style="color: #ef4444; font-weight: 700;">*</span> are required.
+                        </div>
+
+                        <!-- ==============================================
+                             BUSINESS CONTACT FORM
+                        ============================================== -->
+                        <div x-show="contactModalType === 'Business'" style="display: flex; flex-direction: column;">
+                            
+                            <!-- SECTION 1: REPRESENTATIVE INFORMATION -->
+                            <div style="margin-bottom: 24px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        REPRESENTATIVE INFORMATION
+                                    </span>
+                                </div>
+
+                                <!-- Row 1: Salutation | First Name * -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_salutation" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Salutation
+                                        </label>
+                                        <select
+                                            id="biz_salutation"
+                                            x-model="newContact.salutation"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #334155; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                            <option value="">None</option>
+                                            <option value="Mr.">Mr.</option>
+                                            <option value="Ms.">Ms.</option>
+                                            <option value="Mrs.">Mrs.</option>
+                                            <option value="Atty.">Atty.</option>
+                                            <option value="Dr.">Dr.</option>
+                                            <option value="Engr.">Engr.</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_first_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            First Name <span style="color: #ef4444; font-weight: 700; margin-left: 2px;">*</span>
+                                        </label>
+                                        <input
+                                            id="biz_first_name"
+                                            type="text"
+                                            x-model="newContact.first_name"
+                                            placeholder="First name"
+                                            aria-required="true"
+                                            :style="fieldErrors.first_name ? 'border-color: #ef4444; background: #fffaf0;' : ''"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                            @input="fieldErrors.first_name = false"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Middle Name | Last Name * -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_middle_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Middle Name
+                                        </label>
+                                        <input
+                                            id="biz_middle_name"
+                                            type="text"
+                                            x-model="newContact.middle_name"
+                                            placeholder="Middle name"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_last_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Last Name <span style="color: #ef4444; font-weight: 700; margin-left: 2px;">*</span>
+                                        </label>
+                                        <input
+                                            id="biz_last_name"
+                                            type="text"
+                                            x-model="newContact.last_name"
+                                            placeholder="Last name"
+                                            aria-required="true"
+                                            :style="fieldErrors.last_name ? 'border-color: #ef4444; background: #fffaf0;' : ''"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                            @input="fieldErrors.last_name = false"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 3: Extension -->
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <label for="biz_extension" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Extension
+                                    </label>
+                                    <input
+                                        id="biz_extension"
+                                        type="text"
+                                        x-model="newContact.name_extension"
+                                        placeholder="Jr., III..."
+                                        style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- SECTION 2: COMPANY POSITION -->
+                            <div style="margin-bottom: 24px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        COMPANY POSITION
+                                    </span>
+                                </div>
+
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <label for="biz_position" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Position in Company
+                                    </label>
+                                    <input
+                                        id="biz_position"
+                                        type="text"
+                                        x-model="newContact.position"
+                                        placeholder="e.g. Managing Director, CEO, Manager"
+                                        style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- SECTION 3: CORPORATE CONTACT DETAILS -->
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        CORPORATE CONTACT DETAILS
+                                    </span>
+                                </div>
+
+                                <!-- Row 1: Work Email | Work / Mobile Number -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_email" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Work Email
+                                        </label>
+                                        <input
+                                            id="biz_email"
+                                            type="email"
+                                            x-model="newContact.email"
+                                            placeholder="representative@company.com"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="biz_mobile" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Work / Mobile Number
+                                        </label>
+                                        <input
+                                            id="biz_mobile"
+                                            type="text"
+                                            x-model="newContact.mobile_number"
+                                            placeholder="09123456789"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Office / Business Address -->
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <label for="biz_address" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Office / Business Address
+                                    </label>
+                                    <textarea
+                                        id="biz_address"
+                                        x-model="newContact.address"
+                                        rows="2"
+                                        placeholder="Enter corporate office address..."
+                                        style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #1e293b; background: #ffffff; min-height: 58px; resize: vertical; box-sizing: border-box; font-family: inherit; margin: 0;"
+                                    ></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ==============================================
+                             INDIVIDUAL CONTACT FORM
+                        ============================================== -->
+                        <div x-show="contactModalType === 'Individual'" style="display: flex; flex-direction: column;">
+                            
+                            <!-- SECTION 1: INDIVIDUAL INFORMATION -->
+                            <div style="margin-bottom: 24px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        INDIVIDUAL INFORMATION
+                                    </span>
+                                </div>
+
+                                <!-- Row 1: Salutation | First Name * -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_salutation" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Salutation
+                                        </label>
+                                        <select
+                                            id="ind_salutation"
+                                            x-model="newContact.salutation"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #334155; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                            <option value="">None</option>
+                                            <option value="Mr.">Mr.</option>
+                                            <option value="Ms.">Ms.</option>
+                                            <option value="Mrs.">Mrs.</option>
+                                            <option value="Atty.">Atty.</option>
+                                            <option value="Dr.">Dr.</option>
+                                            <option value="Engr.">Engr.</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_first_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            First Name <span style="color: #ef4444; font-weight: 700; margin-left: 2px;">*</span>
+                                        </label>
+                                        <input
+                                            id="ind_first_name"
+                                            type="text"
+                                            x-model="newContact.first_name"
+                                            placeholder="First name"
+                                            aria-required="true"
+                                            :style="fieldErrors.first_name ? 'border-color: #ef4444; background: #fffaf0;' : ''"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                            @input="fieldErrors.first_name = false"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Middle Name | Last Name * -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_middle_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Middle Name
+                                        </label>
+                                        <input
+                                            id="ind_middle_name"
+                                            type="text"
+                                            x-model="newContact.middle_name"
+                                            placeholder="Middle name"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_last_name" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Last Name <span style="color: #ef4444; font-weight: 700; margin-left: 2px;">*</span>
+                                        </label>
+                                        <input
+                                            id="ind_last_name"
+                                            type="text"
+                                            x-model="newContact.last_name"
+                                            placeholder="Last name"
+                                            aria-required="true"
+                                            :style="fieldErrors.last_name ? 'border-color: #ef4444; background: #fffaf0;' : ''"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                            @input="fieldErrors.last_name = false"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 3: Extension -->
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <label for="ind_extension" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Extension
+                                    </label>
+                                    <input
+                                        id="ind_extension"
+                                        type="text"
+                                        x-model="newContact.name_extension"
+                                        placeholder="Jr., III..."
+                                        style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- SECTION 2: PROFESSION & PERSONAL DETAILS -->
+                            <div style="margin-bottom: 24px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        PROFESSION &amp; PERSONAL DETAILS
+                                    </span>
+                                </div>
+
+                                <!-- Row 1: Profession / Occupation -->
+                                <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+                                    <label for="ind_position" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Profession / Occupation
+                                    </label>
+                                    <input
+                                        id="ind_position"
+                                        type="text"
+                                        x-model="newContact.position"
+                                        placeholder="e.g. Consultant, Architect, Freelancer"
+                                        style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                    >
+                                </div>
+
+                                <!-- Row 2: Sex | Date of Birth -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_sex" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Sex
+                                        </label>
+                                        <select
+                                            id="ind_sex"
+                                            x-model="newContact.sex"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #334155; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                            <option value="">Select Sex</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_dob" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Date of Birth
+                                        </label>
+                                        <input
+                                            id="ind_dob"
+                                            type="date"
+                                            x-model="newContact.date_of_birth"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECTION 3: PERSONAL CONTACT DETAILS -->
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                                    <svg style="width: 14px; height: 14px; color: #2563eb;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                    </svg>
+                                    <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b;">
+                                        PERSONAL CONTACT DETAILS
+                                    </span>
+                                </div>
+
+                                <!-- Row 1: Email Address | Mobile Number -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_email" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Email Address
+                                        </label>
+                                        <input
+                                            id="ind_email"
+                                            type="email"
+                                            x-model="newContact.email"
+                                            placeholder="personal@example.com"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+
+                                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                                        <label for="ind_mobile" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                            Mobile Number
+                                        </label>
+                                        <input
+                                            id="ind_mobile"
+                                            type="text"
+                                            x-model="newContact.mobile_number"
+                                            placeholder="09123456789"
+                                            style="width: 100%; height: 38px; border: 1px solid #d1d5db; border-radius: 8px; padding: 0 12px; font-size: 13px; color: #1e293b; background: #ffffff; box-sizing: border-box; margin: 0;"
+                                        >
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Residential Address -->
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <label for="ind_address" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin: 0; line-height: 1.2;">
+                                        Residential Address
+                                    </label>
+                                    <textarea
+                                        id="ind_address"
+                                        x-model="newContact.address"
+                                        rows="2"
+                                        placeholder="Enter home / residential address..."
+                                        style="width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #1e293b; background: #ffffff; min-height: 58px; resize: vertical; box-sizing: border-box; font-family: inherit; margin: 0;"
+                                    ></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Modal Footer (Always Sticky & Accessible) -->
+                    <div style="padding: 14px 24px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: flex-end; gap: 10px; background: #ffffff; flex-shrink: 0;">
+                        <button
+                            type="button"
+                            @click="contactModalOpen = false"
+                            :disabled="contactSaving"
+                            class="btn"
+                            style="height: 38px; padding: 0 20px; border: 1px solid #d1d5db; background: #ffffff; color: #334155; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s ease;"
+                            onmouseover="if (!this.disabled) this.style.background='#f8fafc'"
+                            onmouseout="this.style.background='#ffffff'"
+                        >Cancel</button>
+
+                        <button
+                            type="button"
+                            @click="submitQuickContact()"
+                            :disabled="contactSaving || !newContact.first_name || !newContact.last_name"
+                            class="btn"
+                            :style="(contactSaving || !newContact.first_name || !newContact.last_name) ? 'height: 38px; padding: 0 20px; border: 0; background: #93c5fd; color: #ffffff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: not-allowed; display: inline-flex; align-items: center; gap: 8px;' : 'height: 38px; padding: 0 20px; border: 0; background: #2563eb; color: #ffffff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s ease;'"
+                            onmouseover="if (!this.disabled) this.style.background='#1d4ed8'"
+                            onmouseout="if (!this.disabled) this.style.background='#2563eb'"
+                        >
+                            <svg x-show="contactSaving" style="width: 16px; height: 16px; animation: spin 1s linear infinite;" fill="none" viewBox="0 0 24 24">
+                                <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span x-show="contactSaving">Saving...</span>
+                            <span x-show="!contactSaving" x-text="contactModalType === 'Business' ? 'Save Business Contact' : 'Save Individual Contact'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
         </main>
 
@@ -3585,6 +4138,129 @@
                 this.companyId = '';
                 this.clearContactFields();
                 this.clearCompanyFields();
+            },
+
+            contactModalOpen: false,
+            contactModalType: 'Business',
+            contactSaving: false,
+            contactError: '',
+            fieldErrors: {
+                first_name: false,
+                last_name: false,
+            },
+            newContact: {
+                salutation: '',
+                first_name: '',
+                middle_name: '',
+                last_name: '',
+                name_extension: '',
+                sex: '',
+                date_of_birth: '',
+                email: '',
+                mobile_number: '',
+                address: '',
+                company_id: '',
+                position: '',
+            },
+
+            openAddContact(type = null) {
+                this.contactModalType = type || this.customerType || 'Business';
+                this.contactError = '';
+                this.fieldErrors = {
+                    first_name: false,
+                    last_name: false,
+                };
+                this.newContact = {
+                    salutation: '',
+                    first_name: '',
+                    middle_name: '',
+                    last_name: '',
+                    name_extension: '',
+                    sex: '',
+                    date_of_birth: '',
+                    email: '',
+                    mobile_number: '',
+                    address: '',
+                    company_id: this.contactModalType === 'Business' ? (this.companyId || '') : '',
+                    position: '',
+                };
+                this.contactModalOpen = true;
+            },
+
+            async submitQuickContact() {
+                this.fieldErrors = {
+                    first_name: !this.newContact.first_name || !this.newContact.first_name.trim(),
+                    last_name: !this.newContact.last_name || !this.newContact.last_name.trim(),
+                };
+
+                if (this.fieldErrors.first_name && this.fieldErrors.last_name) {
+                    this.contactError = 'First name and Last name are required.';
+                    return;
+                }
+                if (this.fieldErrors.first_name) {
+                    this.contactError = 'First name is required.';
+                    return;
+                }
+                if (this.fieldErrors.last_name) {
+                    this.contactError = 'Last name is required.';
+                    return;
+                }
+
+                this.contactSaving = true;
+                this.contactError = '';
+
+                try {
+                    const payload = {
+                        contact_type: this.contactModalType,
+                        salutation: this.newContact.salutation || null,
+                        first_name: this.newContact.first_name.trim(),
+                        middle_name: this.newContact.middle_name ? this.newContact.middle_name.trim() : null,
+                        last_name: this.newContact.last_name.trim(),
+                        name_extension: this.newContact.name_extension || null,
+                        sex: this.newContact.sex || null,
+                        date_of_birth: this.newContact.date_of_birth || null,
+                        email: this.newContact.email ? this.newContact.email.trim() : null,
+                        mobile_number: this.newContact.mobile_number ? this.newContact.mobile_number.trim() : null,
+                        address: this.newContact.address ? this.newContact.address.trim() : null,
+                        company_id: this.contactModalType === 'Business' ? (this.newContact.company_id || this.companyId || null) : null,
+                        position: this.newContact.position ? this.newContact.position.trim() : null,
+                    };
+
+                    const response = await fetch('{{ route('contacts.quick-store') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        this.contactError = data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Failed to save contact.');
+                        this.contactSaving = false;
+                        return;
+                    }
+
+                    const savedContact = data.contact;
+                    this.contacts.push(savedContact);
+
+                    if (this.contactModalType === 'Business' && savedContact.company_id && !this.companyId) {
+                        this.companyId = savedContact.company_id;
+                        this.loadCompany(false);
+                    }
+
+                    this.contactId = savedContact.id;
+                    this.loadContact();
+
+                    this.contactModalOpen = false;
+                    this.contactSaving = false;
+                } catch (err) {
+                    this.contactError = err.message || 'An unexpected error occurred while saving the contact.';
+                    this.contactSaving = false;
+                }
             },
 
             findAccount() {

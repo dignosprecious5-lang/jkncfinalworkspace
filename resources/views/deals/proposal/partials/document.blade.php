@@ -10,6 +10,7 @@
     };
 
     $money = fn ($value) => number_format((float) $value, 2);
+    $moneyOrConfirm = fn ($value) => is_numeric($value) ? $money($value) : 'Needs confirmation';
     $textEditorClasses = 'proposal-inline-editor proposal-inline-editor-text';
     $blockEditorClasses = 'proposal-inline-editor proposal-inline-editor-block';
     $numberEditorClasses = 'proposal-inline-editor proposal-inline-editor-number';
@@ -70,6 +71,9 @@
         ? collect([collect()])
         : $productAreaRows->chunk(4)->map(fn ($chunk) => $chunk->values())->values();
 
+    $serviceCatalogTerms = collect($d['product_catalog']['services'] ?? [])->flatMap(fn ($service) => $service['terms'] ?? [])
+        ->unique(fn ($term) => strtolower(trim($term['title'])).'|'.trim($term['content']));
+
     $termsChunks = collect([collect($d['terms_and_conditions'] ?? [])->values()]);
     $totalPages = 13
         + max($serviceAreaChunks->count() - 1, 0)
@@ -102,16 +106,16 @@
             <div
                 class="proposal-cover-title @if($editableMode) {{ $textEditorClasses }} @endif"
                 @if($editableMode) contenteditable="true" data-proposal-field="service_type" data-proposal-editor="text" @endif
-            >{{ $d['service_type'] ?? 'BIR Compliance Services' }}</div>
+            >{{ filled($d['service_type'] ?? null) ? $d['service_type'] : 'Service area/title needs confirmation' }}</div>
             <div class="proposal-cover-date">{{ $d['date'] ?? now()->format('F d, Y') }}</div>
 
             <div class="proposal-presented-label">Presented For:</div>
-            <div class="proposal-presented-name">{{ $d['client_name'] ?? 'Client Name' }}</div>
-            <div class="proposal-presented-name">{{ $d['business_name'] ?? 'Business Name' }}</div>
+            <div class="proposal-presented-name">{{ $d['client_name'] ?? '' }}</div>
+            <div class="proposal-presented-name">{{ $d['business_name'] ?? '' }}</div>
             <div
                 class="proposal-presented-location @if($editableMode) {{ $textEditorClasses }} @endif"
                 @if($editableMode) contenteditable="true" data-proposal-field="location" data-proposal-editor="text" @endif
-            >{{ $d['location'] ?? 'Philippines' }}</div>
+            >{{ $d['location'] ?? '' }}</div>
         </div>
 
         <div class="proposal-cover-footer">
@@ -281,13 +285,28 @@
             @if($editableMode) contenteditable="true" data-proposal-field="our_proposal_text" data-proposal-editor="multiline" @endif
         >{!! nl2br(e($d['our_proposal_text'] ?? '')) !!}</div>
 
+        <h3 class="proposal-subheading proposal-subheading-blue">Scope of Work</h3>
+        <div
+            class="proposal-paragraph proposal-scope-of-service @if($editableMode) {{ $blockEditorClasses }} @endif"
+            @if($editableMode) contenteditable="true" data-proposal-field="scope_of_service" data-proposal-editor="multiline" @endif
+        >{!! nl2br(e(filled($d['scope_of_service'] ?? null) ? $d['scope_of_service'] : 'Scope of work needs confirmation.')) !!}</div>
+
+        <h3 class="proposal-subheading proposal-subheading-blue">Deliverables</h3>
+        <div
+            class="proposal-paragraph proposal-deliverables @if($editableMode) {{ $blockEditorClasses }} @endif"
+            @if($editableMode) contenteditable="true" data-proposal-field="what_you_will_receive" data-proposal-editor="multiline" @endif
+        >{!! nl2br(e(filled($d['what_you_will_receive'] ?? null) ? $d['what_you_will_receive'] : 'Deliverables need confirmation.')) !!}</div>
+
         <h3 class="proposal-subheading proposal-subheading-blue proposal-block-spaced">Services Availed</h3>
         <table class="proposal-data-table proposal-availed-table">
             <thead>
                 <tr>
                     <th>Item #</th>
                     <th>Name</th>
+                    <th>Service Area</th>
                     <th>Description</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
                     <th>Activity/Output</th>
                     <th>Frequency</th>
                     <th>Deadline</th>
@@ -298,7 +317,10 @@
                     <tr>
                         <td>{{ $item['item_no'] ?? '' }}</td>
                         <td>{{ $item['name'] ?? '' }}</td>
+                        <td>{{ $item['service_area'] ?? '' }}</td>
                         <td>{!! nl2br(e($item['description'] ?? '')) !!}</td>
+                        <td>{{ $item['quantity'] ?? '' }}</td>
+                        <td>{{ $item['unit'] ?? '' }}</td>
                         <td>{!! nl2br(e($item['activity_output'] ?? '')) !!}</td>
                         <td>{{ $item['frequency'] ?? '' }}</td>
                         <td>{{ $item['deadline'] ?? '' }}</td>
@@ -310,7 +332,7 @@
                         <td></td>
                         <td></td>
                         <td></td>
-                        <td>TBD</td>
+                        <td></td>
                     </tr>
                 @endforelse
             </tbody>
@@ -322,7 +344,10 @@
                 <tr>
                     <th>Item #</th>
                     <th>Name</th>
+                    <th>Product Area</th>
                     <th>Description</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
                     <th>Activity/Output</th>
                     <th>Frequency</th>
                     <th>Deadline</th>
@@ -333,7 +358,10 @@
                     <tr>
                         <td>{{ $item['item_no'] ?? '' }}</td>
                         <td>{{ $item['name'] ?? '' }}</td>
+                        <td>{{ $item['service_area'] ?? '' }}</td>
                         <td>{!! nl2br(e($item['description'] ?? '')) !!}</td>
+                        <td>{{ $item['quantity'] ?? '' }}</td>
+                        <td>{{ $item['unit'] ?? '' }}</td>
                         <td>{!! nl2br(e($item['activity_output'] ?? '')) !!}</td>
                         <td>{{ $item['frequency'] ?? '' }}</td>
                         <td>{{ $item['deadline'] ?? '' }}</td>
@@ -345,7 +373,7 @@
                         <td></td>
                         <td></td>
                         <td></td>
-                        <td>TBD</td>
+                        <td></td>
                     </tr>
                 @endforelse
             </tbody>
@@ -426,7 +454,12 @@
                     <th>Item #</th>
                     <th>Name</th>
                     <th>Service ID</th>
-                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Unit Price</th>
+                    <th>Discount</th>
+                    <th>Tax</th>
+                    <th>Line Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -435,18 +468,21 @@
                         <td>{{ $row['item_no'] ?? '' }}</td>
                         <td>{{ $row['name'] ?? '' }}</td>
                         <td>{{ $row['service_id'] ?? '' }}</td>
-                        <td>{{ $money($row['price'] ?? 0) }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? '—' : ($row['quantity'] ?? '') }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? '—' : ($row['unit'] ?? '') }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                        <td>{{ $money($row['discount'] ?? 0) }}</td>
+                        <td>{{ $money($row['tax'] ?? 0) }}</td>
+                        <td>{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                     </tr>
                 @empty
-                    <tr><td>1</td><td>No service selected</td><td></td><td>{{ $money(0) }}</td></tr>
+                    <tr><td colspan="9">No service selected</td></tr>
                 @endforelse
                 <tr>
-                    <td></td>
-                    <td></td>
-                    <td>Total</td>
+                    <td colspan="8">Total</td>
                     <td
                         @if($editableMode) contenteditable="true" class="{{ $numberEditorClasses }}" data-proposal-field="price_regular" data-proposal-editor="number" @endif
-                    >{{ $money($d['price_regular'] ?? 0) }}</td>
+                    >{{ $moneyOrConfirm($d['price_regular'] ?? null) }}</td>
                 </tr>
             </tbody>
         </table>
@@ -458,7 +494,12 @@
                     <th>Item #</th>
                     <th>Name</th>
                     <th>Service ID</th>
-                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Unit Price</th>
+                    <th>Discount</th>
+                    <th>Tax</th>
+                    <th>Line Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -467,12 +508,17 @@
                         <td>{{ $row['item_no'] ?? '' }}</td>
                         <td>{{ $row['name'] ?? '' }}</td>
                         <td>{{ $row['service_id'] ?? '' }}</td>
-                        <td>{{ $money($row['price'] ?? 0) }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? '—' : ($row['quantity'] ?? '') }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? '—' : ($row['unit'] ?? '') }}</td>
+                        <td>{{ ($row['aggregate'] ?? false) ? 'Included in saved fee' : $moneyOrConfirm($row['unit_price'] ?? null) }}</td>
+                        <td>{{ $money($row['discount'] ?? 0) }}</td>
+                        <td>{{ $money($row['tax'] ?? 0) }}</td>
+                        <td>{{ $moneyOrConfirm($row['line_total'] ?? null) }}</td>
                     </tr>
                 @empty
-                    <tr><td>1</td><td>No product selected</td><td></td><td>{{ $money(0) }}</td></tr>
+                    <tr><td colspan="9">No product selected</td></tr>
                 @endforelse
-                <tr><td></td><td></td><td>Total</td><td data-proposal-display="price_products">{{ $money($d['price_products'] ?? 0) }}</td></tr>
+                <tr><td colspan="8">Total</td><td data-proposal-display="price_products">{{ $moneyOrConfirm($d['price_products'] ?? null) }}</td></tr>
             </tbody>
         </table>
 
@@ -495,24 +541,25 @@
                 </tr>
             </thead>
             <tbody>
-                <tr><td>Total Services</td><td data-proposal-display="price_regular">{{ $money($d['price_regular'] ?? 0) }}</td></tr>
-                <tr><td>Total Product</td><td data-proposal-display="price_products">{{ $money($d['price_products'] ?? 0) }}</td></tr>
+                <tr><td>Total Services</td><td data-proposal-display="price_regular">{{ $moneyOrConfirm($d['price_regular'] ?? null) }}</td></tr>
+                <tr><td>Total Product</td><td data-proposal-display="price_products">{{ $moneyOrConfirm($d['price_products'] ?? null) }}</td></tr>
                 <tr>
                     <td>Discount</td>
                     <td
                         @if($editableMode) contenteditable="true" class="{{ $numberEditorClasses }}" data-proposal-field="price_discount" data-proposal-editor="number" @endif
-                    >{{ $money($d['price_discount'] ?? 0) }}</td>
+                    >{{ $moneyOrConfirm($d['price_discount'] ?? null) }}</td>
                 </tr>
-                <tr><td>Subtotal (After Discount)</td><td data-proposal-display="price_subtotal">{{ $money($d['price_subtotal'] ?? 0) }}</td></tr>
+                <tr><td>Subtotal (After Discount)</td><td data-proposal-display="price_subtotal">{{ $moneyOrConfirm($d['price_subtotal'] ?? null) }}</td></tr>
                 <tr>
                     <td>Tax (if applicable)</td>
                     <td
                         @if($editableMode) contenteditable="true" class="{{ $numberEditorClasses }}" data-proposal-field="price_tax" data-proposal-editor="number" @endif
-                    >{{ $money($d['price_tax'] ?? 0) }}</td>
+                    >{{ $moneyOrConfirm($d['price_tax'] ?? null) }}</td>
                 </tr>
-                <tr class="is-total"><td>Total Fees</td><td data-proposal-display="price_total">{{ $money($d['price_total'] ?? 0) }}</td></tr>
-                <tr><td>Down Payment (50%)</td><td data-proposal-display="price_down">{{ $money($d['price_down'] ?? 0) }}</td></tr>
-                <tr><td>Balance Payable Upon Completion (50%)</td><td data-proposal-display="price_balance">{{ $money($d['price_balance'] ?? 0) }}</td></tr>
+                <tr class="is-total"><td>Total Fees</td><td data-proposal-display="price_total">{{ $moneyOrConfirm($d['price_total'] ?? null) }}</td></tr>
+                <tr><td>Payment Terms</td><td>{{ filled($d['payment_terms'] ?? null) ? $d['payment_terms'] : 'Payment terms need confirmation.' }}</td></tr>
+                <tr><td>Down Payment</td><td data-proposal-display="price_down">{{ $moneyOrConfirm($d['price_down'] ?? null) }}</td></tr>
+                <tr><td>Balance Payable</td><td data-proposal-display="price_balance">{{ $moneyOrConfirm($d['price_balance'] ?? null) }}</td></tr>
             </tbody>
         </table>
         <p class="proposal-note">{{ $d['supplemental_fee_note'] ?? '' }}</p>
@@ -668,4 +715,39 @@
         </div>
         {!! $renderPageFooter() !!}
     </section>
+
+    @if (!empty($d['product_catalog']['products']) || !empty($d['product_catalog']['services']))
+    <section class="proposal-page proposal-inner-page" data-product-catalog="true">
+        <div class="proposal-page-body">
+        <h2 class="proposal-section-heading">Catalog Configuration and Applicable Terms</h2>
+        @foreach (array_merge($d['product_catalog']['services'] ?? [], $d['product_catalog']['products'] ?? []) as $product)
+            <h3 class="proposal-subheading">{{ $product['name'] }} ({{ $product['sku'] }})</h3>
+            @foreach (['scope_of_work' => isset($product['product_id']) ? 'Scope of Product' : 'Scope of Service', 'deliverables' => 'Deliverables / What You Will Receive', 'client_responsibilities' => 'Client Responsibilities', 'exclusions' => 'Exclusions / Out of Scope'] as $field => $label)
+                <h4 class="proposal-subheading">{{ $label }}</h4>
+                <div style="white-space: pre-line; overflow-wrap: anywhere">{{ filled($product[$field] ?? '') ? $product[$field] : 'No catalog configuration provided.' }}</div>
+            @endforeach
+            @if (!empty($product['requirements']))
+                <h4 class="proposal-subheading">{{ isset($product['product_id']) ? 'Product Requirements' : 'Service Requirements' }}</h4>
+                <table class="proposal-data-table"><thead><tr><th>Requirement</th><th>Evidence Needed</th><th>Validity</th></tr></thead><tbody>
+                @foreach ($product['requirements'] as $requirement)
+                    <tr><td>{{ $requirement['name'] }}{{ $requirement['is_mandatory'] ? ' (Required)' : ' (Optional)' }}</td><td>{{ $requirement['evidence_type'] }}</td><td>{{ $requirement['validity_expiration'] }}</td></tr>
+                @endforeach
+                </tbody></table>
+            @endif
+        @endforeach
+        @if (!empty($d['product_catalog']['conflicts']))
+            <p class="proposal-note">Resolve conflicting product term headings before issuing: {{ implode(', ', $d['product_catalog']['conflicts']) }}</p>
+        @endif
+        @foreach ($serviceCatalogTerms as $term)
+            <h3 class="proposal-subheading">{{ $term['title'] }}</h3>
+            <div style="white-space: pre-line; overflow-wrap: anywhere">{{ $term['content'] }}</div>
+        @endforeach
+        @foreach ($d['product_catalog']['terms'] as $term)
+            <h3 class="proposal-subheading">{{ $term['title'] }}</h3>
+            <div style="white-space: pre-line; overflow-wrap: anywhere">{{ $term['content'] }}</div>
+        @endforeach
+        </div>
+        {!! $renderPageFooter() !!}
+    </section>
+    @endif
 </div>
