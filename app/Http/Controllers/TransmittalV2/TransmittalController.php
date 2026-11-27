@@ -442,8 +442,49 @@ public function workspace(Request $request, Transmittal $transmittal): View
                             ->first()
                         : null;
 
-                    $refMatch = $canMatchExistingRecords && ! empty($analysis['fields']['reference'])
-                        ? TransmittalWorkflowBoundary::v2Query()->where('external_reference', $analysis['fields']['reference'])->first(['id', 'tracking_number', 'subject'])
+                    $rawFields = (isset($analysis['fields']) && is_array($analysis['fields']))
+                        ? $analysis['fields']
+                        : (is_array($analysis) ? $analysis : []);
+
+                    $firstItem = $rawFields['items'][0] ?? [];
+
+                    $computed = [
+                        'subject' => $rawFields['subject'] ?? ($rawFields['particular'] ?? ($firstItem['particular'] ?? ($rawFields['purpose'] ?? null))),
+                        'reference' => $rawFields['reference'] ?? ($rawFields['unique_id'] ?? ($firstItem['unique_id'] ?? null)),
+                        'company' => $rawFields['company'] ?? ($rawFields['party_name'] ?? ($rawFields['office_name'] ?? null)),
+                        'recipient_address' => $rawFields['recipient_address'] ?? ($rawFields['address'] ?? null),
+                        'recipient_name' => $rawFields['recipient_name'] ?? ($rawFields['attention'] ?? ($rawFields['party_name'] ?? null)),
+                        'recipient_email' => $rawFields['recipient_email'] ?? null,
+                        'purpose' => $rawFields['purpose'] ?? null,
+                        'transmittal_date' => $rawFields['transmittal_date'] ?? null,
+                        'delivery_type' => $rawFields['delivery_type'] ?? null,
+                    ];
+
+                    $fields = $rawFields;
+                    foreach ($computed as $key => $val) {
+                        if ($val !== null && $val !== '') {
+                            if (! isset($fields[$key]) || $fields[$key] === null || $fields[$key] === '') {
+                                $fields[$key] = $val;
+                            }
+                        }
+                    }
+
+                    $category = $analysis['category'] ?? 'document';
+                    $fieldMetadata = $analysis['field_metadata'] ?? [];
+                    if ($fieldMetadata === []) {
+                        foreach ($fields as $key => $val) {
+                            if ($val !== null && $val !== '' && $key !== 'items') {
+                                $fieldMetadata[$key] = [
+                                    'source' => 'tesseract_ocr',
+                                    'confidence' => null,
+                                ];
+                            }
+                        }
+                    }
+                    $text = $analysis['text'] ?? ($rawFields['description'] ?? ($firstItem['description'] ?? ''));
+
+                    $refMatch = $canMatchExistingRecords && ! empty($fields['reference'])
+                        ? TransmittalWorkflowBoundary::v2Query()->where('external_reference', $fields['reference'])->first(['id', 'tracking_number', 'subject'])
                         : null;
 
                     $matchedRecord = null;
@@ -466,19 +507,19 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
                     return [
                         'name' => $file->getClientOriginalName(),
-                        'category' => $analysis['category'],
-                        'fields' => $analysis['fields'],
-                        'field_metadata' => $analysis['field_metadata'],
+                        'category' => $category,
+                        'fields' => $fields,
+                        'field_metadata' => $fieldMetadata,
                         'matched_record' => $matchedRecord,
                         'sha256' => $sha256,
-                        'text_preview' => Str::limit($analysis['text'], 500),
+                        'text_preview' => Str::limit($text, 500),
                         'analysis_token' => Crypt::encryptString(json_encode([
                             'name' => basename($file->getClientOriginalName()),
                             'sha256' => $sha256,
-                            'category' => $analysis['category'],
-                            'text' => $analysis['text'],
-                            'fields' => $analysis['fields'],
-                            'field_metadata' => $analysis['field_metadata'],
+                            'category' => $category,
+                            'text' => $text,
+                            'fields' => $fields,
+                            'field_metadata' => $fieldMetadata,
                         ], JSON_THROW_ON_ERROR)),
                     ];
                 }),

@@ -2141,7 +2141,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const recEmail = findField('recipient_email');
         if (recEmail && recEmail.value && !recipientEmailInput.value) {
             recipientEmailInput.value = recEmail.value;
-            setConfidenceBadge(badgeRecipientEmail, 'autofilled', 'OCR - High');
+            const emailBadgeText = (recEmail.metadata && recEmail.metadata.confidence)
+                ? 'OCR - ' + recEmail.metadata.confidence
+                : 'OCR detected';
+            setConfidenceBadge(badgeRecipientEmail, 'autofilled', emailBadgeText);
         }
     }
 
@@ -2185,12 +2188,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const fields = item.analysis && item.analysis.fields ? item.analysis.fields : {};
             const cleanName = item.file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
-            const particular = fields.subject || cleanName;
-            const uniqueId = fields.unique_id || fields.reference || '';
-            const qty = '1';
-            const desc = fields.description || `${item.category.charAt(0).toUpperCase() + item.category.slice(1)} attachment (${item.file.name})`;
-            const remarks = item.ocrStatus === 'completed' ? 'OCR detected' : 'Attached from Smart Upload';
-
             let sourceLabel = 'Needs review';
             let sourceClass = 'review';
             if (item.ocrStatus === 'completed') {
@@ -2198,19 +2195,53 @@ document.addEventListener('DOMContentLoaded', function () {
                 sourceClass = item.matchedRecord ? 'matched' : 'ocr';
             }
 
-            addItemRowElement({
-                index: index,
-                docIndex: index,
-                fileName: item.file.name,
-                particular: particular,
-                uniqueId: uniqueId,
-                qty: qty,
-                desc: desc,
-                remarks: remarks,
-                sourceLabel: sourceLabel,
-                sourceClass: sourceClass,
-                sourceFileName: item.file.name
-            });
+            const itemsList = (fields.items && Array.isArray(fields.items) && fields.items.length > 0)
+                ? fields.items
+                : null;
+
+            if (itemsList) {
+                itemsList.forEach(function (subItem, subIdx) {
+                    const particular = subItem.particular || subItem.description || fields.subject || cleanName;
+                    const uniqueId = subItem.unique_id || (fields.reference ? `${fields.reference}-${subIdx + 1}` : '') || fields.unique_id || '';
+                    const qty = subItem.qty || subItem.quantity || '1';
+                    const desc = subItem.description || `${item.category.charAt(0).toUpperCase() + item.category.slice(1)} attachment (${item.file.name})`;
+                    const remarks = subItem.remarks || (item.ocrStatus === 'completed' ? 'OCR detected' : 'Attached from Smart Upload');
+
+                    addItemRowElement({
+                        index: itemsTbody.children.length,
+                        docIndex: index,
+                        fileName: item.file.name,
+                        particular: particular,
+                        uniqueId: uniqueId,
+                        qty: qty,
+                        desc: desc,
+                        remarks: remarks,
+                        sourceLabel: sourceLabel,
+                        sourceClass: sourceClass,
+                        sourceFileName: item.file.name
+                    });
+                });
+            } else {
+                const particular = fields.subject || cleanName;
+                const uniqueId = fields.unique_id || fields.reference || '';
+                const qty = '1';
+                const desc = fields.description || `${item.category.charAt(0).toUpperCase() + item.category.slice(1)} attachment (${item.file.name})`;
+                const remarks = item.ocrStatus === 'completed' ? 'OCR detected' : 'Attached from Smart Upload';
+
+                addItemRowElement({
+                    index: itemsTbody.children.length,
+                    docIndex: index,
+                    fileName: item.file.name,
+                    particular: particular,
+                    uniqueId: uniqueId,
+                    qty: qty,
+                    desc: desc,
+                    remarks: remarks,
+                    sourceLabel: sourceLabel,
+                    sourceClass: sourceClass,
+                    sourceFileName: item.file.name
+                });
+            }
         });
     }
 

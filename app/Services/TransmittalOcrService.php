@@ -193,7 +193,18 @@ final class TransmittalOcrService
 
     private function runTesseract(string $path, string $tesseract, int $deadline): string
     {
-        return $this->runProcess([$tesseract, $path, 'stdout'], $deadline);
+        $output = '';
+        try {
+            $output = $this->runProcess([$tesseract, $path, 'stdout', '--psm', '6'], $deadline);
+        } catch (Throwable) {
+            $output = '';
+        }
+
+        if (trim($output) === '') {
+            $output = $this->runProcess([$tesseract, $path, 'stdout'], $deadline);
+        }
+
+        return $output;
     }
 
     /** @param list<string> $arguments */
@@ -222,18 +233,30 @@ final class TransmittalOcrService
     /** @return array<string, mixed> */
     private function suggestions(string $text): array
     {
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
         $suggestions = [];
-        $date = $this->suggestedIsoDate($text);
-        $party = $this->labeledValue($text, ['party name', 'external party', 'party'], 255);
-        $office = $this->labeledValue($text, ['office name', 'office', 'department'], 255);
+        $date = $this->suggestedDate($text);
+        $reference = $this->labeledValue($text, ['reference no', 'reference', 'ref no', 'ref', 'unique id', 'document id', 'doc no'], 120);
+        $party = $this->labeledValue($text, ['to', 'recipient', 'recipient name', 'company', 'party name', 'external party', 'party'], 255);
+        $recipientName = $this->labeledValue($text, ['attention', 'attn', 'contact', 'recipient name'], 255);
+        $office = $this->labeledValue($text, ['from', 'sender', 'office name', 'office', 'department'], 255);
         $address = $this->labeledValue($text, ['delivery address', 'address'], 500);
+        $subject = $this->labeledValue($text, ['subject', 'title', 'document title'], 255);
+        $purpose = $this->labeledValue($text, ['purpose', 'purpose of transmission'], 500);
+        $deliveryType = $this->labeledValue($text, ['delivery type', 'delivery mode', 'delivery method', 'channel'], 100);
         $email = $this->suggestedEmail($text);
 
         foreach ([
             'transmittal_date' => $date,
+            'reference' => $reference,
+            'unique_id' => $reference,
+            'subject' => $subject,
             'party_name' => $party,
+            'recipient_name' => $recipientName,
             'office_name' => $office,
             'address' => $address,
+            'purpose' => $purpose,
+            'delivery_type' => $deliveryType,
             'recipient_email' => $email,
         ] as $field => $value) {
             if ($value !== null) {
@@ -241,39 +264,103 @@ final class TransmittalOcrService
             }
         }
 
-        $item = [];
-        foreach ([
-            'particular' => $this->labeledValue($text, ['particular', 'item name', 'document title'], 255),
-            'unique_id' => $this->labeledValue($text, ['unique id', 'document id', 'doc no'], 120),
-            'qty' => $this->labeledValue($text, ['quantity', 'qty'], 40),
-            'description' => $this->labeledValue($text, ['description', 'details'], 500),
-            'remarks' => $this->labeledValue($text, ['remarks', 'notes'], 255),
-        ] as $field => $value) {
-            if ($value !== null) {
-                $item[$field] = $value;
+        $tableItems = $this->extractTableItems($text, $reference);
+        if ($tableItems !== []) {
+            $suggestions['items'] = $tableItems;
+        } else {
+            $item = [];
+            foreach ([
+                'particular' => $this->labeledValue($text, ['particular', 'item name', 'document title'], 255),
+                'unique_id' => $reference ?? $this->labeledValue($text, ['unique id', 'document id', 'doc no'], 120),
+                'qty' => $this->labeledValue($text, ['quantity', 'qty'], 40),
+                'description' => $this->labeledValue($text, ['description', 'details'], 500),
+                'remarks' => $this->labeledValue($text, ['remarks', 'notes'], 255),
+            ] as $field => $value) {
+                if ($value !== null) {
+                    $item[$field] = $value;
+                }
+            }
+
+            if ($item !== []) {
+                $suggestions['items'] = [$item];
             }
         }
 
-        if ($item !== []) {
-            $suggestions['items'] = [$item];
+        return $suggestions;
+    }
+
+    /** @return list<array{particular: string, unique_id: string, qty: string, description: string, remarks: string}> */
+    private function extractTableItems(string $text, ?string $reference): array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
+        $items = [];
+        $inTable = false;
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+            if (preg_match('/Document\s+Particulars/i', $trimmed) || preg_match('/Item\s+No/i', $trimmed)) {
+                $inTable = true;
+                continue;
+            }
+            if ($inTable) {
+                if (preg_match('/^Remarks:/i', $trimmed) || preg_match('/^Total/i', $trimmed)) {
+                    $inTable = false;
+                    break;
+                }
+                if (preg_match('/^(?:(\d+)[ \t]+)?(.*?)[ \t]+(\d+)[ \t]*([a-zA-Z]+)?[ \t]*$/', $trimmed, $m)) {
+                    $itemParticular = trim($m[2]);
+                    if ($itemParticular !== '' && ! preg_match('/^(Item\s+No|Document\s+Particulars|Quantity|Unit)/i', $itemParticular)) {
+                        $itemIndex = count($items) + 1;
+                        $items[] = [
+                            'particular' => $itemParticular,
+                            'unique_id' => $reference ? "{$reference}-{$itemIndex}" : '',
+                            'qty' => (string) $m[3],
+                            'description' => $itemParticular,
+                            'remarks' => ! empty($m[4]) ? $m[3].' '.trim($m[4]) : '',
+                        ];
+                    }
+                }
+            }
         }
 
-        return $suggestions;
+        return $items;
+    }
+
+    private function suggestedDate(string $text): ?string
+    {
+        $iso = $this->suggestedIsoDate($text);
+        if ($iso !== null) {
+            return $iso;
+        }
+
+        $pattern = '/^[ \t]*(?:transmittal[ \t]+)?date[.:#-]*[ \t]*[:#-][ \t]*([A-Za-z]+[ \t]+\d{1,2},?[ \t]+\d{4})[ \t]*$/imu';
+        if (preg_match($pattern, $text, $matches) === 1) {
+            $timestamp = strtotime(trim($matches[1]));
+            if ($timestamp !== false) {
+                return date('Y-m-d', $timestamp);
+            }
+        }
+
+        return null;
     }
 
     private function labeledValue(string $text, array $labels, int $maximumLength): ?string
     {
         $patterns = [];
         foreach ($labels as $label) {
-            $patterns[] = str_replace(' ', '\\s+', preg_quote($label, '/'));
+            $patterns[] = str_replace(' ', '[ \t]+', preg_quote($label, '/'));
         }
 
-        $pattern = '/^[ \t]*(?:'.implode('|', $patterns).')[ \t]*[:#-][ \t]*([^\r\n]{1,'.(int) $maximumLength.'})[ \t]*$/imu';
+        $pattern = '/^[ \t]*(?:'.implode('|', $patterns).')[.:#-]*[ \t]*[:#-][ \t]*([^\r\n]{1,'.(int) $maximumLength.'})[ \t]*$/imu';
         if (preg_match($pattern, $text, $matches) !== 1) {
             return null;
         }
 
         $value = trim($matches[1]);
+
         return $value === '' ? null : mb_substr($value, 0, $maximumLength);
     }
 
