@@ -24,6 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         if (Schema::hasTable('deals') && Schema::hasColumn('deals', 'qualification_result')) {
+            \Illuminate\Support\Facades\DB::table('deals')->whereNull('qualification_result')->update(['qualification_result' => 'qualified']);
             Schema::table('deals', function (Blueprint $table) {
                 $table->string('qualification_result')->default('qualified')->change();
             });

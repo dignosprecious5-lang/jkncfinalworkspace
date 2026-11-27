@@ -20,6 +20,9 @@ return new class extends Migration
     {
         Schema::table('deals', function (Blueprint $table) {
             if (Schema::hasColumn('deals', 'company_id')) {
+                try {
+                    $table->dropForeign(['company_id']);
+                } catch (\Throwable $e) {}
                 $table->dropColumn('company_id');
             }
         });
