@@ -351,7 +351,8 @@
                         $id = is_object($item) ? $item->id : $item['id'];
                         $name = is_object($item) ? $item->name : $item['name'];
                         $code = is_object($item) ? ($item->service_code ?? 'SVC-' . sprintf('%04d', $id)) : ($item['service_code'] ?? 'SVC-0000');
-                        $cat = is_object($item) ? ($item->category->name ?? $item->category ?? $item->service_area ?? '-') : ($item['category'] ?? '-');
+                        $rawCat = is_object($item) ? ($item->category->name ?? $item->category ?? $item->service_area ?? '-') : ($item['category'] ?? '-');
+                        $cat = is_array($rawCat) ? implode(', ', array_filter($rawCat)) : (string)$rawCat;
                         $company = is_object($item) ? ($item->company ?? 'Global Catalog') : ($item['company'] ?? 'Global Catalog');
                         $behavior = is_object($item) ? ($item->engagement_behavior ?? 'regular') : ($item['engagement_behavior'] ?? 'regular');
                         
