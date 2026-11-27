@@ -1233,6 +1233,11 @@ public function workspace(Request $request, Transmittal $transmittal): View
         $this->authorize('transmittal-v2.approve', $transmittal);
         $authority = $approval->approve($transmittal, $request->user());
 
+        if ($request->filled('return_to_dashboard')) {
+            return redirect()->route('admin.transmittal.dashboard')
+                ->with('success', "Transmittal {$transmittal->tracking_number} approved successfully. Authority code: {$authority->code}");
+        }
+
         return redirect()->route('transmittals.show', $transmittal)
             ->with('status', "Approved. Authority code: {$authority->code}");
     }
@@ -1249,6 +1254,11 @@ public function workspace(Request $request, Transmittal $transmittal): View
         ]);
 
         $approval->reject($transmittal, $request->user(), $validated['rejection_reason']);
+
+        if ($request->filled('return_to_dashboard')) {
+            return redirect()->route('admin.transmittal.dashboard')
+                ->with('success', "Transmittal {$transmittal->tracking_number} rejected.");
+        }
 
         return redirect()->route('transmittals.show', $transmittal)->with('status', 'Transmittal rejected.');
     }

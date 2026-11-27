@@ -56,14 +56,26 @@ class TransmittalController extends Controller
         $activeTab = array_key_exists($activeTab, $statusMap) ? $activeTab : 'submitted';
 
         $counts = [
-            'submitted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Submitted')->count(),
-            'accepted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Accepted')->count(),
-            'reverted' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Reverted')->count(),
-            'archived' => TransmittalWorkflowBoundary::v1Query()->where('workflow_status', 'Archived')->count(),
+            'submitted' => Transmittal::query()->where(fn ($q) => $q->where('workflow_status', 'Submitted')->orWhere('status', 'pending_approval'))->count(),
+            'accepted' => Transmittal::query()->where(fn ($q) => $q->where('workflow_status', 'Accepted')->orWhereIn('status', ['approved', 'sent', 'acknowledged']))->count(),
+            'reverted' => Transmittal::query()->where(fn ($q) => $q->where('workflow_status', 'Reverted')->orWhere('status', 'rejected'))->count(),
+            'archived' => Transmittal::query()->where(fn ($q) => $q->where('workflow_status', 'Archived')->orWhere('status', 'cancelled'))->count(),
         ];
 
-        $transmittals = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])
-            ->where('workflow_status', $workflowStatus)
+        $query = Transmittal::query()->with(['items', 'receipt', 'attachments', 'recipients']);
+        if ($activeTab === 'submitted') {
+            $query->where(fn ($q) => $q->where('workflow_status', 'Submitted')->orWhere('status', 'pending_approval'));
+        } elseif ($activeTab === 'accepted') {
+            $query->where(fn ($q) => $q->where('workflow_status', 'Accepted')->orWhereIn('status', ['approved', 'sent', 'acknowledged']));
+        } elseif ($activeTab === 'reverted') {
+            $query->where(fn ($q) => $q->where('workflow_status', 'Reverted')->orWhere('status', 'rejected'));
+        } elseif ($activeTab === 'archived') {
+            $query->where(fn ($q) => $q->where('workflow_status', 'Archived')->orWhere('status', 'cancelled'));
+        } else {
+            $query->where('workflow_status', $workflowStatus);
+        }
+
+        $transmittals = $query
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -397,7 +409,11 @@ class TransmittalController extends Controller
 
     public function preview($id)
     {
-        $transmittal = TransmittalWorkflowBoundary::v1Query()->with(['items', 'receipt', 'attachments'])->findOrFail($id);
+        $transmittal = Transmittal::with(['items', 'receipt', 'attachments'])->findOrFail($id);
+
+        if (($transmittal->workflow_version ?? null) === 'v2') {
+            return redirect()->route('transmittals.workspace', $transmittal->id);
+        }
 
         $transmittalPdfUrl = route('transmittal.preview.pdf', $transmittal->id);
         $receiptPdfUrl = $transmittal->receipt
