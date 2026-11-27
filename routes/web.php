@@ -1,5 +1,20 @@
 <?php
 
+require __DIR__.'/messaging.php';
+
+use App\Http\Controllers\TaskWorkflowController;
+use App\Http\Controllers\VisitorController;
+use App\Http\Controllers\VisitController;
+use App\Http\Controllers\OfficialBusinessTripTicketController;
+use App\Http\Controllers\CompanyTravelCreditController;
+use App\Http\Controllers\ServiceWorkspaceController;
+use App\Http\Controllers\ActivitiesReportController;
+use App\Http\Controllers\ActivityLinkController;
+use App\Http\Controllers\ActivityAttachmentController;
+use App\Http\Controllers\ActivityAuditController;
+use App\Http\Controllers\TransmittalOcrController;
+require __DIR__.'/transmittal-v2.php';
+
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AdminUserPasswordController;
 use App\Http\Controllers\AdminUserStatusController;
@@ -11,7 +26,6 @@ use App\Http\Controllers\PasswordAssistanceController;
 use App\Http\Controllers\BylawController;
 use App\Http\Controllers\CapitalStructureController;
 use App\Http\Controllers\CatalogChangeRequestController;
-use App\Http\Controllers\CompanyActivityController;
 use App\Http\Controllers\CompanyConsultationNoteController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CompanyCorporateFormationController;
@@ -51,11 +65,9 @@ use App\Http\Controllers\ProductVersionController;
 use App\Http\Controllers\ProductExportController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\RequirementController;
-use App\Http\Controllers\ImportExportController;
 use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RegularController;
-use App\Http\Controllers\RegularProjectController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SecAoiController;
 use App\Http\Controllers\StockholderController;
@@ -189,36 +201,124 @@ Route::post('/finance/supplier/completion/{token}', [FinanceController::class, '
 |--------------------------------------------------------------------------
 */
 
-Route::get('/activities', function () {
-    return view('activities.index');
-})->name('activities');
+Route::get('/official-business-trip-tickets/verify/{reference}', [OfficialBusinessTripTicketController::class, 'verify'])
+    ->middleware('throttle:60,1')
+    ->name('official-business-trip-tickets.verify');
 
-Route::prefix('api')->group(function () {
-    Route::get('/activities', [ActivityController::class, 'index']);
-    Route::post('/tasks', [ActivityController::class, 'storeTask']);
-    Route::post('/events', [ActivityController::class, 'storeEvent']);
-    Route::post('/calls', [ActivityController::class, 'storeCall']);
-    Route::post('/meetings', [ActivityController::class, 'storeMeeting']);
+Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePasswordChanged::class, 'human-capital.module:access_activities'])->group(function () {
+    Route::get('/activities', function () {
+        return view('activities.index');
+    })->name('activities');
 
-    Route::put('/tasks/{id}', [ActivityController::class, 'updateTask']);
-    Route::put('/events/{id}', [ActivityController::class, 'updateEvent']);
-    Route::put('/calls/{id}', [ActivityController::class, 'updateCall']);
-    Route::put('/meetings/{id}', [ActivityController::class, 'updateMeeting']);
+    Route::prefix('api')->group(function () {
+        Route::get('/activities', [ActivityController::class, 'index']);
+        Route::match(['get', 'post'], '/activities/report', [\App\Http\Controllers\ActivitiesReportController::class, 'dataset']);
+        Route::match(['get', 'post'], '/activities/export', [\App\Http\Controllers\ActivitiesReportController::class, 'export']);
+        Route::get('/activities/{type}/{id}/related', [\App\Http\Controllers\ActivityLinkController::class, 'index']);
+        Route::post('/activities/{type}/{id}/related', [\App\Http\Controllers\ActivityLinkController::class, 'store']);
+        Route::delete('/activities/{type}/{id}/related/{relatedType}/{relatedId}', [\App\Http\Controllers\ActivityLinkController::class, 'destroy']);
+        Route::get('/activities/{type}/{id}/attachments', [\App\Http\Controllers\ActivityAttachmentController::class, 'index']);
+        Route::post('/activities/{type}/{id}/attachments', [\App\Http\Controllers\ActivityAttachmentController::class, 'store']);
+        Route::delete('/activities/{type}/{id}/attachments/{attachment}', [\App\Http\Controllers\ActivityAttachmentController::class, 'destroy']);
+        Route::get('/activities/{type}/{id}/audit-log', [\App\Http\Controllers\ActivityAuditController::class, 'index']);
+        Route::get('/visitors', [VisitorController::class, 'index']);
+        Route::post('/visitors', [VisitorController::class, 'store']);
+        Route::post('/visitors/resolve-contact', [VisitorController::class, 'resolveContact']);
+        Route::get('/visits', [VisitController::class, 'index']);
+        Route::get('/visits/{visit}', [VisitController::class, 'show']);
+        Route::post('/visits/check-in', [VisitController::class, 'checkIn']);
+        Route::post('/visits/{visit}/check-out', [VisitController::class, 'checkOut']);
+        Route::get('/official-business', [OfficialBusinessTripController::class, 'activitiesIndex'])->name('activities.official-business.index');
+        Route::get('/official-business/deleted', [OfficialBusinessTripController::class, 'deletedActivitiesIndex'])->name('activities.official-business.deleted');
+        Route::post('/official-business/{id}/restore', [OfficialBusinessTripController::class, 'restoreDeleted'])->name('activities.official-business.restore');
+        Route::delete('/official-business/{id}/force', [OfficialBusinessTripController::class, 'forceDeleteDeleted'])->name('activities.official-business.force-delete');
+        Route::delete('/official-business/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('activities.official-business.destroy');
+        Route::post('/official-business/{officialBusinessTrip}/depart', [OfficialBusinessTripController::class, 'depart'])->name('activities.official-business.depart');
+        Route::post('/official-business/{officialBusinessTrip}/return', [OfficialBusinessTripController::class, 'returnTrip'])->name('activities.official-business.return');
+        Route::post('/official-business/{officialBusinessTrip}/ready', [OfficialBusinessTripController::class, 'readyForTravel'])->name('activities.official-business.ready');
+        Route::post('/official-business/{officialBusinessTrip}/for-completion', [OfficialBusinessTripController::class, 'startCompletion'])->name('activities.official-business.for-completion');
+        Route::post('/official-business/{officialBusinessTrip}/cancel', [OfficialBusinessTripController::class, 'cancel'])->name('activities.official-business.cancel');
+        Route::post('/official-business/{officialBusinessTrip}/complete', [OfficialBusinessTripController::class, 'complete'])->name('activities.official-business.complete');
+        Route::get('/official-business/{officialBusinessTrip}/trip-tickets', [OfficialBusinessTripTicketController::class, 'index'])->name('activities.official-business.trip-tickets.index');
+        Route::post('/official-business/{officialBusinessTrip}/trip-tickets', [OfficialBusinessTripTicketController::class, 'store'])->name('activities.official-business.trip-tickets.store');
+        Route::post('/official-business/{officialBusinessTrip}/trip-tickets/sync', [OfficialBusinessTripTicketController::class, 'sync'])->name('activities.official-business.trip-tickets.sync');
+        Route::get('/official-business-trip-tickets/finance-ready', [OfficialBusinessTripTicketController::class, 'financeReady'])->name('activities.official-business.trip-tickets.finance-ready');
+        Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'show'])->name('activities.official-business.trip-tickets.show');
+    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'update'])->name('activities.official-business.trip-tickets.update');
+    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'destroy'])->name('activities.official-business.trip-tickets.destroy');
+    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/evidence', [OfficialBusinessTripTicketController::class, 'storeEvidence'])->name('activities.official-business.trip-tickets.evidence.store');
+    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}/evidence/{attachment}', [OfficialBusinessTripTicketController::class, 'destroyEvidence'])->name('activities.official-business.trip-tickets.evidence.destroy');
+    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}/financial-treatment', [OfficialBusinessTripTicketController::class, 'updateFinancialTreatment'])->name('activities.official-business.trip-tickets.financial-treatment.update');
+    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/costs', [OfficialBusinessTripTicketController::class, 'storeCost'])->name('activities.official-business.trip-tickets.costs.store');
+    Route::put('/official-business-trip-tickets/{officialBusinessTripTicket}/costs/{cost}', [OfficialBusinessTripTicketController::class, 'updateCost'])->name('activities.official-business.trip-tickets.costs.update');
+    Route::delete('/official-business-trip-tickets/{officialBusinessTripTicket}/costs/{cost}', [OfficialBusinessTripTicketController::class, 'destroyCost'])->name('activities.official-business.trip-tickets.costs.destroy');
+    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/completion-checklist', [OfficialBusinessTripTicketController::class, 'completionChecklist'])->name('activities.official-business.trip-tickets.completion-checklist');
+    Route::post('/official-business-trip-tickets/{officialBusinessTripTicket}/complete', [OfficialBusinessTripTicketController::class, 'complete'])->name('activities.official-business.trip-tickets.complete');
+    Route::post('/official-business-trip-tickets/{id}/restore', [OfficialBusinessTripTicketController::class, 'restore'])->name('activities.official-business.trip-tickets.restore');
+    Route::get('/official-business/{officialBusinessTrip}/history.pdf', [OfficialBusinessTripController::class, 'downloadHistoryPdf'])->name('activities.official-business.history-pdf');
+    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/pdf', [OfficialBusinessTripTicketController::class, 'downloadPdf'])->name('activities.official-business.trip-tickets.pdf');
+    Route::get('/official-business-trip-tickets/{officialBusinessTripTicket}/history.pdf', [OfficialBusinessTripTicketController::class, 'downloadHistoryPdf'])->name('activities.official-business.trip-tickets.history-pdf');
+    Route::get('/companies/{company}/travel-credits', [CompanyTravelCreditController::class, 'show'])->name('activities.official-business.travel-credits.show');
+    Route::post('/companies/{company}/travel-credits/adjustments', [CompanyTravelCreditController::class, 'adjust'])->name('activities.official-business.travel-credits.adjust');
+        Route::post('/tasks', [ActivityController::class, 'storeTask']);
+        Route::get('/tasks/workflow', [TaskWorkflowController::class, 'index']);
+        Route::post('/tasks/outline', [TaskWorkflowController::class, 'outline']);
+        Route::patch('/tasks/reorder', [TaskWorkflowController::class, 'reorder']);
+        Route::patch('/tasks/bulk', [TaskWorkflowController::class, 'bulk']);
+        Route::get('/task-templates', [TaskWorkflowController::class, 'templates']);
+        Route::post('/task-templates/{template}/instantiate', [TaskWorkflowController::class, 'instantiateTemplate']);
+        Route::post('/tasks/{task}/timer/{action}', [TaskWorkflowController::class, 'timer']);
+        Route::post('/tasks/{task}/duplicate', [TaskWorkflowController::class, 'duplicate']);
+        Route::post('/tasks/{task}/save-template', [TaskWorkflowController::class, 'saveTemplate']);
+        Route::post('/events', [ActivityController::class, 'storeEvent']);
+        Route::post('/calls', [ActivityController::class, 'storeCall']);
+        Route::post('/meetings', [ActivityController::class, 'storeMeeting']);
+        Route::post('/meetings/{id}/calendar/retry', [ActivityController::class, 'retryMeetingCalendarSync']);
+        Route::get('/email-activities', [\App\Http\Controllers\EmailActivityController::class, 'index']);
+        Route::post('/email-activities/sync', [\App\Http\Controllers\EmailActivityController::class, 'sync']);
+        Route::get('/email-activities/{id}', [\App\Http\Controllers\EmailActivityController::class, 'show']);
+        Route::get('/email-activities/{id}/thread', [\App\Http\Controllers\EmailActivityController::class, 'thread']);
+        Route::post('/email-activities/send', [\App\Http\Controllers\EmailActivityController::class, 'send']);
+        Route::post('/email-activities/{id}/reply', [\App\Http\Controllers\EmailActivityController::class, 'reply']);
+        Route::get('/email-activities/{id}/attachments/{attachmentId}', [\App\Http\Controllers\EmailActivityController::class, 'downloadAttachment']);
+        Route::get('/email-activities/{id}/files/{attachment}', [\App\Http\Controllers\EmailActivityController::class, 'downloadStoredAttachment']);
+        Route::get('/email/gmail/connect', [\App\Http\Controllers\EmailActivityController::class, 'connectGmail']);
+        Route::get('/email/gmail/callback', [\App\Http\Controllers\EmailActivityController::class, 'gmailCallback']);
+        Route::post('/email/gmail/disconnect', [\App\Http\Controllers\EmailActivityController::class, 'disconnectGmail']);
+        Route::get('/meetings/{meeting}/workspace', [\App\Http\Controllers\MeetingWorkspaceController::class, 'show']);
+        Route::put('/meetings/{meeting}/workspace', [\App\Http\Controllers\MeetingWorkspaceController::class, 'update']);
+        Route::post('/meetings/{meeting}/action-items', [\App\Http\Controllers\MeetingWorkspaceController::class, 'storeActionItem']);
+        Route::put('/meetings/{meeting}/action-items/{actionItem}', [\App\Http\Controllers\MeetingWorkspaceController::class, 'updateActionItem']);
+        Route::delete('/meetings/{meeting}/action-items/{actionItem}', [\App\Http\Controllers\MeetingWorkspaceController::class, 'destroyActionItem']);
+        Route::post('/meetings/{meeting}/action-items/{actionItem}/convert-to-task', [\App\Http\Controllers\MeetingWorkspaceController::class, 'convertActionItem']);
 
-    Route::delete('/tasks/{id}', [ActivityController::class, 'destroyTask']);
-    Route::delete('/events/{id}', [ActivityController::class, 'destroyEvent']);
-    Route::delete('/calls/{id}', [ActivityController::class, 'destroyCall']);
-    Route::delete('/meetings/{id}', [ActivityController::class, 'destroyMeeting']);
+        Route::get('/message-conversations', [\App\Http\Controllers\MessageConversationController::class, 'index']);
+        Route::post('/message-conversations', [\App\Http\Controllers\MessageConversationController::class, 'store']);
+        Route::get('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'show']);
+        Route::put('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'update']);
+        Route::delete('/message-conversations/{conversation}', [\App\Http\Controllers\MessageConversationController::class, 'destroy']);
+        Route::post('/message-conversations/{conversation}/messages', [\App\Http\Controllers\MessageConversationController::class, 'storeMessage']);
 
-    Route::post('/notes', [ActivityController::class, 'storeNote']);
-    Route::put('/notes/{id}', [ActivityController::class, 'updateNote']);
-    Route::delete('/notes/{id}', [ActivityController::class, 'destroyNote']);
-    Route::post('/meetings/{id}/analyze', [ActivityController::class, 'analyzeMeeting']);
-    Route::post('/meetings/{id}/upload-video', [ActivityController::class, 'uploadVideo']);
-    Route::post('/meetings/{id}/upload-transcript', [ActivityController::class, 'uploadTranscript']);
-    Route::post('/meetings/{id}/upload-minutes', [ActivityController::class, 'uploadMinutes']);
-    Route::post('/calls/{id}/upload-audio', [ActivityController::class, 'uploadCallAudio']);
-    Route::delete('/calls/{id}/audio', [ActivityController::class, 'destroyCallAudio']);
+        Route::put('/tasks/{id}', [ActivityController::class, 'updateTask']);
+        Route::put('/events/{id}', [ActivityController::class, 'updateEvent']);
+        Route::put('/calls/{id}', [ActivityController::class, 'updateCall']);
+        Route::put('/meetings/{id}', [ActivityController::class, 'updateMeeting']);
+
+        Route::delete('/tasks/{id}', [ActivityController::class, 'destroyTask']);
+        Route::delete('/events/{id}', [ActivityController::class, 'destroyEvent']);
+        Route::delete('/calls/{id}', [ActivityController::class, 'destroyCall']);
+        Route::delete('/meetings/{id}', [ActivityController::class, 'destroyMeeting']);
+
+        Route::post('/notes', [ActivityController::class, 'storeNote']);
+        Route::put('/notes/{id}', [ActivityController::class, 'updateNote']);
+        Route::delete('/notes/{id}', [ActivityController::class, 'destroyNote']);
+        Route::post('/meetings/{id}/analyze', [ActivityController::class, 'analyzeMeeting']);
+        Route::post('/meetings/{id}/upload-video', [ActivityController::class, 'uploadVideo']);
+        Route::post('/meetings/{id}/upload-transcript', [ActivityController::class, 'uploadTranscript']);
+        Route::post('/meetings/{id}/upload-minutes', [ActivityController::class, 'uploadMinutes']);
+        Route::post('/calls/{id}/upload-audio', [ActivityController::class, 'uploadCallAudio']);
+        Route::delete('/calls/{id}/audio', [ActivityController::class, 'destroyCallAudio']);
+    });
 });
 
 /*
@@ -471,10 +571,21 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/deals', [DealController::class, 'index'])->name('deals.index');
     Route::get('/deals/quick-purchase', [DealController::class, 'quickPurchase'])->name('deals.quick-purchase');
     Route::post('/deals/quick-purchase', [DealController::class, 'storeQuickPurchase'])->name('deals.quick-purchase.store');
+        Route::get('/client/official-business/trip-tickets/page', [OfficialBusinessTripTicketController::class, 'clientPage'])
+        ->name('client.official-business.trip-tickets.page');
+    Route::get('/client/official-business/trip-tickets', [OfficialBusinessTripTicketController::class, 'clientIndex'])
+        ->name('client.official-business.trip-tickets.index');
+    Route::get('/client/official-business/trip-tickets/{officialBusinessTripTicket}', [OfficialBusinessTripTicketController::class, 'clientShow'])
+        ->name('client.official-business.trip-tickets.show');
+    Route::get('/client/official-business/trip-tickets/{officialBusinessTripTicket}/pdf', [OfficialBusinessTripTicketController::class, 'downloadPdf'])
+        ->name('client.official-business.trip-tickets.pdf');
+
     Route::get('/deals/create', [DealController::class, 'create'])->name('deals.create');
     Route::get('/deals/{deal}/payment-allocations', [\App\Http\Controllers\DealPaymentAllocationController::class, 'index'])->name('deals.payment-allocations.index');
     Route::post('/deals/{deal}/payment-allocations', [\App\Http\Controllers\DealPaymentAllocationController::class, 'store'])->name('deals.payment-allocations.store');
     Route::post('/deals/catalog-configuration', [DealController::class, 'catalogConfiguration'])->name('deals.catalog-configuration');
+    Route::post('/deals/{deal}/memberships', [DealController::class, 'assignMembership'])->name('deals.memberships.store');
+    Route::delete('/deals/{deal}/memberships/{membership}', [DealController::class, 'revokeMembership'])->name('deals.memberships.destroy');
     Route::post('/contacts/quick-store', [DealController::class, 'quickStoreContact'])->name('contacts.quick-store');
     Route::post('/accounts/quick-store', [DealController::class, 'quickStoreAccount'])->name('accounts.quick-store');
     Route::get('/deals/autocomplete', [DealController::class, 'autocomplete'])->name('deals.autocomplete');
@@ -655,6 +766,37 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
             '/services/reports',
             'reports'
         )->name('services.reports');
+        Route::get('/services/reports/export-csv', [ServiceController::class, 'exportReportsCsv'])->name('services.reports.export_csv');
+        Route::get('/services/reports/export-pdf', [ServiceController::class, 'exportReportsPdf'])->name('services.reports.export_pdf');
+        Route::get('/services/export-csv', [ServiceController::class, 'exportDashboardCsv'])->name('services.export_csv');
+        Route::get('/services/export-pdf', [ServiceController::class, 'exportDashboardPdf'])->name('services.export_pdf');
+
+        Route::post('/services/{service}/activities/bulk-action', [ServiceController::class, 'bulkActionActivities'])->name('services.activities.bulk_action');
+        Route::delete('/services/{service}/activities/bulk-destroy', [ServiceController::class, 'bulkDestroyActivities'])->name('services.activities.bulk_destroy');
+        Route::delete('/services/{service}/activities/destroy-all', [ServiceController::class, 'destroyAllActivities'])->name('services.activities.destroy_all');
+
+        Route::delete('/services/global-requirements/{globalRequirement}', [ServiceController::class, 'destroyGlobalRequirement'])->name('services.global_requirements.destroy');
+        Route::post('/services/{service}/custom-fields', [ServiceController::class, 'storeCustomField'])->name('services.custom-fields.store');
+
+        Route::get('/services/{service}/inherited-terms', [ServiceController::class, 'getInheritedTerms'])->name('services.inherited_terms');
+        Route::post('/services/{service}/requirements', [ServiceController::class, 'storeRequirement'])->name('services.requirements.store');
+        Route::put('/services/requirements/{requirement}', [ServiceController::class, 'updateRequirement'])->name('services.requirements.update');
+        Route::delete('/services/requirements/{requirement}', [ServiceController::class, 'destroyRequirement'])->name('services.requirements.destroy');
+        Route::post('/services/{service}/requirements/bulk-template', [ServiceController::class, 'bulkToTemplateLibrary'])->name('services.requirements.bulk-template');
+
+        Route::post('/services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate');
+        Route::get('/services/{service}/usage', [ServiceController::class, 'usage'])->name('services.usage');
+        Route::get('/services/{service}/export', [ServiceController::class, 'export'])->name('services.export');
+        Route::get('/services/{service}/export-single', [ServiceController::class, 'export'])->name('services.export_single');
+        
+
+    // Products Module Routes (no state-changing GET, no unguarded closures)
+    Route::get('/products/reports/export-csv', [ProductController::class, 'exportReportsCsv'])->name('products.reports.export_csv');
+    Route::get('/products/reports/export-pdf', [ProductController::class, 'exportReportsPdf'])->name('products.reports.export_pdf');
+    Route::get('/products/export-csv', [ProductExportController::class, 'exportCsvRoute'])->name('products.export.csv');
+    Route::get('/products/export-pdf', [ProductExportController::class, 'exportPdfRoute'])->name('products.export.pdf');
+    Route::post('/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
+    Route::patch('/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
 
 
         // ------------------------------------------------------------------
@@ -1716,19 +1858,11 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::get('/products/reports', [ProductController::class, 'reports'])->name('products.reports');
-    Route::get('/products/export-csv', function (\Illuminate\Http\Request $request) {
-        return app(ProductExportController::class)->exportAll($request->merge(['format' => 'csv']));
-    })->name('products.export.csv');
-    Route::get('/products/export-pdf', function (\Illuminate\Http\Request $request) {
-        return app(ProductExportController::class)->exportAll($request->merge(['format' => 'pdf']));
-    })->name('products.export.pdf');
     Route::get('/products/export-all', [ProductExportController::class, 'exportAll'])->name('products.export.all');
     Route::get('/products/import', [ProductImportController::class, 'showImportForm'])->name('products.import.form');
     Route::post('/products/import', [ProductImportController::class, 'storeImport'])->name('products.import.store');
 
     Route::get('/products/{id}/workspace', [ProductController::class, 'workspace'])->name('products.workspace');
-    Route::match(['get', 'post'], '/products/{id}/duplicate', [ProductController::class, 'duplicate'])->name('products.duplicate');
-    Route::match(['get', 'patch'], '/products/{id}/archive', [ProductController::class, 'archive'])->name('products.archive');
     Route::post('/products/{id}/submit-approval', [ProductController::class, 'submitApproval'])->name('products.submit-approval');
     Route::post('/products/{id}/approve', [ProductController::class, 'approve'])->name('products.approve');
     Route::post('/products/{id}/reject', [ProductController::class, 'reject'])->name('products.reject');
@@ -1827,10 +1961,13 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::delete('/company/{company}/consultation-notes/{note}', [CompanyConsultationNoteController::class, 'destroy'])->name('company.consultation-notes.destroy');
 
     Route::get('/company/{company}/activities', [CompanyController::class, 'activities'])->name('company.activities');
-    Route::post('/company/{company}/activities', [CompanyActivityController::class, 'store'])->name('company.activities.store');
-    Route::match(['put', 'patch'], '/company/{company}/activities/{activity}', [CompanyActivityController::class, 'update'])->name('company.activities.update');
-    Route::patch('/company/{company}/activities/{activity}/complete', [CompanyActivityController::class, 'complete'])->name('company.activities.complete');
-    Route::delete('/company/{company}/activities/{activity}', [CompanyActivityController::class, 'destroy'])->name('company.activities.destroy');
+        Route::get('/company/{company}/report', [CompanyController::class, 'report'])
+        ->middleware('human-capital.module:access_activities')
+        ->name('company.report');
+
+    Route::get('/company/{company}/report/pdf', [CompanyController::class, 'reportPdf'])
+        ->middleware('human-capital.module:access_activities')
+        ->name('company.report.pdf');
 
     Route::get('/company/{company}/deals', [CompanyDealController::class, 'index'])->name('company.deals');
     Route::post('/company/{company}/deals', [CompanyDealController::class, 'store'])->name('company.deals.store');
@@ -2241,8 +2378,6 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
         $engagements = \Illuminate\Support\Facades\DB::table('engagements')->get();
         return view('engagements.index', compact('engagements'));
     })->name('engagements.index');
-    Route::get('/engagements/export/pdf', [ImportExportController::class, 'exportEngagementsPDF'])->name('export.engagements.pdf');
-    Route::get('/engagements/export/excel', [ImportExportController::class, 'exportEngagementsExcel'])->name('export.engagements.excel');
 
     /*
     |--------------------------------------------------------------------------
@@ -2390,6 +2525,9 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     Route::get('/transmittal/{transmittal}/preview-pdf', [TransmittalController::class, 'previewPdf'])->name('transmittal.preview.pdf');
     Route::post('/transmittal/{transmittal}/send-email', [TransmittalController::class, 'sendEmail'])->name('transmittal.send-email');
     Route::get('/transmittal/{transmittal}/receipt-pdf', [TransmittalController::class, 'receiptPdf'])->name('transmittal.receipt.pdf');
+    Route::post('/transmittal/ocr/analyze', [\App\Http\Controllers\TransmittalOcrController::class, '__invoke'])
+        ->middleware('throttle:5,1,transmittal-ocr:')
+        ->name('transmittal.ocr.analyze');
 
     /*
     |--------------------------------------------------------------------------
@@ -2688,6 +2826,9 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
             Route::delete('/obf/{officialBusinessTrip}', [OfficialBusinessTripController::class, 'destroy'])->name('obf.destroy');
             Route::post('/obf/{officialBusinessTrip}/approve', [OfficialBusinessTripController::class, 'approve'])->name('obf.approve');
             Route::post('/obf/{officialBusinessTrip}/reject', [OfficialBusinessTripController::class, 'reject'])->name('obf.reject');
+            Route::get('/obf/suggestions', [OfficialBusinessTripController::class, 'suggestions'])->name('obf.suggestions');
+            Route::get('/obf/engagements', [OfficialBusinessTripController::class, 'engagements'])->name('obf.engagements');
+            Route::post('/obf/{officialBusinessTrip}/revert', [OfficialBusinessTripController::class, 'revert'])->name('obf.revert');
         });
 
 
@@ -2752,17 +2893,6 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     });
 });
 
-/*
-|--------------------------------------------------------------------------
-| REGULAR OPERATIONS UPGRADE (ORDO)
-|--------------------------------------------------------------------------
-*/
-Route::get('/projects', [RegularProjectController::class, 'index'])->name('projects.index');
-Route::post('/projects', [RegularProjectController::class, 'create'])->name('projects.create');
-Route::get('/reports/export', [RegularProjectController::class, 'export'])->name('projects.export');
-Route::post('/preferences', [RegularProjectController::class, 'settings'])->name('preferences.save');
-Route::get('/portfolio/{module}', [RegularProjectController::class, 'index'])->name('portfolio.module');
-Route::get('/projects/{project}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.workspace');
-Route::get('/projects/{project}/{section}', [RegularProjectController::class, 'workspace'])->whereNumber('project')->name('projects.section');
-Route::post('/projects/{project}/actions/{action}', [RegularProjectController::class, 'action'])->whereNumber('project')->name('projects.action');
-Route::get('/projects/{project}/files/{file}', [RegularProjectController::class, 'download'])->whereNumber('project')->name('projects.file');
+
+
+require __DIR__.'/records.php';
