@@ -85,8 +85,21 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100 bg-white">
                     @forelse($transmittals as $transmittal)
+                        @php
+                            $isV2 = ($transmittal->workflow_version ?? null) === 'v2';
+                            $viewUrl = $isV2
+                                ? route('transmittals.workspace', $transmittal->id)
+                                : route('transmittal.preview', $transmittal->id);
+                        @endphp
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 font-semibold text-gray-900">{{ $transmittal->transmittal_no ?? ('TRN-' . $transmittal->id) }}</td>
+                            <td class="px-4 py-3 font-semibold text-gray-900">
+                                <div class="flex items-center gap-1.5">
+                                    <span>{{ $transmittal->transmittal_no ?? ('TRN-' . $transmittal->id) }}</span>
+                                    @if($isV2)
+                                        <span class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">V2</span>
+                                    @endif
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-gray-600">{{ optional($transmittal->transmittal_date)->format('Y-m-d') ?? '-' }}</td>
                             <td class="px-4 py-3 text-gray-600">{{ $transmittal->mode ?? '-' }}</td>
                             <td class="px-4 py-3 text-gray-700">{{ $transmittal->from_value ?: '-' }}</td>
@@ -109,42 +122,82 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex flex-wrap justify-end gap-2">
-                                    <a href="{{ route('transmittal.preview', $transmittal->id) }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                    <a href="{{ $viewUrl }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                                         View
                                     </a>
 
                                     @if($transmittal->workflow_status === 'Submitted')
-                                        <form method="POST" action="{{ route('corporate.approvals.approve', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Approve this transmittal?');">
-                                            @csrf
-                                            <button type="submit" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                                                Approve
-                                            </button>
-                                        </form>
+                                        @if($isV2)
+                                            @php
+                                                $user = auth()->user();
+                                                $isPreparer = (string) $transmittal->prepared_by === (string) $user?->id;
+                                                $canApproveV2 = $user?->can('transmittal-v2.approve', $transmittal) && ! $isPreparer;
+                                            @endphp
+                                            @if($canApproveV2)
+                                                <form method="POST" action="{{ route('transmittals.approve', $transmittal->id) }}" onsubmit="return confirm('Approve this transmittal?');">
+                                                    @csrf
+                                                    <input type="hidden" name="return_to_dashboard" value="1">
+                                                    <button type="submit" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
+                                                        Approve
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <button type="button" disabled title="{{ $isPreparer ? 'Cannot approve own submission (separation of duties rule).' : 'Only authorized administrators can approve.' }}" class="rounded-lg bg-emerald-300 cursor-not-allowed px-3 py-1.5 text-xs font-semibold text-white">
+                                                    Approve
+                                                </button>
+                                            @endif
 
-                                        <form method="POST" action="{{ route('corporate.approvals.revise', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Send this transmittal back for revision?');">
-                                            @csrf
-                                            <input type="hidden" name="review_note" value="Please revise this transmittal.">
-                                            <button type="submit" class="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600">
-                                                Revise
-                                            </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('transmittals.reject', $transmittal->id) }}" onsubmit="return confirm('Reject this transmittal?');">
+                                                @csrf
+                                                <input type="hidden" name="return_to_dashboard" value="1">
+                                                <input type="hidden" name="rejection_reason" value="Transmittal rejected from admin dashboard.">
+                                                <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
+                                                    Reject
+                                                </button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('corporate.approvals.approve', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Approve this transmittal?');">
+                                                @csrf
+                                                <button type="submit" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
+                                                    Approve
+                                                </button>
+                                            </form>
 
-                                        <form method="POST" action="{{ route('corporate.approvals.reject', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Reject this transmittal?');">
-                                            @csrf
-                                            <input type="hidden" name="review_note" value="Transmittal rejected.">
-                                            <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
-                                                Reject
-                                            </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('corporate.approvals.revise', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Send this transmittal back for revision?');">
+                                                @csrf
+                                                <input type="hidden" name="review_note" value="Please revise this transmittal.">
+                                                <button type="submit" class="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600">
+                                                    Revise
+                                                </button>
+                                            </form>
+
+                                            <form method="POST" action="{{ route('corporate.approvals.reject', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Reject this transmittal?');">
+                                                @csrf
+                                                <input type="hidden" name="review_note" value="Transmittal rejected.">
+                                                <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">
+                                                    Reject
+                                                </button>
+                                            </form>
+                                        @endif
                                     @endif
 
                                     @if(in_array($transmittal->workflow_status, ['Accepted', 'Reverted'], true))
-                                        <form method="POST" action="{{ route('corporate.approvals.archive', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Archive this transmittal?');">
-                                            @csrf
-                                            <button type="submit" class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
-                                                Archive
-                                            </button>
-                                        </form>
+                                        @if($isV2)
+                                            <form method="POST" action="{{ route('transmittals.cancel', $transmittal->id) }}" onsubmit="return confirm('Archive/cancel this transmittal?');">
+                                                @csrf
+                                                <input type="hidden" name="reason" value="Archived from admin dashboard.">
+                                                <button type="submit" class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
+                                                    Archive
+                                                </button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('corporate.approvals.archive', ['module' => 'transmittal', 'id' => $transmittal->id]) }}" onsubmit="return confirm('Archive this transmittal?');">
+                                                @csrf
+                                                <button type="submit" class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">
+                                                    Archive
+                                                </button>
+                                            </form>
+                                        @endif
                                     @endif
                                 </div>
                             </td>

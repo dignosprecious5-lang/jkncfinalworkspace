@@ -7,6 +7,7 @@
 @endpush
 
 @push('scripts')
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     @vite(['resources/js/transmittal.js'])
 @endpush
 @section('content')
@@ -1517,8 +1518,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <a href="{{ $initialUrl }}" target="_blank" download class="button subtle" style="padding: 7px 14px; font-size: 13px; font-weight: 600; text-decoration: none;">Download File</a>
                                     </div>
                                 </header>
-                                <div class="attachment-preview-stage">
-                                    <iframe data-attachment-frame title="{{ $initialAttachment->original_name }}" src="{{ $initialPreviewUrl }}" @if (! $initialPreviewable) hidden @endif></iframe>
+                                <div class="attachment-preview-stage" data-attachment-stage>
+                                    <div class="attachment-canvas-wrapper" data-attachment-canvas-wrapper>
+                                        <canvas class="attachment-paper-sheet" data-attachment-canvas></canvas>
+                                    </div>
+                                    <img class="attachment-paper-sheet" data-attachment-img style="display: none;" alt="Attachment preview">
+                                    <iframe data-attachment-frame title="{{ $initialAttachment->original_name }}" src="{{ $initialPreviewUrl }}" @if (! $initialPreviewable) hidden @endif style="display: none;"></iframe>
                                     <p data-attachment-unavailable @if ($initialPreviewable) hidden @endif>This file format cannot be previewed directly in the browser. Download it to view the document.</p>
                                 </div>
                             </section>

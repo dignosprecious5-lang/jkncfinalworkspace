@@ -63,28 +63,102 @@ document.querySelectorAll('[data-open-receipt-tab]').forEach((btn) => {
 
 // Attachment browser item selection
 document.querySelectorAll('[data-attachment-browser]').forEach((browser) => {
+    const stage = browser.querySelector('[data-attachment-stage]');
+    const canvasWrapper = browser.querySelector('[data-attachment-canvas-wrapper]');
+    const imagePreview = browser.querySelector('[data-attachment-img]');
     const frame = browser.querySelector('[data-attachment-frame]');
     const title = browser.querySelector('[data-attachment-preview-title]');
     const category = browser.querySelector('[data-attachment-preview-category]');
     const unavailable = browser.querySelector('[data-attachment-unavailable]');
     const downloadLink = browser.querySelector('.attachment-preview-actions a');
 
+    function renderDocumentPreview(url, name, previewable) {
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        const isPdf = ext === 'pdf';
+        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+
+        if (canvasWrapper) canvasWrapper.style.display = 'none';
+        if (imagePreview) imagePreview.style.display = 'none';
+        if (frame) frame.style.display = 'none';
+        if (unavailable) unavailable.hidden = previewable;
+
+        if (!previewable) {
+            return;
+        }
+
+        if (isPdf && window.pdfjsLib && canvasWrapper) {
+            canvasWrapper.style.display = 'flex';
+            canvasWrapper.innerHTML = '';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+            pdfjsLib.getDocument(url).promise.then((pdf) => {
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const pageCanvas = document.createElement('canvas');
+                    pageCanvas.className = 'attachment-paper-sheet';
+                    canvasWrapper.appendChild(pageCanvas);
+
+                    pdf.getPage(pageNum).then((page) => {
+                        const containerWidth = Math.min((stage?.clientWidth || 800) - 48, 800);
+                        const targetWidth = containerWidth > 320 ? containerWidth : 800;
+                        const unscaledViewport = page.getViewport({ scale: 1 });
+                        const scale = targetWidth / unscaledViewport.width;
+                        const dpr = window.devicePixelRatio || 1;
+                        const viewport = page.getViewport({ scale: scale * dpr });
+
+                        pageCanvas.width = viewport.width;
+                        pageCanvas.height = viewport.height;
+                        pageCanvas.style.width = `${viewport.width / dpr}px`;
+                        pageCanvas.style.height = `${viewport.height / dpr}px`;
+
+                        const ctx = pageCanvas.getContext('2d');
+                        page.render({ canvasContext: ctx, viewport: viewport });
+                    });
+                }
+            }).catch((err) => {
+                console.warn('PDF.js render failed, falling back to iframe', err);
+                if (canvasWrapper) canvasWrapper.style.display = 'none';
+                if (frame) {
+                    frame.style.display = 'block';
+                    frame.hidden = false;
+                    frame.src = url;
+                }
+            });
+        } else if (isImage && imagePreview) {
+            imagePreview.style.display = 'block';
+            imagePreview.src = url;
+        } else if (frame) {
+            frame.style.display = 'block';
+            frame.hidden = false;
+            frame.src = url;
+        }
+    }
+
+    // Auto-render initial attachment if available
+    const activeItem = browser.querySelector('[data-attachment-select][aria-pressed="true"]') || browser.querySelector('[data-attachment-select]');
+    if (activeItem) {
+        const initialUrl = activeItem.dataset.attachmentUrl || '';
+        const initialName = activeItem.dataset.attachmentName || '';
+        const initialPreviewable = activeItem.dataset.attachmentPreviewable === 'true';
+        if (initialUrl && initialPreviewable) {
+            renderDocumentPreview(initialUrl, initialName, initialPreviewable);
+        }
+    }
+
     browser.querySelectorAll('[data-attachment-select]').forEach((button) => {
         button.addEventListener('click', () => {
             const name = button.dataset.attachmentName || 'Attachment';
             const previewable = button.dataset.attachmentPreviewable === 'true';
+            const url = button.dataset.attachmentUrl || '';
+
             browser.querySelectorAll('[data-attachment-select]').forEach((item) => {
                 item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
             });
             if (title) title.textContent = name;
             if (category) category.textContent = button.dataset.attachmentCategory || '';
-            if (frame) {
-                frame.title = name;
-                frame.hidden = !previewable;
-                frame.src = previewable ? (button.dataset.attachmentFitUrl || button.dataset.attachmentUrl) : '';
-            }
-            if (downloadLink) downloadLink.href = button.dataset.attachmentUrl || '#';
-            if (unavailable) unavailable.hidden = previewable;
+            if (downloadLink) downloadLink.href = url || '#';
+            if (frame) frame.title = name;
+
+            renderDocumentPreview(url, name, previewable);
         });
     });
 });
