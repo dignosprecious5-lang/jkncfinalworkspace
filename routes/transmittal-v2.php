@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(EnsureTransmittalV2Enabled::class)->group(function (): void {
     // Authenticated CRM Staff Routes
     Route::middleware(['auth', 'prevent-back-history', EnsurePasswordChanged::class])->group(function (): void {
-        Route::get('/transmittals', [TransmittalController::class, 'index'])->name('transmittals.index');
+        Route::get('/transmittals', function () { return redirect()->route('transmittal.index'); })->name('transmittals.index');
+        Route::get('/transmittal/smart-upload', function () { return redirect()->route('transmittals.smart-upload'); });
+        Route::get('/transmittal/{transmittal}/workspace', function ($transmittal) { return redirect()->route('transmittals.workspace', $transmittal); })->whereNumber('transmittal');
         Route::get('/transmittals/create', [TransmittalController::class, 'create'])->name('transmittals.create');
         Route::get('/transmittals/smart-upload', [TransmittalController::class, 'smartUpload'])->middleware(['throttle:30,1', \App\Http\Middleware\TransmittalV2\EnsureTransmittalV2OptionalFeatureEnabled::class.':smart_upload'])->name('transmittals.smart-upload');
         Route::post('/transmittals/smart-upload', [TransmittalController::class, 'createFromSmartUpload'])->middleware(['throttle:10,1', \App\Http\Middleware\TransmittalV2\EnsureTransmittalV2OptionalFeatureEnabled::class.':smart_upload'])->name('transmittals.smart-upload.store');

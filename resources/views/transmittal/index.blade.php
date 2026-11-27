@@ -173,14 +173,23 @@
         <div class="px-5 py-4 flex items-center justify-between border-b border-gray-200">
             <h1 class="text-[30px] font-semibold text-gray-800 leading-none">Transmittal</h1>
 
-            <button
-                type="button"
-                @click="showSlideOver = true"
-                onclick="openAddSection()"
-                class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-full transition"
-            >
-                <i class="fas fa-plus mr-1"></i> Add
-            </button>
+            <div class="flex items-center gap-2">
+                <a
+                    href="{{ route('transmittals.smart-upload') }}"
+                    class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-full transition flex items-center gap-1.5"
+                >
+                    <i class="fas fa-file-import text-xs"></i> Smart Upload
+                </a>
+
+                <button
+                    type="button"
+                    @click="showSlideOver = true"
+                    onclick="openAddSection()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-full transition"
+                >
+                    <i class="fas fa-plus mr-1"></i> Add
+                </button>
+            </div>
         </div>
 
         <div class="px-5 pt-4 bg-white border-b border-gray-100">

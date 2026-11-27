@@ -2502,7 +2502,7 @@ Route::middleware(['auth', 'prevent-back-history', \App\Http\Middleware\EnsurePa
     | TRANSMITTAL MODULE
     |--------------------------------------------------------------------------
     */
-    Route::get('/transmittal', [TransmittalController::class, 'index'])->name('transmittal.index');
+    Route::get('/transmittal', [\App\Http\Controllers\TransmittalV2\TransmittalController::class, 'index'])->name('transmittal.index');
 
     Route::get('/admin/transmittal-dashboard', [TransmittalController::class, 'dashboard'])
         ->name('admin.transmittal.dashboard');

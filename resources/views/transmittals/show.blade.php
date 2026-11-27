@@ -32,7 +32,7 @@
             {{ session('status') }}
         </div>
     @endif
-    @if ($errors->any())
+    @if (isset($errors) && $errors->any())
         <div style="margin: 0 0 16px 0; padding: 12px 16px; border-radius: 8px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 14px; font-weight: 500;">
             {{ $errors->first() }}
         </div>
@@ -181,7 +181,7 @@
                             || (str_starts_with($initialMime, 'image/') && ! in_array($initialExtension, ['tif', 'tiff'], true))
                             || in_array($initialExtension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                         $initialUrl = route('transmittals.documents.download', [$transmittal, $initialAttachment]);
-                        $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                        $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                     @endphp
                     <div class="attachment-browser-layout" data-attachment-browser>
                         <aside class="attachment-browser" aria-label="Uploaded attachments">
@@ -195,7 +195,7 @@
                                             || (str_starts_with($mime, 'image/') && ! in_array($extension, ['tif', 'tiff'], true))
                                             || in_array($extension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                                         $url = route('transmittals.documents.download', [$transmittal, $document]);
-                                        $previewUrl = $url.($extension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                                        $previewUrl = $url.($extension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                                     @endphp
                                     <button class="attachment-browser-item" type="button" data-attachment-select
                                         data-attachment-url="{{ $url }}" data-attachment-fit-url="{{ $previewUrl }}"

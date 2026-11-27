@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $transmittal->tracking_number . ' Workspace')
+@section('title', ($transmittal->tracking_number ?: $transmittal->transmittal_no) . ' Workspace')
 
 @push('styles')
     @vite(['resources/css/transmittal.css'])
@@ -20,7 +20,7 @@
 
             <h1 style="font-size: 30px; font-weight: 600; color: #1f2937; margin: 0 0 6px 0; letter-spacing: -0.025em; line-height: 1; font-family: inherit;">Transmittal Preview</h1>
 
-            <p style="font-size: 13px; font-weight: 500; color: #64748b; margin: 0;">{{ $transmittal->tracking_number }}</p>
+            <p style="font-size: 13px; font-weight: 500; color: #64748b; margin: 0;">{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}</p>
 
         </div>
 
@@ -100,25 +100,50 @@
                     ->first();
 
                 $draftRecipient = $transmittal->recipients->first();
+                if (! $draftRecipient && ($transmittal->party_name || $transmittal->recipient_email)) {
+                    $draftRecipient = (object)[
+                        'id' => null,
+                        'name' => $transmittal->party_name ?? '',
+                        'email' => $transmittal->recipient_email ?? '',
+                        'organization' => $transmittal->related_company ?? '',
+                        'designation' => '',
+                        'channel' => 'email',
+                    ];
+                }
                 $employees = $employees ?? collect();
                 $contacts = $contacts ?? collect();
                 $companies = $companies ?? collect();
 
-                $formItems = old('items', $transmittal->workspaceItems->map(fn ($item) => [
-                    'id' => $item->id,
-                    'line_number' => $item->line_number,
-                    'document_id' => $item->document_id,
-                    'particular' => $item->particular,
-                    'unique_id' => $item->unique_id,
-                    'quantity' => $item->quantity,
-                    'description' => $item->description,
-                    'remarks' => $item->remarks,
-                ])->all() ?: [['particular' => '', 'unique_id' => '', 'quantity' => '', 'description' => '', 'remarks' => '']]);
-    if (! is_array($formItems)) {
-        $formItems = $transmittal->workspaceItems->map(fn ($item) => $item->only([
-            'id', 'line_number', 'document_id', 'particular', 'unique_id', 'quantity', 'description', 'remarks',
-        ]))->all();
-    }
+                $formItems = old('items');
+                if (! is_array($formItems)) {
+                    $formItems = $transmittal->workspaceItems->map(fn ($item) => [
+                        'id' => $item->id,
+                        'line_number' => $item->line_number,
+                        'document_id' => $item->document_id,
+                        'particular' => $item->particular,
+                        'unique_id' => $item->unique_id,
+                        'quantity' => $item->quantity,
+                        'description' => $item->description,
+                        'remarks' => $item->remarks,
+                    ])->all();
+
+                    if (empty($formItems) && $transmittal->items && $transmittal->items->isNotEmpty()) {
+                        $formItems = $transmittal->items->map(fn ($item, $idx) => [
+                            'id' => $item->id,
+                            'line_number' => $idx + 1,
+                            'document_id' => null,
+                            'particular' => $item->particular,
+                            'unique_id' => $item->unique_id,
+                            'quantity' => $item->quantity,
+                            'description' => $item->description,
+                            'remarks' => $item->remarks,
+                        ])->all();
+                    }
+                }
+
+                if (empty($formItems)) {
+                    $formItems = [['particular' => '', 'unique_id' => '', 'quantity' => '', 'description' => '', 'remarks' => '']];
+                }
             @endphp
 
             {{-- Distinct Block: Transmittal Form Details --}}
@@ -128,7 +153,7 @@
                     Edit Transmittal Details
                 </h2>
 
-                @if ($errors->any())
+                @if (isset($errors) && $errors->any())
                     <div style="background-color: #fef2f2; border: 1px solid #f87171; color: #b91c1c; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;">
                         <strong style="display: block; margin-bottom: 4px; font-weight: 700;">Please check the following before submitting:</strong>
                         <ul style="margin: 0; padding-left: 20px;">
@@ -169,7 +194,7 @@
                             <input
                                 id="draft_tracking_number"
                                 type="text"
-                                value="{{ $transmittal->tracking_number }}"
+                                value="{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}"
                                 disabled
                                 style="width: 100%; padding: 8px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; color: #6b7280;"
                             >
@@ -1348,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                             <p class="receipt-reference">
                                 TRN Reference:
-                                <strong>{{ $transmittal->tracking_number }}</strong>
+                                <strong>{{ $transmittal->tracking_number ?: $transmittal->transmittal_no }}</strong>
                             </p>
 
                             <p>
@@ -1453,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 || (str_starts_with($initialMime, 'image/') && ! in_array($initialExtension, ['tif', 'tiff'], true))
                                 || in_array($initialExtension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                             $initialUrl = route('transmittals.documents.download', [$transmittal, $initialAttachment]);
-                            $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                            $initialPreviewUrl = $initialUrl.($initialExtension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                         @endphp
                         @php
                             $canShowAttachments = ($canViewAttachments ?? true) || ($canViewPrivateFiles ?? false);
@@ -1471,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                                 || (str_starts_with($mime, 'image/') && ! in_array($extension, ['tif', 'tiff'], true))
                                                 || in_array($extension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt'], true);
                                             $url = route('transmittals.documents.download', [$transmittal, $document]);
-                                            $previewUrl = $url.($extension === 'pdf' ? '#view=FitH&navpanes=0' : '');
+                                            $previewUrl = $url.($extension === 'pdf' ? '#view=Fit&navpanes=0' : '');
                                         @endphp
                                         <button class="attachment-browser-item" type="button" data-attachment-select
                                             data-attachment-url="{{ $url }}" data-attachment-fit-url="{{ $previewUrl }}"

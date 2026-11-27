@@ -13,10 +13,8 @@
 @section('content')
 <div class="page transmittal-index-page">
     @php
-        $total = $summary->sum();
-
-        $filterCounts = [
-            'all' => $total,
+        $filterCounts = $filterCounts ?? [
+            'all' => $summary->sum(),
             'uploaded' => $summary['draft'] ?? 0,
             'submitted' => $summary['pending_approval'] ?? 0,
             'accepted' => ($summary['approved'] ?? 0)
@@ -24,8 +22,8 @@
                 + ($summary['acknowledged'] ?? 0),
             'reverted' => $summary['rejected'] ?? 0,
             'archived' => $summary['cancelled'] ?? 0,
-
         ];
+        $total = $filterCounts['all'];
 
         $filters = [
             'all' => 'All',
@@ -44,14 +42,12 @@
         </div>
 
         <div class="heading-actions">
-            @if (config('transmittal_v2.optional_features.smart_upload', false))
             <a
                 class="button primary smart-upload-button"
                 href="{{ route('transmittals.smart-upload') }}"
             >
                 Smart Upload
             </a>
-            @endif
 
             <button
                 class="button primary add-button"
@@ -59,7 +55,7 @@
                 data-open-drawer
             >
                 <span class="button-plus">＋</span>
-                Add
+                Add Transmittal
             </button>
         </div>
     </div>
@@ -68,12 +64,12 @@
     <div class="metric-row">
         <div class="metric-card">
             <span class="metric-label">Total</span>
-            <strong>{{ $total }}</strong>
+            <strong>{{ $filterCounts['all'] }}</strong>
         </div>
 
         <div class="metric-card">
             <span class="metric-label">Pending Approval</span>
-            <strong>{{ $summary['pending_approval'] ?? 0 }}</strong>
+            <strong>{{ $filterCounts['submitted'] }}</strong>
         </div>
 
         <div class="metric-card">
@@ -83,7 +79,7 @@
 
         <div class="metric-card">
             <span class="metric-label">Received</span>
-            <strong>{{ $summary['acknowledged'] ?? 0 }}</strong>
+            <strong>{{ $filterCounts['accepted'] }}</strong>
         </div>
     </div>
 
@@ -96,9 +92,13 @@
             aria-label="Filter transmittals by status"
         >
             @foreach ($filters as $key => $label)
+                @if (
+                    $key !== 'deleted'
+                    || auth()->user()?->canApproveTransmittals()
+                )
                     <a
                         class="status-tab {{ $filter === $key ? 'active' : '' }}"
-                        href="{{ route('transmittals.index', array_filter([
+                        href="{{ route('transmittal.index', array_filter([
                             'filter' => $key === 'all' ? null : $key,
                             'q' => $search,
                         ])) }}"
@@ -111,6 +111,7 @@
                             {{ $filterCounts[$key] }}
                         </span>
                     </a>
+                @endif
             @endforeach
         </nav>
 
@@ -139,6 +140,7 @@
                         <th>From</th>
                         <th>To</th>
                         <th>Delivery Type</th>
+                        <th>Actions</th>
                         <th>Workflow Status</th>
                         <th>Approval Status</th>
                     </tr>
@@ -176,81 +178,78 @@
                                 ->implode(', ');
 
                             $officeName = $transmittal->origin_office
-                                ?: config('transmittal_v2.office_name', 'JK&C INC.');
+                                ?: config('ordo.office_name');
 
-                            $from = $transmittal->direction === 'receive'
-                                ? ($recipientNames ?: '—')
-                                : $officeName;
-
-                            $to = $transmittal->direction === 'receive'
-                                ? $officeName
-                                : (
-                                    $recipientNames
-                                    ?: $transmittal->related_company
-                                    ?: '—'
-                                );
+                            $refNo = $transmittal->tracking_number ?: $transmittal->transmittal_no ?: '—';
+                            $dateFormatted = $transmittal->transmittal_date?->format('Y-m-d')
+                                ?? $transmittal->created_at?->format('Y-m-d')
+                                ?? '—';
+                            $modeValue = $transmittal->mode ?: strtoupper($transmittal->direction ?? 'SEND');
+                            $fromValue = $transmittal->from_value ?: ($transmittal->direction === 'receive' ? ($recipientNames ?: '—') : $officeName);
+                            $toValue = $transmittal->to_value ?: ($transmittal->direction === 'receive' ? $officeName : ($recipientNames ?: $transmittal->related_company ?: '—'));
+                            $deliveryType = $transmittal->delivery_summary ?: str($transmittal->delivery_type ?? 'by_person')->replace('_', ' ')->title();
+                            $actionsValue = $transmittal->actions_summary ?: '—';
+                            $workflowStatus = $transmittal->workflow_status ?: ($workflow ?: 'Uploaded');
+                            $approvalStatus = $transmittal->approval_status ?: ($approval ?: 'Pending');
+                            $targetUrl = route('transmittals.workspace', $transmittal);
                         @endphp
 
-                        <tr>
+                        <tr class="record-row-clickable" onclick="window.location.href='{{ $targetUrl }}'" style="cursor: pointer;">
                             {{-- Ref#: Click to open the Workspace --}}
                             <td>
                                 <a
                                     class="tracking-link"
-                                    href="{{ route('transmittals.workspace', $transmittal) }}"
+                                    href="{{ $targetUrl }}"
+                                    onclick="event.stopPropagation();"
                                 >
-                                    {{ $transmittal->tracking_number ?: '—' }}
+                                    {{ $refNo }}
                                 </a>
                             </td>
 
                             {{-- Date --}}
-                            <td>
-                                {{ $transmittal->transmittal_date?->format('M j, Y')
-                                    ?? $transmittal->created_at?->format('M j, Y')
-                                    ?? '—' }}
-                            </td>
+                            <td>{{ $dateFormatted }}</td>
 
                             {{-- Mode --}}
                             <td>
-                                <span class="mode-badge" style="color: #374151; background: #f1f5f9; font-weight: 400;">
-                                    {{ strtoupper($transmittal->direction ?? 'send') }}
+                                <span class="mode-badge" style="color: #374151; background: #f1f5f9; font-weight: 500;">
+                                    {{ $modeValue }}
                                 </span>
                             </td>
 
                             {{-- From --}}
-                            <td>{{ $from }}</td>
+                            <td>{{ $fromValue }}</td>
 
                             {{-- To --}}
                             <td
                                 class="recipient-cell"
-                                title="{{ $to }}"
+                                title="{{ $toValue }}"
                             >
-                                {{ $to }}
+                                {{ $toValue }}
                             </td>
 
                             {{-- Delivery Type --}}
-                            <td>
-                                {{ str($transmittal->delivery_type ?? 'by_person')
-                                    ->replace('_', ' ')
-                                    ->title() }}
-                            </td>
+                            <td>{{ $deliveryType }}</td>
+
+                            {{-- Actions --}}
+                            <td>{{ $actionsValue }}</td>
 
                             {{-- Workflow Status --}}
                             <td>
-                                <span class="status-badge status-{{ $transmittal->status }}">
-                                    {{ $workflow }}
+                                <span class="status-badge status-{{ strtolower($workflowStatus) }}">
+                                    {{ $workflowStatus }}
                                 </span>
                             </td>
 
                             {{-- Approval Status --}}
                             <td>
-                                <span class="status-badge status-{{ strtolower($approval) }}">
-                                    {{ $approval }}
+                                <span class="status-badge status-{{ strtolower($approvalStatus) }}">
+                                    {{ $approvalStatus }}
                                 </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8">
+                            <td colspan="9">
                                 <div class="empty-state">
                                     <strong>No records found.</strong>
 
@@ -259,6 +258,8 @@
                                             Save a draft from Add or Smart Upload
                                             to see it here.
                                         </p>
+                                    @elseif ($filter === 'deleted')
+                                        <p>No deleted records found.</p>
                                     @elseif ($filter === 'archived')
                                         <p>No archived records found.</p>
                                     @else
@@ -289,13 +290,16 @@
         aria-label="Live two-page transmittal preview"
     >
         <div class="add-preview-toolbar">
-            <strong>DOCUMENT PREVIEW</strong>
-            <span>LIVE</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <strong>DOCUMENT PREVIEW</strong>
+                <span>2 PAGES · LIVE</span>
+            </div>
 
             <button
                 type="button"
-                data-close-document-preview
+                data-close-drawer
                 aria-label="Close document preview"
+                style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; background: transparent; color: #64748b; font-size: 20px; cursor: pointer; border-radius: 4px;"
             >
                 ×
             </button>
@@ -303,7 +307,7 @@
 
         <div class="add-preview-pages">
             @include('transmittals._document-form', [
-                'transmittal' => $editTransmittal,
+                'transmittal' => $editTransmittal ?? new \App\Models\Transmittal(),
                 'preview' => true,
             ])
         </div>

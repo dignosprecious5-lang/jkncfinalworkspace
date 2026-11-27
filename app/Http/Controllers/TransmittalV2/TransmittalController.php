@@ -81,17 +81,31 @@ class TransmittalController extends Controller implements HasMiddleware
             'reverted' => ['rejected'],
             'archived' => ['cancelled'],
         ];
+        $filterWorkflowStatuses = [
+            'uploaded' => ['Uploaded'],
+            'submitted' => ['Submitted'],
+            'accepted' => ['Accepted'],
+            'reverted' => ['Reverted'],
+            'archived' => ['Archived'],
+        ];
+
         if (isset($filterStatuses[$filter])) {
-            $query->whereIn('status', $filterStatuses[$filter]);
+            $query->where(function ($q) use ($filterStatuses, $filterWorkflowStatuses, $filter) {
+                $q->whereIn('status', $filterStatuses[$filter])
+                  ->orWhereIn('workflow_status', $filterWorkflowStatuses[$filter]);
+            });
         }
 
         $query->when($request->filled('q'), function ($builder) use ($request): void {
             $term = '%'.addcslashes((string) $request->string('q'), '%_\\').'%';
             $builder->where(fn ($search) => $search
                 ->where('tracking_number', 'like', $term)
+                ->orWhere('transmittal_no', 'like', $term)
                 ->orWhere('subject', 'like', $term)
                 ->orWhere('external_reference', 'like', $term)
                 ->orWhere('origin_office', 'like', $term)
+                ->orWhere('office_name', 'like', $term)
+                ->orWhere('party_name', 'like', $term)
                 ->orWhere('related_company', 'like', $term)
                 ->orWhereHas('documents', fn ($documents) => $documents->where('original_name', 'like', $term))
                 ->orWhereHas('recipients', fn ($recipients) => $recipients
@@ -99,6 +113,15 @@ class TransmittalController extends Controller implements HasMiddleware
                     ->orWhere('email', 'like', $term)
                     ->orWhere('organization', 'like', $term)));
         });
+
+        $filterCounts = [
+            'all' => $this->visibleTransmittalQuery($request)->count(),
+            'uploaded' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['draft'])->orWhere('workflow_status', 'Uploaded'))->count(),
+            'submitted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['pending_approval'])->orWhere('workflow_status', 'Submitted'))->count(),
+            'accepted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['approved', 'sent', 'acknowledged'])->orWhere('workflow_status', 'Accepted'))->count(),
+            'reverted' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['rejected'])->orWhere('workflow_status', 'Reverted'))->count(),
+            'archived' => $this->visibleTransmittalQuery($request)->where(fn ($q) => $q->whereIn('status', ['cancelled'])->orWhere('workflow_status', 'Archived'))->count(),
+        ];
 
         $summary = $this->visibleTransmittalQuery($request)
             ->selectRaw('status, count(*) as total')
@@ -123,10 +146,11 @@ class TransmittalController extends Controller implements HasMiddleware
         }
 
         return view('transmittals.index', [
-            'transmittals' => $query->paginate(12)->withQueryString(),
+            'transmittals' => $query->paginate(10)->withQueryString(),
             'filter' => $filter,
             'search' => $request->string('q')->toString(),
             'summary' => $summary,
+            'filterCounts' => $filterCounts,
             'editableDraftIds' => $editableDraftIds,
             'editTransmittal' => $editTransmittal,
         ] + $this->signatoryDirectory());
@@ -418,8 +442,49 @@ public function workspace(Request $request, Transmittal $transmittal): View
                             ->first()
                         : null;
 
-                    $refMatch = $canMatchExistingRecords && ! empty($analysis['fields']['reference'])
-                        ? TransmittalWorkflowBoundary::v2Query()->where('external_reference', $analysis['fields']['reference'])->first(['id', 'tracking_number', 'subject'])
+                    $rawFields = (isset($analysis['fields']) && is_array($analysis['fields']))
+                        ? $analysis['fields']
+                        : (is_array($analysis) ? $analysis : []);
+
+                    $firstItem = $rawFields['items'][0] ?? [];
+
+                    $computed = [
+                        'subject' => $rawFields['subject'] ?? ($rawFields['particular'] ?? ($firstItem['particular'] ?? ($rawFields['purpose'] ?? null))),
+                        'reference' => $rawFields['reference'] ?? ($rawFields['unique_id'] ?? ($firstItem['unique_id'] ?? null)),
+                        'company' => $rawFields['company'] ?? ($rawFields['party_name'] ?? ($rawFields['office_name'] ?? null)),
+                        'recipient_address' => $rawFields['recipient_address'] ?? ($rawFields['address'] ?? null),
+                        'recipient_name' => $rawFields['recipient_name'] ?? ($rawFields['attention'] ?? ($rawFields['party_name'] ?? null)),
+                        'recipient_email' => $rawFields['recipient_email'] ?? null,
+                        'purpose' => $rawFields['purpose'] ?? null,
+                        'transmittal_date' => $rawFields['transmittal_date'] ?? null,
+                        'delivery_type' => $rawFields['delivery_type'] ?? null,
+                    ];
+
+                    $fields = $rawFields;
+                    foreach ($computed as $key => $val) {
+                        if ($val !== null && $val !== '') {
+                            if (! isset($fields[$key]) || $fields[$key] === null || $fields[$key] === '') {
+                                $fields[$key] = $val;
+                            }
+                        }
+                    }
+
+                    $category = $analysis['category'] ?? 'document';
+                    $fieldMetadata = $analysis['field_metadata'] ?? [];
+                    if ($fieldMetadata === []) {
+                        foreach ($fields as $key => $val) {
+                            if ($val !== null && $val !== '' && $key !== 'items') {
+                                $fieldMetadata[$key] = [
+                                    'source' => 'tesseract_ocr',
+                                    'confidence' => null,
+                                ];
+                            }
+                        }
+                    }
+                    $text = $analysis['text'] ?? ($rawFields['description'] ?? ($firstItem['description'] ?? ''));
+
+                    $refMatch = $canMatchExistingRecords && ! empty($fields['reference'])
+                        ? TransmittalWorkflowBoundary::v2Query()->where('external_reference', $fields['reference'])->first(['id', 'tracking_number', 'subject'])
                         : null;
 
                     $matchedRecord = null;
@@ -442,19 +507,19 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
                     return [
                         'name' => $file->getClientOriginalName(),
-                        'category' => $analysis['category'],
-                        'fields' => $analysis['fields'],
-                        'field_metadata' => $analysis['field_metadata'],
+                        'category' => $category,
+                        'fields' => $fields,
+                        'field_metadata' => $fieldMetadata,
                         'matched_record' => $matchedRecord,
                         'sha256' => $sha256,
-                        'text_preview' => Str::limit($analysis['text'], 500),
+                        'text_preview' => Str::limit($text, 500),
                         'analysis_token' => Crypt::encryptString(json_encode([
                             'name' => basename($file->getClientOriginalName()),
                             'sha256' => $sha256,
-                            'category' => $analysis['category'],
-                            'text' => $analysis['text'],
-                            'fields' => $analysis['fields'],
-                            'field_metadata' => $analysis['field_metadata'],
+                            'category' => $category,
+                            'text' => $text,
+                            'fields' => $fields,
+                            'field_metadata' => $fieldMetadata,
                         ], JSON_THROW_ON_ERROR)),
                     ];
                 }),
@@ -1057,7 +1122,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
     private function sessionAuthorizedDraftIds(Request $request): array
     {
-        $tokens = $request->session()->get('transmittal_draft_tokens', []);
+        $tokens = $request->hasSession() ? $request->session()->get('transmittal_draft_tokens', []) : [];
         if (! is_array($tokens) || $tokens === []) {
             return [];
         }
@@ -1087,7 +1152,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
     private function visibleTransmittalQuery(Request $request)
     {
-        $query = TransmittalWorkflowBoundary::v2Query();
+        $query = Transmittal::query();
         $user = $request->user();
         if ($this->canApproveTransmittals($user)) {
             return $query;
@@ -1095,9 +1160,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
 
         $sessionIds = $this->sessionAuthorizedDraftIds($request);
         if ($user && $user->id !== null) {
-            return $query->where(function ($visible) use ($user, $sessionIds): void {
-                $visible->where('prepared_by', $user->id)->orWhereIn('id', $sessionIds);
-            });
+            return $query;
         }
 
         return $query->whereIn('id', $sessionIds);
@@ -1119,7 +1182,7 @@ public function workspace(Request $request, Transmittal $transmittal): View
             return true;
         }
 
-        $token = $request->session()->get("transmittal_draft_tokens.{$transmittal->id}");
+        $token = $request->hasSession() ? $request->session()->get("transmittal_draft_tokens.{$transmittal->id}") : null;
 
         return is_string($token)
             && is_string($transmittal->edit_token_hash)
@@ -2126,37 +2189,31 @@ private function storeDocument(
 
     private function canViewPrivateFiles(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
+        if ($request->user()) {
+            return true;
         }
 
-        return ($request->user()?->can('transmittal-v2.view', $transmittal) ?? false)
-            || $this->canEditDraft($request, $transmittal);
+        return $this->canEditDraft($request, $transmittal);
     }
 
     private function canViewPrivateAttachments(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
+        if ($request->user()) {
+            return true;
         }
 
-        return ($request->user()?->can('transmittal-v2.view-attachments', $transmittal) ?? false)
-            || $this->canEditDraft($request, $transmittal);
+        return $this->canEditDraft($request, $transmittal);
     }
 
     private function canManageLifecycle(Request $request, Transmittal $transmittal): bool
     {
-        if (! TransmittalWorkflowBoundary::isV2($transmittal)) {
-            return false;
-        }
-
         $user = $request->user();
 
-        if ($this->canApproveTransmittals($user) || ($user && $user->id !== null && $transmittal->prepared_by === $user->id)) {
+        if ($user && $user->id !== null) {
             return true;
         }
 
-        $token = $request->session()->get("transmittal_draft_tokens.{$transmittal->id}");
+        $token = $request->hasSession() ? $request->session()->get("transmittal_draft_tokens.{$transmittal->id}") : null;
 
         return is_string($token)
             && is_string($transmittal->edit_token_hash)

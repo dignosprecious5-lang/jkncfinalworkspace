@@ -236,7 +236,7 @@ document.querySelectorAll('[data-open-proof-file]').forEach((button) => {
     button.addEventListener('click', async () => {
         const panel = button.closest('[data-action-panel]') || document.querySelector('[data-action-panel]');
         const form = panel?.querySelector('#proof-upload-form') || document.querySelector('#proof-upload-form');
-
+        
         if (!cameraModal || !cameraPreview) {
             const feedback = panel?.querySelector('[data-action-feedback-message]');
             if (feedback && button.dataset.actionFeedback) {
@@ -406,6 +406,7 @@ openDrawerButtons.forEach((button) => {
         drawerBackdrop?.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
         document.body.classList.add('drawer-visible');
+        try { syncWorkspacePreview(); } catch (e) {}
         if (button.hasAttribute('data-focus-upload')) {
             drawer.querySelector('#drop-zone')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
@@ -537,7 +538,7 @@ document.querySelector('[data-supporting-attachments]')?.addEventListener('chang
     output.textContent = files.length ? files.join(', ') : 'No file selected';
 });
 
-const syncWorkspacePreview = () => {
+function syncWorkspacePreview() {
     document.querySelectorAll('[data-preview]').forEach((input) => {
         const key = input.dataset.preview;
         let value = input.value.trim();
@@ -598,11 +599,11 @@ const syncWorkspacePreview = () => {
                     if (key) values[key] = field.value.trim();
                     return values;
                 }, {});
-
+            
             const fileInput = row.querySelector('input[type="file"]');
             const chosenSpan = row.querySelector('.chosen-file-name');
             const strongDisplay = row.querySelector('strong');
-
+            
             let attachmentName = '';
             if (fileInput && fileInput.files && fileInput.files.length > 0) {
                 attachmentName = Array.from(fileInput.files).map(f => f.name).join(', ');
@@ -632,7 +633,7 @@ const syncWorkspacePreview = () => {
                 const row = document.createElement('tr');
                 [item.particular, item.unique_id, item.quantity, [item.description, item.remarks].filter(Boolean).join(' · ')].forEach((value) => {
                     const cell = document.createElement('td');
-                    cell.textContent = value ?? '';
+                    cell.textContent = value || '';
                     row.append(cell);
                 });
                 previewItems.append(row);
@@ -934,7 +935,7 @@ if (documentInput && fileList && analyzeButton && !document.querySelector('.smar
                 } else {
                     const data = new FormData();
                     data.append('documents[]', file);
-                    const response = await fetch(analyzeButton.dataset.analyzeUrl || '/transmittals/analyze', {
+                    const response = await fetch(analyzeButton.dataset.analyzeUrl || '/transmittal/analyze', {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
                         body: data,
@@ -1033,7 +1034,7 @@ const proofInput = document.querySelector('#proof-file');
 const proofAnalyzeButton = document.querySelector('#analyze-proof');
 const proofOcrMessage = document.querySelector('#proof-ocr-message');
 const proofOcrToken = document.querySelector('#proof-ocr-token');
-let proofEntryMode = proofForm?.dataset.ocrEnabled === 'true' ? 'ocr' : 'manual';
+let proofEntryMode = 'ocr';
 const proofFields = document.querySelector('[data-proof-fields]');
 const proofReview = document.querySelector('[data-proof-review]');
 const proofConfirm = document.querySelector('[data-proof-confirm]');
@@ -1057,9 +1058,9 @@ const resetProofForm = () => {
     }
     const senderName = proofForm.querySelector('#proof-sender-name');
     if (senderName && !senderName.value) senderName.value = document.querySelector('meta[name="auth-user-name"]')?.content || '';
-    const method = proofForm.querySelector(`[data-proof-mode="${proofForm.dataset.ocrEnabled === 'true' ? 'ocr' : 'manual'}"]`);
+    const method = proofForm.querySelector('[data-proof-mode="ocr"]');
     method?.removeAttribute('disabled');
-    method?.click();
+    proofForm.querySelector('[data-proof-mode="ocr"]')?.click();
     if (proofOcrToken) proofOcrToken.value = '';
     if (proofFileHint) proofFileHint.textContent = 'Choose a PDF or image. OCR starts automatically after upload.';
     if (proofForm.querySelector('[name="return_to"]')) proofForm.querySelector('[name="return_to"]').value = proofForm.dataset.proofReturn || 'show';
@@ -1077,7 +1078,7 @@ const setProofFieldsVisible = (visible) => {
     if (proofSave) proofSave.hidden = !visible;
     if (proofReview) proofReview.hidden = proofEntryMode !== 'ocr' || !visible;
 };
-setProofFieldsVisible(proofEntryMode === 'manual');
+setProofFieldsVisible(true);
 
 document.querySelectorAll('[data-edit-proof]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1298,3 +1299,4 @@ function initOtherOptionToggle(selectId, wrapperId, inputId) {
 initOtherOptionToggle('proof-type-select', 'proof-type-other-wrapper', 'proof-type-other');
 initOtherOptionToggle('proof-channel-select', 'proof-channel-other-wrapper', 'proof-channel-other');
 initOtherOptionToggle('proof-device-category', 'proof-device-category-other-wrapper', 'proof-device-category-other');
+

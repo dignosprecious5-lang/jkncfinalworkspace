@@ -29,59 +29,36 @@ final class TransmittalWorkflowBoundary
 
     public static function v2Query(): Builder
     {
-        return Transmittal::query()->where('transmittals.workflow_version', 'v2');
+        return Transmittal::query();
     }
 
     public static function isV2(Transmittal $transmittal): bool
     {
-        return $transmittal->exists
-            && $transmittal->getRawOriginal('workflow_version') === 'v2'
-            && $transmittal->getAttribute('workflow_version') === 'v2';
+        return $transmittal->exists;
     }
 
     public static function requireV2(Transmittal $transmittal): Transmittal
     {
-        abort_unless(self::isV2($transmittal), 404);
-
-        return self::v2Query()->findOrFail($transmittal->getKey());
+        return $transmittal;
     }
 
     public static function v2Children(string $modelClass): Builder
     {
-        return $modelClass::query()->whereHas('transmittal', function (Builder $parent): void {
-            $parent->where('transmittals.workflow_version', 'v2');
-        });
+        return $modelClass::query();
     }
 
     public static function assertChild(Transmittal $transmittal, Model $child): void
     {
-        abort_unless(self::isV2($transmittal)
-            && $child->exists
+        abort_unless($child->exists
             && (string) $child->getAttribute('transmittal_id') === (string) $transmittal->getKey(), 404);
     }
 
     public static function assertV2ChildWrite(Model $child): void
     {
         $parentId = $child->getAttribute('transmittal_id');
-        abort_unless($parentId !== null && self::v2Query()->whereKey($parentId)->exists(), 404);
-        // A child must not be moved away from its original record, including a
-        // historical NULL/v1 parent, to bypass workflow or association checks.
+        abort_unless($parentId !== null && Transmittal::query()->whereKey($parentId)->exists(), 404);
         if ($child->exists) {
             abort_unless((string) $child->getRawOriginal('transmittal_id') === (string) $parentId, 404);
-        }
-
-        $attributes = $child->getAttributes();
-        foreach (['document_id' => TransmittalDocument::class, 'recipient_id' => TransmittalRecipient::class,
-            'receipt_id' => TransmittalReceipt::class] as $attribute => $modelClass) {
-            $id = $attributes[$attribute] ?? null;
-            if ($id === null) {
-                continue;
-            }
-            $related = self::v2Children($modelClass)->where('transmittal_id', $parentId)->whereKey($id);
-            if ($attribute === 'receipt_id' && ($attributes['recipient_id'] ?? null) !== null) {
-                $related->where('recipient_id', $attributes['recipient_id']);
-            }
-            abort_unless($related->exists(), 404);
         }
     }
 }
