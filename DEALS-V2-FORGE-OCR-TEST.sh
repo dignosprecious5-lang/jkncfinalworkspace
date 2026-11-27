@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ORDO JK&C — PRODUCTION OCR ENGINE VERIFICATION (SYNTHETIC FIXTURE TEST)
+# Target Site: ordo.jknc.io
+# Server: jkandc (Ubuntu 24.04 LTS)
+# Preserved OCR Paths:
+#   Tesseract: /home/forge/ocr-bin/tesseract
+#   pdftoppm:  /home/forge/ocr-bin/pdftoppm
+# Scope: Isolated functional verification using synthetic PDF rasterization
+#        and Tesseract OCR text extraction. Zero database records created,
+#        zero network notifications sent.
+# ==============================================================================
+set -euo pipefail
+umask 077
+
+echo "======================================================================"
+echo "ORDO PRESERVED OCR ENGINE VERIFICATION"
+echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo "Host: $(hostname) | User: $(whoami)"
+echo "======================================================================"
+
+TESSERACT_BIN="${TESSERACT_BIN:-/home/forge/ocr-bin/tesseract}"
+PDFTOPPM_BIN="${PDFTOPPM_BIN:-/home/forge/ocr-bin/pdftoppm}"
+TEST_TMP_DIR="/tmp/ordo_ocr_verify_$$"
+
+mkdir -p "$TEST_TMP_DIR"
+chmod 700 "$TEST_TMP_DIR"
+
+cleanup() {
+    rm -rf "$TEST_TMP_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+echo "=== STEP 1: VALIDATING BINARY PATHS AND EXECUTABILITY ==="
+if [ ! -x "$TESSERACT_BIN" ]; then
+    echo "FAIL: Tesseract binary not executable at $TESSERACT_BIN" >&2
+    exit 1
+fi
+echo "  [PASS] Tesseract binary verified: $TESSERACT_BIN"
+
+if [ ! -x "$PDFTOPPM_BIN" ]; then
+    echo "FAIL: pdftoppm binary not executable at $PDFTOPPM_BIN" >&2
+    exit 2
+fi
+echo "  [PASS] pdftoppm binary verified: $PDFTOPPM_BIN"
+
+echo "=== STEP 2: CHECKING BINARY VERSIONS ==="
+TESSERACT_VERSION=$("$TESSERACT_BIN" --version 2>&1 | head -n 1)
+echo "  Tesseract Version: $TESSERACT_VERSION"
+
+PDFTOPPM_VERSION=$("$PDFTOPPM_BIN" -v 2>&1 | head -n 1)
+echo "  pdftoppm Version:  $PDFTOPPM_VERSION"
+
+echo "=== STEP 3: CREATING SYNTHETIC PDF FIXTURE ==="
+SYNTHETIC_PDF="${TEST_TMP_DIR}/synthetic_test.pdf"
+cat << 'PDF_EOF' > "$SYNTHETIC_PDF"
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 400 150] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 55 >> stream
+BT
+/F1 18 Tf
+30 70 Td
+(ORDO OCR TEST PASSED) Tj
+ET
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000224 00000 n 
+0000000330 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+401
+%%EOF
+PDF_EOF
+
+if [ ! -f "$SYNTHETIC_PDF" ] || [ ! -s "$SYNTHETIC_PDF" ]; then
+    echo "FAIL: Failed to generate synthetic PDF fixture." >&2
+    exit 3
+fi
+echo "  [PASS] Synthetic PDF generated: $SYNTHETIC_PDF ($(stat -c%s "$SYNTHETIC_PDF" 2>/dev/null || stat -f%z "$SYNTHETIC_PDF" 2>/dev/null) bytes)"
+
+echo "=== STEP 4: RASTERIZING PDF VIA POPPLER (pdftoppm) ==="
+"$PDFTOPPM_BIN" -png -r 150 "$SYNTHETIC_PDF" "${TEST_TMP_DIR}/page"
+
+RASTER_IMAGE="${TEST_TMP_DIR}/page-1.png"
+if [ ! -f "$RASTER_IMAGE" ] || [ ! -s "$RASTER_IMAGE" ]; then
+    echo "FAIL: Poppler rasterization failed to produce $RASTER_IMAGE" >&2
+    exit 4
+fi
+echo "  [PASS] Poppler rasterization success: $RASTER_IMAGE ($(stat -c%s "$RASTER_IMAGE" 2>/dev/null || stat -f%z "$RASTER_IMAGE" 2>/dev/null) bytes)"
+
+echo "=== STEP 5: EXTRACTING TEXT VIA TESSERACT OCR ==="
+"$TESSERACT_BIN" "$RASTER_IMAGE" "${TEST_TMP_DIR}/ocr_output" -l eng --oem 1 >/dev/null 2>&1 || \
+"$TESSERACT_BIN" "$RASTER_IMAGE" "${TEST_TMP_DIR}/ocr_output" -l eng >/dev/null 2>&1
+
+OUTPUT_TXT="${TEST_TMP_DIR}/ocr_output.txt"
+if [ ! -f "$OUTPUT_TXT" ]; then
+    echo "FAIL: Tesseract OCR failed to produce $OUTPUT_TXT" >&2
+    exit 5
+fi
+
+EXTRACTED_TEXT=$(cat "$OUTPUT_TXT" | tr -d '\r\n' | tr -s ' ')
+echo "  Extracted OCR Text: \"$EXTRACTED_TEXT\""
+
+if echo "$EXTRACTED_TEXT" | grep -qi "ORDO OCR TEST PASSED"; then
+    echo "  [PASS] Expected text 'ORDO OCR TEST PASSED' accurately recognized."
+else
+    echo "FAIL: OCR output did not match expected text. Extracted: '$EXTRACTED_TEXT'" >&2
+    exit 6
+fi
+
+echo "======================================================================"
+echo "OCR PRESERVATION VERIFICATION COMPLETED (100% PASS)"
+echo "Poppler pdftoppm + Tesseract OCR Pipeline Verified"
+echo "Zero changes to server packages, zero database records created."
+echo "======================================================================"
+exit 0

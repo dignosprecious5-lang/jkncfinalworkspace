@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ORDO JK&C — DEALS V2.0.0 PRODUCTION PREFLIGHT VERIFICATION
+# Target Site: ordo.jknc.io
+# Server: jkandc
+# Site Directory: /home/forge/ordo.jknc.io
+# Expected Active Release: /home/forge/ordo.jknc.io/releases/1795769650
+# Expected Active SHA: 9bac901ee6c5abe6891c930dcf1efcd110c8472f
+# Target Branch: release/deals-v2.0.0
+# Target Candidate SHA: bcc2416739dea5cb805fe6196b5c1e904c70860b
+# Target Candidate Tree: 3d659081e6b4dd957e05c2c0666f00f75a2e97d1
+# Latest Available Disk Space: 2,136 MiB (Headroom > 1,536 MiB required)
+# Scope: Read-Only Safety and Integrity Audit (Zero Modifications)
+# ==============================================================================
+set -euo pipefail
+
+echo "======================================================================"
+echo "ORDO DEALS V2.0.0 PRODUCTION PREFLIGHT AUDIT STARTING"
+echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo "======================================================================"
+
+PREFLIGHT_FAILURES=0
+report_gate() {
+    local status="$1"
+    local name="$2"
+    local details="$3"
+    if [ "$status" = "PASS" ]; then
+        echo "[PREFLIGHT_PASS] $name: $details"
+    elif [ "$status" = "WARN" ]; then
+        echo "[PREFLIGHT_WARN] $name: $details"
+    else
+        echo "[PREFLIGHT_FAIL] $name: $details" >&2
+        PREFLIGHT_FAILURES=$((PREFLIGHT_FAILURES + 1))
+    fi
+}
+
+# 1. User & Host Identity
+CURRENT_USER=$(whoami)
+if [ "$CURRENT_USER" = "forge" ]; then
+    report_gate "PASS" "USER_IDENTITY" "Running as authorized user 'forge'"
+else
+    report_gate "FAIL" "USER_IDENTITY" "Expected user 'forge', got '$CURRENT_USER'"
+fi
+
+SITE_DIR="/home/forge/ordo.jknc.io"
+if [ -d "$SITE_DIR" ]; then
+    report_gate "PASS" "SITE_DIRECTORY" "Directory exists: $SITE_DIR"
+else
+    report_gate "FAIL" "SITE_DIRECTORY" "Site directory missing: $SITE_DIR"
+fi
+
+# 2. Active Production Release Identity
+EXPECTED_PREV_RELEASE="1795769650"
+EXPECTED_PREV_SHA="9bac901ee6c5abe6891c930dcf1efcd110c8472f"
+ACTIVE_SYMLINK="${SITE_DIR}/current"
+
+if [ -L "$ACTIVE_SYMLINK" ]; then
+    ACTIVE_PHYSICAL=$(readlink -f "$ACTIVE_SYMLINK" || true)
+    if [ "$ACTIVE_PHYSICAL" = "${SITE_DIR}/releases/${EXPECTED_PREV_RELEASE}" ]; then
+        report_gate "PASS" "ACTIVE_RELEASE_PATH" "$ACTIVE_PHYSICAL matches expected release $EXPECTED_PREV_RELEASE"
+    else
+        report_gate "FAIL" "ACTIVE_RELEASE_PATH" "Expected ${SITE_DIR}/releases/${EXPECTED_PREV_RELEASE}, got $ACTIVE_PHYSICAL"
+    fi
+else
+    report_gate "FAIL" "ACTIVE_SYMLINK" "Symlink missing at $ACTIVE_SYMLINK"
+fi
+
+if [ -d "${ACTIVE_PHYSICAL:-}" ]; then
+    ACTIVE_SHA=$(git -C "$ACTIVE_PHYSICAL" rev-parse HEAD 2>/dev/null || echo "UNKNOWN")
+    if [ "$ACTIVE_SHA" = "$EXPECTED_PREV_SHA" ]; then
+        report_gate "PASS" "ACTIVE_COMMIT_SHA" "Active SHA matches expected production baseline ($ACTIVE_SHA)"
+    else
+        report_gate "FAIL" "ACTIVE_COMMIT_SHA" "Expected $EXPECTED_PREV_SHA, got $ACTIVE_SHA"
+    fi
+fi
+
+# 3. Shared Environment and Storage Verification
+SHARED_ENV="${SITE_DIR}/.env"
+SHARED_STORAGE="${SITE_DIR}/storage"
+
+if [ -f "$SHARED_ENV" ]; then
+    report_gate "PASS" "SHARED_ENV" "Authoritative shared environment found at $SHARED_ENV"
+else
+    report_gate "FAIL" "SHARED_ENV" "Shared .env missing at $SHARED_ENV"
+fi
+
+if [ -d "$SHARED_STORAGE" ] && [ ! -L "$SHARED_STORAGE" ]; then
+    report_gate "PASS" "SHARED_STORAGE" "Authoritative shared storage directory verified at $SHARED_STORAGE"
+else
+    report_gate "FAIL" "SHARED_STORAGE" "Shared storage missing or invalid symlink at $SHARED_STORAGE"
+fi
+
+# 4. Storage Subdirectories and Permissions
+for sub in app app/public framework framework/cache framework/sessions framework/views logs; do
+    if [ -d "${SHARED_STORAGE}/${sub}" ]; then
+        report_gate "PASS" "STORAGE_SUBDIR" "Storage path verified: ${SHARED_STORAGE}/${sub}"
+    else
+        report_gate "FAIL" "STORAGE_SUBDIR" "Missing storage subpath: ${SHARED_STORAGE}/${sub}"
+    fi
+done
+
+# 5. System Resources (Disk Space & Memory)
+# Verified latest Forge available disk: 2,136 MiB (~2.08 GB). Minimum required peak headroom: 1,536 MiB.
+FREE_DISK_KB=$(df -k / | awk 'NR==2 {print $4}')
+DISK_UTIL_PCT=$(df -k / | awk 'NR==2 {print $5}' | tr -d '%')
+FREE_DISK_MB=$((FREE_DISK_KB / 1024))
+
+echo "INFO: Disk / Free: ${FREE_DISK_MB}MB (${FREE_DISK_KB}KB), Utilization: ${DISK_UTIL_PCT}%"
+if [ "$FREE_DISK_KB" -lt 1572864 ]; then
+    report_gate "FAIL" "DISK_SPACE_CAPACITY" "Available disk space is under 1536MB ($FREE_DISK_MB MB available). High risk of deployment failure."
+elif [ "$FREE_DISK_KB" -lt 2097152 ]; then
+    report_gate "PASS" "DISK_SPACE_CAPACITY" "Disk space adequate for atomic release: ${FREE_DISK_MB}MB free (>1536MB required headroom, ${DISK_UTIL_PCT}% used)"
+else
+    report_gate "PASS" "DISK_SPACE_CAPACITY" "Disk space optimal: ${FREE_DISK_MB}MB free (${DISK_UTIL_PCT}% used)"
+fi
+
+AVAIL_RAM_MB=$(free -m | awk 'NR==2 {print $7}')
+echo "INFO: Available RAM: ${AVAIL_RAM_MB}MB"
+if [ "$AVAIL_RAM_MB" -lt 300 ]; then
+    report_gate "FAIL" "RAM_AVAILABILITY" "Available RAM is dangerously low (<300MB: ${AVAIL_RAM_MB}MB)."
+elif [ "$AVAIL_RAM_MB" -lt 512 ]; then
+    report_gate "WARN" "RAM_AVAILABILITY" "Moderate available RAM (${AVAIL_RAM_MB}MB). Pre-built frontend asset archive prevents OOM."
+else
+    report_gate "PASS" "RAM_AVAILABILITY" "Available RAM is sufficient (${AVAIL_RAM_MB}MB)"
+fi
+
+# 6. Runtimes: PHP, PHP-FPM, Node, NPM, MySQL
+PHP_CLI=$(php -r 'echo PHP_VERSION;')
+if [[ "$PHP_CLI" =~ ^8\.5\. ]]; then
+    report_gate "PASS" "PHP_RUNTIME" "PHP CLI runtime matches 8.5 series ($PHP_CLI)"
+else
+    report_gate "WARN" "PHP_RUNTIME" "Expected PHP 8.5.x, detected $PHP_CLI"
+fi
+
+FPM_STATUS=$(systemctl is-active php8.5-fpm 2>/dev/null || echo "INACTIVE")
+if [ "$FPM_STATUS" = "active" ]; then
+    report_gate "PASS" "PHP_FPM_SERVICE" "php8.5-fpm service is running active"
+else
+    report_gate "FAIL" "PHP_FPM_SERVICE" "php8.5-fpm service status: $FPM_STATUS"
+fi
+
+NODE_VER=$(node -v 2>/dev/null || echo "NONE")
+NPM_VER=$(npm -v 2>/dev/null || echo "NONE")
+report_gate "PASS" "FRONTEND_RUNTIMES" "Node: $NODE_VER, npm: $NPM_VER"
+
+# 7. Preserved OCR Executables
+TESSERACT_PATH="/home/forge/ocr-bin/tesseract"
+POPPLER_PATH="/home/forge/ocr-bin/pdftoppm"
+
+if [ -x "$TESSERACT_PATH" ]; then
+    report_gate "PASS" "OCR_TESSERACT" "Preserved Tesseract executable found: $TESSERACT_PATH"
+else
+    report_gate "FAIL" "OCR_TESSERACT" "Tesseract executable missing or non-executable: $TESSERACT_PATH"
+fi
+
+if [ -x "$POPPLER_PATH" ]; then
+    report_gate "PASS" "OCR_POPPLER" "Preserved Poppler executable found: $POPPLER_PATH"
+else
+    report_gate "FAIL" "OCR_POPPLER" "Poppler pdftoppm missing or non-executable: $POPPLER_PATH"
+fi
+
+# 8. Database Ledger & Batch Audit (Live MySQL 8.4.9 LTS)
+cd "$ACTIVE_PHYSICAL"
+DB_AUDIT_OUTPUT=$(php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+use Illuminate\Support\Facades\DB;
+$count = DB::table("migrations")->count();
+$maxBatch = DB::table("migrations")->max("batch");
+$hasCatalogAnchor = DB::table("migrations")->where("migration", "2026_10_17_000001_add_product_catalog_snapshot_and_term_scope_anchors")->exists();
+$hasTransmittalSec = DB::table("migrations")->where("migration", "2026_11_23_000001_add_transmittal_assignment_security")->exists();
+$mysqlVer = DB::selectOne("SELECT VERSION() as v")->v;
+echo "COUNT=$count|MAX_BATCH=$maxBatch|HAS_CATALOG=" . ($hasCatalogAnchor ? "YES" : "NO") . "|HAS_TRANSMITTAL=" . ($hasTransmittalSec ? "YES" : "NO") . "|MYSQL_VER=$mysqlVer\n";
+' 2>/dev/null || echo "ERROR")
+
+if [[ "$DB_AUDIT_OUTPUT" == COUNT=* ]]; then
+    MIG_COUNT=$(echo "$DB_AUDIT_OUTPUT" | cut -d'|' -f1 | cut -d'=' -f2)
+    MAX_BATCH=$(echo "$DB_AUDIT_OUTPUT" | cut -d'|' -f2 | cut -d'=' -f2)
+    HAS_CATALOG=$(echo "$DB_AUDIT_OUTPUT" | cut -d'|' -f3 | cut -d'=' -f2)
+    HAS_TRANS=$(echo "$DB_AUDIT_OUTPUT" | cut -d'|' -f4 | cut -d'=' -f2)
+    MYSQL_VER=$(echo "$DB_AUDIT_OUTPUT" | cut -d'|' -f5 | cut -d'=' -f2)
+
+    if [ "$MIG_COUNT" -eq 509 ]; then
+        report_gate "PASS" "MIGRATION_LEDGER_COUNT" "Live production migration count is exactly 509"
+    else
+        report_gate "FAIL" "MIGRATION_LEDGER_COUNT" "Expected 509 migrations, detected $MIG_COUNT"
+    fi
+
+    if [ "$MAX_BATCH" -eq 137 ]; then
+        report_gate "PASS" "MIGRATION_BATCH_ALIGNMENT" "Latest live batch is exactly 137"
+    else
+        report_gate "FAIL" "MIGRATION_BATCH_ALIGNMENT" "Expected batch 137, detected $MAX_BATCH"
+    fi
+
+    if [ "$HAS_CATALOG" = "YES" ]; then
+        report_gate "PASS" "CATALOG_SNAPSHOT_MIGRATION" "Verified 2026_10_17_000001 is already recorded in live ledger"
+    else
+        report_gate "FAIL" "CATALOG_SNAPSHOT_MIGRATION" "2026_10_17_000001 missing from production ledger"
+    fi
+
+    if [ "$HAS_TRANS" = "YES" ]; then
+        report_gate "PASS" "TRANSMITTAL_SECURITY_MIGRATION" "Verified 2026_11_23_000001 is already recorded in live ledger"
+    else
+        report_gate "FAIL" "TRANSMITTAL_SECURITY_MIGRATION" "2026_11_23_000001 missing from production ledger"
+    fi
+
+    if [[ "$MYSQL_VER" =~ ^8\.4\. ]]; then
+        report_gate "PASS" "MYSQL_SERVER_VERSION" "Connected MySQL server matches expected 8.4 LTS series: $MYSQL_VER"
+    else
+        report_gate "FAIL" "MYSQL_SERVER_VERSION" "Expected MySQL 8.4 LTS series, connected to: $MYSQL_VER"
+    fi
+else
+    report_gate "FAIL" "DATABASE_CONNECTION" "Could not bootstrap Laravel database connection: $DB_AUDIT_OUTPUT"
+fi
+
+# 9. Remote Target Commit & Tree Accessibility
+GITLAB_REMOTE="https://gitlab.com/corporateUMC/jknc_project.git"
+TARGET_BRANCH="release/deals-v2.0.0"
+TARGET_SHA="bcc2416739dea5cb805fe6196b5c1e904c70860b"
+TARGET_TREE="3d659081e6b4dd957e05c2c0666f00f75a2e97d1"
+
+REMOTE_CHECK=$(git ls-remote "$GITLAB_REMOTE" "refs/heads/${TARGET_BRANCH}" | awk '{print $1}' || echo "FAILED")
+if [ "$REMOTE_CHECK" = "$TARGET_SHA" ]; then
+    report_gate "PASS" "REMOTE_COMMIT_ACCESSIBILITY" "Target branch on GitLab resolves to approved candidate SHA ($TARGET_SHA)"
+else
+    report_gate "FAIL" "REMOTE_COMMIT_ACCESSIBILITY" "Expected $TARGET_SHA, got $REMOTE_CHECK from $GITLAB_REMOTE"
+fi
+
+# 10. Database Backup Repository Check
+BACKUP_DIR="/home/forge/ordo-db-backups"
+if [ -d "$BACKUP_DIR" ]; then
+    LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/ordo-prod-db-*.sql.gz 2>/dev/null | head -n 1 || echo "NONE")
+    if [ "$LATEST_BACKUP" != "NONE" ] && [ -f "$LATEST_BACKUP" ]; then
+        BACKUP_SIZE=$(stat -c%s "$LATEST_BACKUP" 2>/dev/null || stat -f%z "$LATEST_BACKUP" 2>/dev/null || echo "0")
+        report_gate "PASS" "DATABASE_BACKUP_AVAILABLE" "Latest backup file: $LATEST_BACKUP (${BACKUP_SIZE} bytes)"
+    else
+        report_gate "WARN" "DATABASE_BACKUP_AVAILABLE" "No .sql.gz backup found in $BACKUP_DIR. Mandatory fresh backup required prior to deployment."
+    fi
+else
+    report_gate "WARN" "DATABASE_BACKUP_DIR" "Backup directory $BACKUP_DIR does not exist. Must be created for deployment backup."
+fi
+
+echo "======================================================================"
+echo "PREFLIGHT AUDIT SUMMARY"
+echo "Total Failures: $PREFLIGHT_FAILURES"
+if [ "$PREFLIGHT_FAILURES" -eq 0 ]; then
+    echo "OVERALL RESULT: PREFLIGHT PASS"
+    exit 0
+else
+    echo "OVERALL RESULT: PREFLIGHT BLOCKED (Resolve $PREFLIGHT_FAILURES failures before proceeding)" >&2
+    exit 1
+fi

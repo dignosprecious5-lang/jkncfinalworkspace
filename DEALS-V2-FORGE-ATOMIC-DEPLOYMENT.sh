@@ -1,0 +1,634 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ORDO JK&C — COMPLETE UPGRADED DEALS V2.0.0 ATOMIC PRODUCTION DEPLOYMENT
+# Target Site: ordo.jknc.io
+# Server: jkandc (Ubuntu 24.04 LTS)
+# Site Directory: /home/forge/ordo.jknc.io
+# Expected Active Baseline Release: /home/forge/ordo.jknc.io/releases/1795769650
+# Expected Active Baseline SHA: 9bac901ee6c5abe6891c930dcf1efcd110c8472f
+# Target Branch: release/deals-v2.0.0
+# Target Candidate SHA: bcc2416739dea5cb805fe6196b5c1e904c70860b
+# Target Candidate Tree: 3d659081e6b4dd957e05c2c0666f00f75a2e97d1
+# GitLab Repository: https://gitlab.com/corporateUMC/jknc_project.git
+# Runtime: PHP 8.5.6 (php8.5-fpm) / MySQL 8.4.9 LTS
+# Baseline Migrations: 509 (Batch 137)
+# Pending Migrations: Exactly 18 (Batch 138)
+# Expected Final Migrations: 527 (Batch 138)
+# ==============================================================================
+set -euo pipefail
+umask 077
+
+# ------------------------------------------------------------------------------
+# 1. MANDATORY EXCLUSIVE DEPLOYMENT LOCK ACQUISITION
+# ------------------------------------------------------------------------------
+LOCK_DIR="${LOCK_DIR:-/home/forge/.ordo_locks}"
+mkdir -p "$LOCK_DIR"
+chmod 700 "$LOCK_DIR"
+LOCK_FILE="${LOCK_DIR}/ordo_production_deploy.lock"
+
+exec 8>"$LOCK_FILE"
+if ! command -v flock >/dev/null 2>&1; then
+    echo "DEPLOYMENT_ABORT: Mandatory utility 'flock' is missing from host environment." >&2
+    exit 40
+fi
+if ! flock -n 8; then
+    echo "DEPLOYMENT_ABORT: Another deployment, rehearsal, or maintenance operation is currently active." >&2
+    exit 40
+fi
+echo "DEPLOYMENT_LOCK_ACQUIRED: Lock=$LOCK_FILE PID=$$ Host=$(hostname) User=$(whoami)"
+
+DEPLOY_STEP="INIT"
+NEW_RELEASE_DIR=""
+SCHEMA_MUTATION_STARTED="false"
+MAINTENANCE_ENTERED_BY_US="false"
+APPLIED_MIGRATION_COUNT=0
+QUIESCED_BACKUP_PATH=""
+
+cleanup() {
+    local EXIT_CODE=$?
+    if [ "$EXIT_CODE" -ne 0 ]; then
+        echo "DEPLOYMENT_HALTED: Operation failed at step [$DEPLOY_STEP] with exit code $EXIT_CODE." >&2
+        if [ "$SCHEMA_MUTATION_STARTED" = "true" ]; then
+            echo "CRITICAL_STATE: Live database schema modification was initiated before failure." >&2
+            echo "CRITICAL_STATE: Application is deliberately PRESERVED IN MAINTENANCE MODE to protect data integrity." >&2
+            echo "CRITICAL_STATE: Quiesced backup available at: ${QUIESCED_BACKUP_PATH:-UNKNOWN}" >&2
+            echo "CRITICAL_STATE: Do NOT automatically revert code or overwrite database without consulting authorized procedure." >&2
+            if [ -d "/home/forge/ordo.jknc.io/current" ]; then
+                cd "/home/forge/ordo.jknc.io/current"
+                php artisan down --render="errors::503" --secret="ordo-release-emergency" 2>/dev/null || true
+            fi
+        else
+            if [ "$MAINTENANCE_ENTERED_BY_US" = "true" ]; then
+                echo "SAFE_ABORT: Zero live schema changes applied. Reversing maintenance mode entered by this deployment..." >&2
+                if [ -d "/home/forge/ordo.jknc.io/current" ]; then
+                    cd "/home/forge/ordo.jknc.io/current"
+                    php artisan up 2>/dev/null || true
+                    php artisan queue:restart 2>/dev/null || true
+                fi
+            else
+                echo "SAFE_ABORT: Deployment failed prior to maintenance mode. Active production state undisturbed." >&2
+            fi
+            if [ -n "$NEW_RELEASE_DIR" ] && [ -d "$NEW_RELEASE_DIR" ]; then
+                echo "CLEANUP_CANDIDATE: Removing incomplete candidate release directory: $NEW_RELEASE_DIR"
+                rm -rf "$NEW_RELEASE_DIR" || true
+            fi
+        fi
+    fi
+    flock -u 8 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# ------------------------------------------------------------------------------
+# 2. LOCKED IDENTITIES & CONSTANTS
+# ------------------------------------------------------------------------------
+SITE_DIR="${SITE_DIR:-/home/forge/ordo.jknc.io}"
+EXPECTED_PREV_RELEASE="1795769650"
+EXPECTED_PREV_SHA="9bac901ee6c5abe6891c930dcf1efcd110c8472f"
+TARGET_BRANCH="release/deals-v2.0.0"
+TARGET_SHA="bcc2416739dea5cb805fe6196b5c1e904c70860b"
+TARGET_TREE="3d659081e6b4dd957e05c2c0666f00f75a2e97d1"
+GITLAB_REPO="https://gitlab.com/corporateUMC/jknc_project.git"
+
+SHARED_ENV="${SITE_DIR}/.env"
+SHARED_STORAGE="${SITE_DIR}/storage"
+BACKUP_DIR="${BACKUP_DIR:-/home/forge/ordo-db-backups}"
+OCR_TESSERACT="/home/forge/ocr-bin/tesseract"
+OCR_POPPLER="/home/forge/ocr-bin/pdftoppm"
+
+EXPECTED_BASELINE_MIGRATIONS=509
+EXPECTED_PENDING_MIGRATIONS=18
+EXPECTED_FINAL_MIGRATIONS=527
+EXPECTED_NEXT_BATCH=138
+EXPECTED_FRONTEND_SHA="bd821e3ada760e15fa89978cee5dcc02f3bf49245a4916ee0a7cc7713f849bf3"
+
+# ------------------------------------------------------------------------------
+# 3. SAFETY GATE: VERIFY REHEARSAL EVIDENCE & RECOMPUTE BACKUP CHECKSUM
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="VERIFY_REHEARSAL_EVIDENCE"
+echo "=== STEP 1: VERIFYING REHEARSAL & BACKUP EVIDENCE ==="
+
+REHEARSAL_EVIDENCE="${BACKUP_DIR}/rehearsal_evidence_${TARGET_SHA}.env"
+if [ ! -f "$REHEARSAL_EVIDENCE" ]; then
+    echo "DEPLOYMENT_ABORT: Rehearsal evidence missing for candidate $TARGET_SHA at $REHEARSAL_EVIDENCE." >&2
+    echo "You must execute DEALS-V2-FORGE-ISOLATED-REHEARSAL.sh before deploying." >&2
+    exit 41
+fi
+
+# shellcheck disable=SC1090
+source "$REHEARSAL_EVIDENCE"
+
+if [ "${REHEARSAL_STATUS:-}" != "PASS" ] || [ "${CANDIDATE_SHA:-}" != "$TARGET_SHA" ]; then
+    echo "DEPLOYMENT_ABORT: Rehearsal evidence validation failed. Status=${REHEARSAL_STATUS:-NONE}, SHA=${CANDIDATE_SHA:-NONE}" >&2
+    exit 42
+fi
+
+# Recompute backup checksum and ensure it matches rehearsal evidence
+if [ -z "${VERIFIED_BACKUP_PATH:-}" ] || [ ! -f "$VERIFIED_BACKUP_PATH" ]; then
+    echo "DEPLOYMENT_ABORT: Rehearsal verified backup path not found: ${VERIFIED_BACKUP_PATH:-NONE}" >&2
+    exit 47
+fi
+
+RECOMPUTED_BACKUP_SHA=$(sha256sum "$VERIFIED_BACKUP_PATH" | awk '{print $1}')
+if [ "$RECOMPUTED_BACKUP_SHA" != "${VERIFIED_BACKUP_SHA:-}" ]; then
+    echo "DEPLOYMENT_ABORT: Recomputed backup SHA-256 ($RECOMPUTED_BACKUP_SHA) does not match rehearsal evidence (${VERIFIED_BACKUP_SHA:-NONE})!" >&2
+    exit 48
+fi
+
+echo "REHEARSAL_EVIDENCE_VALIDATED: Candidate $TARGET_SHA passed rehearsal; backup checksum verified ($RECOMPUTED_BACKUP_SHA)."
+
+# ------------------------------------------------------------------------------
+# 4. SAFETY GATE: SYSTEM RESOURCE HEADROOM AUDIT
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="VALIDATE_DISK_AND_MEMORY"
+echo "=== STEP 2: VALIDATING SYSTEM RESOURCES ==="
+FREE_DISK_KB=$(df -k / | awk 'NR==2 {print $4}')
+FREE_DISK_MB=$((FREE_DISK_KB / 1024))
+DISK_UTIL_PCT=$(df -k / | awk 'NR==2 {print $5}' | tr -d '%')
+AVAIL_RAM_MB=$(free -m | awk 'NR==2 {print $7}')
+
+echo "RESOURCE_AUDIT: Free Disk: ${FREE_DISK_MB}MB (${FREE_DISK_KB}KB), Util: ${DISK_UTIL_PCT}%, Available RAM: ${AVAIL_RAM_MB}MB"
+
+if [ "$FREE_DISK_KB" -lt 1572864 ]; then
+    echo "DEPLOYMENT_ABORT: Available disk space (${FREE_DISK_MB}MB) is below the minimum required peak headroom (1536MB)." >&2
+    exit 43
+fi
+
+if [ "$AVAIL_RAM_MB" -lt 300 ]; then
+    echo "DEPLOYMENT_ABORT: Available RAM (${AVAIL_RAM_MB}MB) is dangerously low (<300MB)." >&2
+    exit 44
+fi
+
+# ------------------------------------------------------------------------------
+# 5. SAFETY GATE: VERIFY ACTIVE PRODUCTION BASELINE & PREREQUISITES
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="VERIFY_ACTIVE_PRODUCTION_IDENTITY"
+echo "=== STEP 3: VERIFYING ACTIVE PRODUCTION BASELINE ==="
+cd "$SITE_DIR"
+
+ACTIVE_PHYSICAL=$(readlink -f "${SITE_DIR}/current" || true)
+if [ "$ACTIVE_PHYSICAL" != "${SITE_DIR}/releases/${EXPECTED_PREV_RELEASE}" ]; then
+    echo "DEPLOYMENT_ABORT: Active physical release [$ACTIVE_PHYSICAL] does not match expected [${SITE_DIR}/releases/${EXPECTED_PREV_RELEASE}]." >&2
+    exit 45
+fi
+
+ACTIVE_SHA=$(git -C "$ACTIVE_PHYSICAL" rev-parse HEAD 2>/dev/null || true)
+if [ "$ACTIVE_SHA" != "$EXPECTED_PREV_SHA" ]; then
+    echo "DEPLOYMENT_ABORT: Active commit [$ACTIVE_SHA] does not match expected production baseline [$EXPECTED_PREV_SHA]." >&2
+    exit 46
+fi
+
+if [ ! -f "$SHARED_ENV" ]; then
+    echo "DEPLOYMENT_ABORT: Shared environment file missing at $SHARED_ENV" >&2
+    exit 49
+fi
+
+if [ ! -d "$SHARED_STORAGE" ] || [ -L "$SHARED_STORAGE" ]; then
+    echo "DEPLOYMENT_ABORT: Shared storage directory missing or invalid symlink at $SHARED_STORAGE" >&2
+    exit 50
+fi
+
+if [ ! -x "$OCR_TESSERACT" ] || [ ! -x "$OCR_POPPLER" ]; then
+    echo "DEPLOYMENT_ABORT: Preserved OCR binaries missing or non-executable in /home/forge/ocr-bin/" >&2
+    exit 51
+fi
+echo "ACTIVE_PRODUCTION_VERIFIED: Release=$EXPECTED_PREV_RELEASE SHA=$ACTIVE_SHA Baseline=PASS"
+
+# ------------------------------------------------------------------------------
+# 6. PROVISION CANDIDATE RELEASE DIRECTORY (ZERO SHARED CACHE MUTATION)
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="PROVISION_CANDIDATE_RELEASE"
+echo "=== STEP 4: PROVISIONING CANDIDATE RELEASE (ONLINE PREPARATION) ==="
+NEW_RELEASE_ID=$(date -u +"%s")
+NEW_RELEASE_DIR="${SITE_DIR}/releases/${NEW_RELEASE_ID}"
+
+echo "PROVISIONING_RELEASE: Path=$NEW_RELEASE_DIR"
+git clone --depth 1 --branch "$TARGET_BRANCH" "$GITLAB_REPO" "$NEW_RELEASE_DIR"
+cd "$NEW_RELEASE_DIR"
+
+CANDIDATE_COMMITTED_SHA=$(git rev-parse HEAD)
+CANDIDATE_COMMITTED_TREE=$(git rev-parse 'HEAD^{tree}')
+
+if [ "$CANDIDATE_COMMITTED_SHA" != "$TARGET_SHA" ]; then
+    echo "DEPLOYMENT_ABORT: Cloned candidate SHA [$CANDIDATE_COMMITTED_SHA] does not match target [$TARGET_SHA]." >&2
+    exit 53
+fi
+
+if [ "$CANDIDATE_COMMITTED_TREE" != "$TARGET_TREE" ]; then
+    echo "DEPLOYMENT_ABORT: Cloned candidate Git tree [$CANDIDATE_COMMITTED_TREE] does not match target [$TARGET_TREE]." >&2
+    exit 54
+fi
+echo "CANDIDATE_VERIFIED: SHA=$CANDIDATE_COMMITTED_SHA Tree=$CANDIDATE_COMMITTED_TREE"
+
+# Link shared environment and storage
+if [ -d "${NEW_RELEASE_DIR}/storage" ] && [ ! -L "${NEW_RELEASE_DIR}/storage" ]; then
+    rm -rf "${NEW_RELEASE_DIR}/storage"
+fi
+ln -sfn "$SHARED_ENV" "${NEW_RELEASE_DIR}/.env"
+ln -sfn "$SHARED_STORAGE" "${NEW_RELEASE_DIR}/storage"
+
+# Install composer production dependencies
+echo "Installing composer dependencies..."
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --quiet
+
+# Install pre-built frontend artifact
+echo "Installing pre-built frontend assets..."
+FRONTEND_ARCHIVE=""
+CANDIDATE_LOCATIONS=(
+    "/home/forge/ordo-build-artifacts/deals-v2-frontend-build-bcc2416.tar.gz"
+    "/home/forge/deals-v2-frontend-build-bcc2416.tar.gz"
+    "/tmp/deals-v2-frontend-build-bcc2416.tar.gz"
+)
+
+for loc in "${CANDIDATE_LOCATIONS[@]}"; do
+    if [ -f "$loc" ]; then
+        FRONTEND_ARCHIVE="$loc"
+        break
+    elif [ -f "${loc}.b64" ]; then
+        echo "Decoding base64 artifact: ${loc}.b64 -> $loc"
+        base64 -d "${loc}.b64" > "$loc"
+        FRONTEND_ARCHIVE="$loc"
+        break
+    fi
+done
+
+if [ -z "$FRONTEND_ARCHIVE" ]; then
+    echo "DEPLOYMENT_ABORT: Pre-built frontend archive not found in expected locations." >&2
+    exit 55
+fi
+
+ACTUAL_FRONTEND_SHA=$(sha256sum "$FRONTEND_ARCHIVE" | awk '{print $1}')
+if [ "$ACTUAL_FRONTEND_SHA" != "$EXPECTED_FRONTEND_SHA" ]; then
+    echo "DEPLOYMENT_ABORT: Frontend build archive SHA mismatch ($ACTUAL_FRONTEND_SHA != $EXPECTED_FRONTEND_SHA)." >&2
+    exit 56
+fi
+
+rm -rf public/build
+tar -xzf "$FRONTEND_ARCHIVE" -C public/
+
+MANIFEST_FILE="public/build/manifest.json"
+if [ ! -f "$MANIFEST_FILE" ]; then
+    echo "DEPLOYMENT_ABORT: Vite manifest not generated at $MANIFEST_FILE." >&2
+    exit 57
+fi
+
+# Verify required entry points and physical asset files
+REQUIRED_ENTRIES=(
+    "resources/css/app.css"
+    "resources/css/transmittal.css"
+    "resources/js/app.js"
+    "resources/js/transmittal.js"
+    "resources/js/transmittal-v2-file-tools.js"
+)
+for entry in "${REQUIRED_ENTRIES[@]}"; do
+    ASSET_REL_PATH=$(php -r "
+        \$m = json_decode(file_get_contents('$MANIFEST_FILE'), true);
+        echo \$m['$entry']['file'] ?? '';
+    ")
+    if [ -z "$ASSET_REL_PATH" ] || [ ! -f "public/build/${ASSET_REL_PATH}" ]; then
+        echo "DEPLOYMENT_ABORT: Required manifest asset missing: $entry -> public/build/${ASSET_REL_PATH}" >&2
+        exit 58
+    fi
+done
+echo "FRONTEND_ASSETS_VERIFIED: All 5 Vite entry points validated."
+# Config and route caching is DEFERRED until maintenance mode to preserve shared production caches
+
+# ------------------------------------------------------------------------------
+# 7. PRE-MIGRATION DATABASE LEDGER COMPARISON (EXACT COMPARISON, NO GREP)
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="MIGRATION_PREFLIGHT_AUDIT"
+echo "=== STEP 5: AUDITING PENDING MIGRATIONS AGAINST DATABASE LEDGER ==="
+
+EXPECTED_18_MIGRATIONS=(
+    "2026_08_25_091128_create_proposals_table"
+    "2026_10_01_134646_add_deal_stage_tracking_fields"
+    "2026_10_01_160000_upgrade_deals_module_schema"
+    "2026_10_07_151600_add_negotiation_and_proposal_fields_to_deals_table"
+    "2026_10_07_153800_add_account_id_to_deals_table"
+    "2026_10_07_154100_add_company_id_to_deals_table"
+    "2026_10_07_160500_add_quick_purchase_fields_to_deals_table"
+    "2026_10_08_150000_add_user_assignment_fields_to_deals_table"
+    "2026_10_08_154500_add_assigned_by_and_at_to_deals_table"
+    "2026_10_08_161500_add_start_batches_to_deals_table"
+    "2026_10_12_142000_make_deal_qualification_result_nullable"
+    "2026_10_13_000001_add_deal_proposal_versions"
+    "2026_10_13_000002_add_line_item_responses_to_deal_proposals"
+    "2026_10_14_000001_add_casa_stage_to_deals_table"
+    "2026_10_15_000001_add_client_kyc_requirements_to_deals_table"
+    "2026_10_18_000001_create_deal_finance_documents_table"
+    "2026_10_19_000001_create_deal_payment_allocations_table"
+    "2026_10_19_000002_add_proposal_decision_submission_fields"
+)
+
+ACTUAL_PENDING_JSON=$(php -r '
+    require "vendor/autoload.php";
+    $app = require "bootstrap/app.php";
+    $app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+    use Illuminate\Support\Facades\DB;
+    $ran = DB::table("migrations")->pluck("migration")->toArray();
+    $files = array_map(fn($f) => basename($f, ".php"), glob("database/migrations/*.php"));
+    $pending = array_values(array_diff($files, $ran));
+    sort($pending);
+    echo json_encode($pending);
+')
+
+ACTUAL_PENDING_COUNT=$(echo "$ACTUAL_PENDING_JSON" | php -r '$p = json_decode(file_get_contents("php://stdin"), true); echo count($p);')
+echo "DATABASE_PENDING_AUDIT: $ACTUAL_PENDING_COUNT pending migrations detected against live database ledger."
+
+if [ "$ACTUAL_PENDING_COUNT" -ne 18 ]; then
+    echo "DEPLOYMENT_ABORT: Expected exactly 18 pending migrations, detected $ACTUAL_PENDING_COUNT." >&2
+    echo "Actual pending: $ACTUAL_PENDING_JSON" >&2
+    exit 59
+fi
+
+for mig in "${EXPECTED_18_MIGRATIONS[@]}"; do
+    FOUND=$(echo "$ACTUAL_PENDING_JSON" | CHECK_MIG="$mig" php -r '
+        $p = json_decode(file_get_contents("php://stdin"), true);
+        echo in_array(getenv("CHECK_MIG"), $p) ? "YES" : "NO";
+    ')
+    if [ "$FOUND" != "YES" ]; then
+        echo "DEPLOYMENT_ABORT: Expected migration name missing from actual pending ledger list: $mig" >&2
+        exit 60
+    fi
+done
+
+# Ensure 2026_10_17_000001 is NOT pending
+HAS_CATALOG_PENDING=$(echo "$ACTUAL_PENDING_JSON" | php -r '
+    $p = json_decode(file_get_contents("php://stdin"), true);
+    echo in_array("2026_10_17_000001_add_product_catalog_snapshot_and_term_scope_anchors", $p) ? "YES" : "NO";
+')
+if [ "$HAS_CATALOG_PENDING" = "YES" ]; then
+    echo "DEPLOYMENT_ABORT: Catalog snapshot migration 2026_10_17_000001 was detected as pending but is already executed!" >&2
+    exit 61
+fi
+echo "LIVE_LEDGER_AUDIT_PASS: Exact 18 pending migrations confirmed."
+
+# ------------------------------------------------------------------------------
+# 8. EXPLICIT OPERATOR AUTHORIZATION GATE
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="OPERATOR_AUTHORIZATION_GATE"
+if [ "${ORDO_LIVE_DEPLOY_APPROVED:-false}" != "true" ]; then
+    echo "DEPLOYMENT_HALTED_SAFETY_GATE: ORDO_LIVE_DEPLOY_APPROVED is not set to 'true'." >&2
+    echo "Candidate is 100% prepared and validated at $NEW_RELEASE_DIR." >&2
+    echo "To execute live schema changes and activation, re-run with: export ORDO_LIVE_DEPLOY_APPROVED=true" >&2
+    exit 62
+fi
+
+# ------------------------------------------------------------------------------
+# 9. ENTER MAINTENANCE MODE & QUIESCE WORKERS (STRICT TIMEOUT ENFORCEMENT)
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="ENTER_MAINTENANCE_MODE"
+echo "=== STEP 6: ENTERING MAINTENANCE MODE & QUIESCING WORKERS ==="
+
+ACTIVE_RECHECK=$(readlink -f "${SITE_DIR}/current" || true)
+if [ "$ACTIVE_RECHECK" != "${SITE_DIR}/releases/${EXPECTED_PREV_RELEASE}" ]; then
+    echo "DEPLOYMENT_ABORT: Active release changed unexpectedly prior to maintenance mode!" >&2
+    exit 63
+fi
+
+# Enter maintenance mode on active release — record that this deployment entered it
+cd "$ACTIVE_PHYSICAL"
+php artisan down --render="errors::503" --secret="ordo-release-deals-2026"
+MAINTENANCE_ENTERED_BY_US="true"
+
+# Drain and quiesce background workers with strict abort on timeout
+php artisan queue:restart
+echo "Waiting for background workers to finish in-flight jobs..."
+WAIT_SECS=0
+MAX_WAIT=15
+while pgrep -f "artisan queue:work" >/dev/null 2>&1 && [ "$WAIT_SECS" -lt "$MAX_WAIT" ]; do
+    sleep 1
+    WAIT_SECS=$((WAIT_SECS + 1))
+done
+
+if pgrep -f "artisan queue:work" >/dev/null 2>&1; then
+    echo "DEPLOYMENT_ABORT: Background workers failed to quiesce within ${MAX_WAIT}s timeout! Refusing to proceed with schema migration." >&2
+    exit 64
+fi
+echo "WORKERS_QUIESCED: All background queue workers confirmed stopped."
+
+# ------------------------------------------------------------------------------
+# 10. QUIESCED RECOVERY DATABASE BACKUP (POST-MAINTENANCE, PRE-MIGRATION)
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="QUIESCED_RECOVERY_BACKUP"
+echo "=== STEP 7: CREATING QUIESCED RECOVERY DATABASE BACKUP ==="
+
+DB_CREDS_JSON=$(php -r '
+    require "vendor/autoload.php";
+    $app = require "bootstrap/app.php";
+    $app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+    $conn = config("database.default");
+    $c = config("database.connections." . $conn);
+    echo json_encode([
+        "host" => $c["host"] ?? "127.0.0.1",
+        "port" => (string)($c["port"] ?? "3306"),
+        "database" => $c["database"] ?? "",
+        "username" => $c["username"] ?? "",
+        "password" => $c["password"] ?? "",
+    ]);
+')
+
+PROD_DB_HOST=$(echo "$DB_CREDS_JSON" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["host"];')
+PROD_DB_PORT=$(echo "$DB_CREDS_JSON" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["port"];')
+PROD_DB_NAME=$(echo "$DB_CREDS_JSON" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["database"];')
+PROD_DB_USER=$(echo "$DB_CREDS_JSON" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["username"];')
+PROD_DB_PASS=$(echo "$DB_CREDS_JSON" | php -r '$d=json_decode(file_get_contents("php://stdin"),true); echo $d["password"];')
+
+QUIESCED_TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+QUIESCED_BACKUP_PATH="${BACKUP_DIR}/ordo_quiesced_recovery_${QUIESCED_TIMESTAMP}_$$.sql.gz"
+
+echo "Taking quiesced database dump to $QUIESCED_BACKUP_PATH..."
+MYSQL_PWD="$PROD_DB_PASS" mysqldump --host="$PROD_DB_HOST" --port="$PROD_DB_PORT" --user="$PROD_DB_USER" \
+    --single-transaction --quick --skip-lock-tables \
+    --triggers --routines --events --set-gtid-purged=OFF --no-tablespaces \
+    "$PROD_DB_NAME" | gzip -c > "$QUIESCED_BACKUP_PATH"
+chmod 600 "$QUIESCED_BACKUP_PATH"
+
+if ! gunzip -t "$QUIESCED_BACKUP_PATH"; then
+    echo "DEPLOYMENT_ABORT: Quiesced recovery backup decompression check failed!" >&2
+    exit 68
+fi
+QUIESCED_BACKUP_SHA=$(sha256sum "$QUIESCED_BACKUP_PATH" | awk '{print $1}')
+echo "QUIESCED_BACKUP_CONFIRMED: $QUIESCED_BACKUP_PATH (SHA-256: $QUIESCED_BACKUP_SHA)"
+
+# ------------------------------------------------------------------------------
+# 11. PRE-MIGRATION LEDGER RECHECK & LIVE MIGRATION
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="LIVE_DATABASE_MIGRATION"
+echo "=== STEP 8: RECHECKING LEDGER & EXECUTING LIVE MIGRATIONS ==="
+
+PRE_MIG_AUDIT=$(MYSQL_PWD="$PROD_DB_PASS" mysql --host="$PROD_DB_HOST" --port="$PROD_DB_PORT" --user="$PROD_DB_USER" -N -e "
+    SELECT COUNT(*), MAX(batch) FROM \`${PROD_DB_NAME}\`.migrations;
+")
+PRE_MIG_COUNT=$(echo "$PRE_MIG_AUDIT" | awk '{print $1}')
+PRE_MIG_BATCH=$(echo "$PRE_MIG_AUDIT" | awk '{print $2}')
+
+if [ "$PRE_MIG_COUNT" -ne "$EXPECTED_BASELINE_MIGRATIONS" ]; then
+    echo "DEPLOYMENT_ABORT: Pre-migration ledger count mismatch ($PRE_MIG_COUNT != $EXPECTED_BASELINE_MIGRATIONS)!" >&2
+    exit 69
+fi
+if [ "$PRE_MIG_BATCH" -ne 137 ]; then
+    echo "DEPLOYMENT_ABORT: Pre-migration ledger batch mismatch ($PRE_MIG_BATCH != 137)!" >&2
+    exit 70
+fi
+echo "PRE_MIGRATION_LEDGER_CONFIRMED: Exactly $PRE_MIG_COUNT migrations at Batch $PRE_MIG_BATCH."
+
+# CRITICAL SAFETY: Mark schema mutation as active BEFORE executing artisan migrate
+SCHEMA_MUTATION_STARTED="true"
+cd "$NEW_RELEASE_DIR"
+
+php artisan migrate --force
+
+APPLIED_MIGRATION_COUNT=18
+
+# Audit post-migration ledger
+POST_MIG_AUDIT=$(php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+use Illuminate\Support\Facades\DB;
+$count = DB::table("migrations")->count();
+$maxBatch = DB::table("migrations")->max("batch");
+echo "FINAL_COUNT=$count|MAX_BATCH=$maxBatch\n";
+')
+
+FINAL_COUNT=$(echo "$POST_MIG_AUDIT" | cut -d'|' -f1 | cut -d'=' -f2)
+FINAL_BATCH=$(echo "$POST_MIG_AUDIT" | cut -d'|' -f2 | cut -d'=' -f2)
+
+if [ "$FINAL_COUNT" -ne "$EXPECTED_FINAL_MIGRATIONS" ]; then
+    echo "DEPLOYMENT_ABORT: Expected $EXPECTED_FINAL_MIGRATIONS migrations, detected $FINAL_COUNT." >&2
+    exit 65
+fi
+
+if [ "$FINAL_BATCH" -ne "$EXPECTED_NEXT_BATCH" ]; then
+    echo "DEPLOYMENT_ABORT: Expected final batch $EXPECTED_NEXT_BATCH, detected $FINAL_BATCH." >&2
+    exit 66
+fi
+echo "LIVE_MIGRATIONS_SUCCESSFUL: Final Ledger=$FINAL_COUNT Batch=$FINAL_BATCH"
+
+# ------------------------------------------------------------------------------
+# 12. COMPILE CANDIDATE CONFIGURATION & ROUTE CACHES (POST-MIGRATION)
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="COMPILE_CANDIDATE_CACHES"
+echo "=== STEP 9: COMPILING CANDIDATE CACHES ==="
+cd "$NEW_RELEASE_DIR"
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# ------------------------------------------------------------------------------
+# 13. ATOMIC SYMLINK SWITCH & SERVICE RELOAD
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="ATOMIC_SYMLINK_SWITCHOVER"
+echo "=== STEP 10: ATOMIC SYMLINK SWITCHOVER ==="
+
+ln -sfn "$NEW_RELEASE_DIR" "${SITE_DIR}/current_tmp"
+mv -Tf "${SITE_DIR}/current_tmp" "${SITE_DIR}/current"
+
+# Graceful service reload
+echo "Reloading php8.5-fpm service and queue workers..."
+sudo -n systemctl reload php8.5-fpm
+cd "${SITE_DIR}/current"
+php artisan queue:restart
+
+# Bring application back online
+php artisan up
+echo "APPLICATION_ONLINE: Activated release at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+# ------------------------------------------------------------------------------
+# 14. POST-DEPLOYMENT HEALTH & AUTHENTICATED FUNCTIONAL VERIFICATION
+# ------------------------------------------------------------------------------
+DEPLOY_STEP="POST_DEPLOYMENT_HEALTHCHECK"
+echo "=== STEP 11: HEALTH & FUNCTIONAL SMOKE VERIFICATION ==="
+sleep 2
+
+# Public homepage health check
+HTTP_CODE=$(curl -fsSI --max-time 15 "https://ordo.jknc.io" | grep -i "HTTP/" | head -n 1 | awk '{print $2}' || echo "FAIL")
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "DEPLOYMENT_ABORT: https://ordo.jknc.io health check returned HTTP status $HTTP_CODE (expected 200)." >&2
+    exit 71
+fi
+echo "HEALTHCHECK_PASS: https://ordo.jknc.io returned HTTP 200."
+
+# Login route check and session cookie issuance
+LOGIN_HTTP=$(curl -fsSI --max-time 10 "https://ordo.jknc.io/login" 2>/dev/null | grep -i "HTTP/" | head -n 1 | awk '{print $2}' || echo "FAIL")
+echo "LOGIN_CHECK: /login returned HTTP $LOGIN_HTTP"
+if [ "$LOGIN_HTTP" != "200" ]; then
+    echo "DEPLOYMENT_ABORT: Login route check returned unexpected status $LOGIN_HTTP" >&2
+    exit 72
+fi
+
+# Protected routes genuine authenticated functional verification
+cd "${SITE_DIR}/current"
+AUTH_VERIFY_RESULT=$(php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$kernel = $app->make("Illuminate\Contracts\Http\Kernel");
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+$userRecord = DB::table("users")->whereNull("deleted_at")->first();
+if (!$userRecord) {
+    echo "NO_USER";
+    exit(1);
+}
+
+$user = \App\Models\User::find($userRecord->id);
+
+$reqDeals = Request::create("/deals", "GET");
+$reqDeals->setUserResolver(fn() => $user);
+$resDeals = $kernel->handle($reqDeals);
+$statusDeals = $resDeals->getStatusCode();
+$kernel->terminate($reqDeals, $resDeals);
+
+$reqTrans = Request::create("/transmittal", "GET");
+$reqTrans->setUserResolver(fn() => $user);
+$resTrans = $kernel->handle($reqTrans);
+$statusTrans = $resTrans->getStatusCode();
+$kernel->terminate($reqTrans, $resTrans);
+
+echo "AUTH_USER={$user->email}|DEALS_STATUS=$statusDeals|TRANSMITTAL_STATUS=$statusTrans\n";
+' 2>/dev/null || echo "FAIL")
+
+echo "AUTHENTICATED_FUNCTIONAL_AUDIT: $AUTH_VERIFY_RESULT"
+DEALS_AUTH_STATUS=$(echo "$AUTH_VERIFY_RESULT" | grep -o 'DEALS_STATUS=[0-9]*' | cut -d'=' -f2 || echo "FAIL")
+TRANS_AUTH_STATUS=$(echo "$AUTH_VERIFY_RESULT" | grep -o 'TRANSMITTAL_STATUS=[0-9]*' | cut -d'=' -f2 || echo "FAIL")
+
+if [ "$DEALS_AUTH_STATUS" != "200" ]; then
+    echo "DEPLOYMENT_ABORT: Genuine authenticated /deals request returned HTTP $DEALS_AUTH_STATUS (expected 200)!" >&2
+    exit 73
+fi
+if [ "$TRANS_AUTH_STATUS" != "200" ]; then
+    echo "DEPLOYMENT_ABORT: Genuine authenticated /transmittal request returned HTTP $TRANS_AUTH_STATUS (expected 200)!" >&2
+    exit 74
+fi
+echo "AUTHENTICATED_VERIFICATION_PASS: Genuine authenticated requests to /deals (HTTP 200) and /transmittal (HTTP 200) verified."
+
+# Authenticated functional database model smoke test
+cd "${SITE_DIR}/current"
+SMOKE_TEST_RESULT=$(php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+use Illuminate\Support\Facades\DB;
+$deals = DB::table("deals")->count();
+$proposals = DB::table("proposals")->count();
+$transmittals = DB::table("transmittals")->count();
+$users = DB::table("users")->count();
+echo "DEALS=$deals|PROPOSALS=$proposals|TRANSMITTALS=$transmittals|USERS=$users\n";
+' 2>/dev/null || echo "FAIL")
+
+if [[ "$SMOKE_TEST_RESULT" != DEALS=* ]]; then
+    echo "DEPLOYMENT_ABORT: Functional database smoke verification failed ($SMOKE_TEST_RESULT)!" >&2
+    exit 75
+fi
+echo "FUNCTIONAL_SMOKE_VERIFIED: $SMOKE_TEST_RESULT"
+
+echo "======================================================================"
+echo "ORDO DEALS V2.0.0 ATOMIC PRODUCTION DEPLOYMENT SUCCESSFUL"
+echo "Active Release:   $NEW_RELEASE_DIR"
+echo "Committed SHA:    $TARGET_SHA"
+echo "Migration Total:  $FINAL_COUNT (Batch $FINAL_BATCH)"
+echo "Quiesced Backup:  $QUIESCED_BACKUP_PATH"
+echo "Health Status:    HTTP 200 OK"
+echo "======================================================================"
+exit 0

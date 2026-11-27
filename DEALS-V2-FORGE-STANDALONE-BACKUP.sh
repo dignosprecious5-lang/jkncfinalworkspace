@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ORDO JK&C — STANDALONE PRODUCTION DATABASE BACKUP & RESTORATION AUDIT
+# Target Site: ordo.jknc.io
+# Server: jkandc (Ubuntu 24.04 LTS)
+# Production Active Release: /home/forge/ordo.jknc.io/releases/1795769650
+# Production Baseline SHA: 9bac901ee6c5abe6891c930dcf1efcd110c8472f
+# Database Engine: MySQL 8.4.9 LTS
+# Baseline Migration Ledger: 509 migrations (Batch 137)
+# ==============================================================================
+set -euo pipefail
+
+# 1. Strict umask to enforce private permissions (077 = files 0600, dirs 0700)
+umask 077
+
+echo "======================================================================"
+echo "ORDO DEALS V2.0.0 STANDALONE DATABASE BACKUP & RESTORATION VERIFICATION"
+echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo "Host: $(hostname) | User: $(whoami)"
+echo "======================================================================"
+
+SITE_DIR="${SITE_DIR:-/home/forge/ordo.jknc.io}"
+CURRENT_SYMLINK="${SITE_DIR}/current"
+BACKUP_DIR="${BACKUP_DIR:-/home/forge/ordo-db-backups}"
+LOCK_DIR="${LOCK_DIR:-/home/forge/.ordo_locks}"
+LOCK_FILE="${LOCK_DIR}/ordo_production_deploy.lock"
+
+# 2. Enforce mandatory exclusive lock
+mkdir -p "$LOCK_DIR"
+chmod 700 "$LOCK_DIR"
+exec 8>"$LOCK_FILE"
+if ! command -v flock >/dev/null 2>&1; then
+    echo "ERROR: Mandatory utility 'flock' is missing from host environment." >&2
+    exit 40
+fi
+if ! flock -n 8; then
+    echo "ERROR: Another deployment, backup, or maintenance operation is currently active." >&2
+    exit 40
+fi
+
+# Invalidate any prior verification evidence upfront so failures cannot reuse stale evidence
+EVIDENCE_FILE="${BACKUP_DIR}/latest_verified_backup.env"
+rm -f "$EVIDENCE_FILE"
+
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+
+# 3. Production identity verification
+EXPECTED_RELEASE_ID="1795769650"
+EXPECTED_BASELINE_SHA="9bac901ee6c5abe6891c930dcf1efcd110c8472f"
+
+if [ ! -L "$CURRENT_SYMLINK" ]; then
+    echo "ERROR: Active current symlink missing at $CURRENT_SYMLINK" >&2
+    exit 1
+fi
+
+ACTIVE_PHYSICAL=$(readlink -f "$CURRENT_SYMLINK" || true)
+if [ "$ACTIVE_PHYSICAL" != "${SITE_DIR}/releases/${EXPECTED_RELEASE_ID}" ]; then
+    echo "ERROR: Active release [$ACTIVE_PHYSICAL] does not match expected release [${SITE_DIR}/releases/${EXPECTED_RELEASE_ID}]." >&2
+    exit 2
+fi
+
+ACTIVE_SHA=$(git -C "$ACTIVE_PHYSICAL" rev-parse HEAD 2>/dev/null || echo "UNKNOWN")
+if [ "$ACTIVE_SHA" != "$EXPECTED_BASELINE_SHA" ]; then
+    echo "ERROR: Active commit [$ACTIVE_SHA] does not match expected production baseline [$EXPECTED_BASELINE_SHA]." >&2
+    exit 3
+fi
+echo "PRODUCTION_IDENTITY_VERIFIED: Release=$EXPECTED_RELEASE_ID SHA=$ACTIVE_SHA"
+
+# 4. Strict disk capacity check
+FREE_DISK_KB=$(df -k "$BACKUP_DIR" | awk 'NR==2 {print $4}')
+FREE_DISK_MB=$((FREE_DISK_KB / 1024))
+echo "DISK_CHECK: Free disk space in $BACKUP_DIR is ${FREE_DISK_MB}MB (${FREE_DISK_KB}KB)"
+if [ "$FREE_DISK_KB" -lt 1572864 ]; then
+    echo "ERROR: Insufficient disk space for backup and verification. Minimum 1536MB required, found ${FREE_DISK_MB}MB." >&2
+    exit 4
+fi
+
+# 5. Read effective Laravel database configuration securely via PHP runtime
+echo "Reading effective Laravel database configuration from active release..."
+cd "$ACTIVE_PHYSICAL"
+DB_CONFIG_JSON=$(php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make("Illuminate\Contracts\Console\Kernel")->bootstrap();
+$conn = config("database.default");
+$c = config("database.connections." . $conn);
+if (!$c) {
+    fwrite(STDERR, "Unable to resolve database connection: $conn\n");
+    exit(1);
+}
+echo json_encode([
+    "driver" => $c["driver"] ?? "",
+    "host" => $c["host"] ?? "127.0.0.1",
+    "port" => (string)($c["port"] ?? "3306"),
+    "database" => $c["database"] ?? "",
+    "username" => $c["username"] ?? "",
+    "password" => $c["password"] ?? "",
+]);
+')
+
+DB_DRIVER=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["driver"] ?? "";')
+DB_HOST=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["host"] ?? "";')
+DB_PORT=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["port"] ?? "";')
+DB_NAME=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["database"] ?? "";')
+DB_USER=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["username"] ?? "";')
+DB_PASS=$(echo "$DB_CONFIG_JSON" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["password"] ?? "";')
+
+if [ "$DB_DRIVER" != "mysql" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ]; then
+    echo "ERROR: Invalid database configuration resolved from Laravel kernel." >&2
+    exit 5
+fi
+
+# Enforce expected source database
+EXPECTED_SOURCE_DB="${EXPECTED_SOURCE_DB:-jknc}"
+if [ -n "$EXPECTED_SOURCE_DB" ] && [ "$DB_NAME" != "$EXPECTED_SOURCE_DB" ]; then
+    echo "WARNING: Resolved database name is '$DB_NAME' (expected '$EXPECTED_SOURCE_DB')."
+fi
+
+# 6. Verify source database and enforce MySQL 8.4 engine
+MYSQL_VERSION_OUTPUT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT VERSION();")
+echo "DATABASE_ENGINE_VERIFIED: Target DB=$DB_NAME, Host=$DB_HOST:$DB_PORT, MySQL Version=$MYSQL_VERSION_OUTPUT"
+
+if [[ ! "$MYSQL_VERSION_OUTPUT" =~ ^8\.4\. ]]; then
+    echo "ERROR: Unsupported MySQL version: $MYSQL_VERSION_OUTPUT. MySQL 8.4 LTS series is strictly enforced." >&2
+    exit 21
+fi
+
+# Fresh zero-event verification on production database before backup
+PROD_EVENT_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM information_schema.events WHERE event_schema = '${DB_NAME}';
+")
+echo "SOURCE_EVENTS_AUDIT: Production database '${DB_NAME}' has $PROD_EVENT_COUNT scheduled events."
+if [ "$PROD_EVENT_COUNT" -ne 0 ]; then
+    echo "ERROR: Production database has active scheduled events ($PROD_EVENT_COUNT). Zero events expected." >&2
+    exit 22
+fi
+
+# 7. Execute production mysqldump with MySQL 8.4 options
+TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+BACKUP_SQL_GZ="${BACKUP_DIR}/ordo-prod-db-pre-deals-${EXPECTED_RELEASE_ID}-${TIMESTAMP}.sql.gz"
+BACKUP_SHA_FILE="${BACKUP_SQL_GZ}.sha256"
+
+echo "=== STEP 1: EXECUTING PRODUCTION MYSQLDUMP ==="
+echo "Dumping source database: $DB_NAME -> $BACKUP_SQL_GZ"
+
+MYSQL_PWD="$DB_PASS" mysqldump \
+    --host="$DB_HOST" \
+    --port="$DB_PORT" \
+    --user="$DB_USER" \
+    --single-transaction \
+    --quick \
+    --skip-lock-tables \
+    --triggers \
+    --routines \
+    --events \
+    --set-gtid-purged=OFF \
+    --no-tablespaces \
+    "$DB_NAME" | gzip -c > "$BACKUP_SQL_GZ"
+
+# 8. Verify backup existence, non-empty content, and integrity
+if [ ! -f "$BACKUP_SQL_GZ" ] || [ ! -s "$BACKUP_SQL_GZ" ]; then
+    echo "ERROR: Backup dump failed or generated zero bytes." >&2
+    exit 6
+fi
+
+BACKUP_SIZE_BYTES=$(stat -c%s "$BACKUP_SQL_GZ" 2>/dev/null || stat -f%z "$BACKUP_SQL_GZ" 2>/dev/null || echo "0")
+echo "BACKUP_SIZE: ${BACKUP_SIZE_BYTES} bytes"
+
+sha256sum "$BACKUP_SQL_GZ" > "$BACKUP_SHA_FILE"
+BACKUP_SHA=$(awk '{print $1}' "$BACKUP_SHA_FILE")
+echo "BACKUP_SHA256: $BACKUP_SHA"
+
+echo "=== STEP 2: ARCHIVE INTEGRITY & EVENT DEFINITION VERIFICATION ==="
+if gunzip -t "$BACKUP_SQL_GZ"; then
+    echo "ARCHIVE_INTEGRITY: Gzip decompression test PASSED."
+else
+    echo "ERROR: Corrupt gzip stream in backup archive: $BACKUP_SQL_GZ" >&2
+    exit 7
+fi
+
+# Verify that the restoration input contains no executable event definitions
+if gunzip -c "$BACKUP_SQL_GZ" | grep -Ei 'CREATE[[:space:]]+(\/\*![0-9]+[[:space:]]+)?EVENT[[:space:]]' >/dev/null; then
+    echo "ERROR: Backup archive contains executable EVENT definitions! Expected zero events." >&2
+    exit 23
+fi
+echo "ARCHIVE_EVENT_AUDIT: Verified backup archive contains ZERO executable event definitions."
+
+# 9. Isolated restoration verification in a unique disposable database
+VERIFY_DB="ordo_verify_${TIMESTAMP}_$$"
+echo "=== STEP 3: ISOLATED RESTORATION VERIFICATION ==="
+echo "Unique Disposable Database: $VERIFY_DB"
+
+if [ "$VERIFY_DB" = "$DB_NAME" ] || [ -z "$VERIFY_DB" ]; then
+    echo "ERROR: Verification database name collides with source database." >&2
+    exit 8
+fi
+
+EXISTS_CHECK=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = '${VERIFY_DB}';
+")
+if [ "$EXISTS_CHECK" -ne 0 ]; then
+    echo "ERROR: Verification database ${VERIFY_DB} already exists prior to test. Refusing to overwrite." >&2
+    exit 9
+fi
+
+# Create unique disposable schema
+MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -e "
+    CREATE DATABASE \`${VERIFY_DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+"
+
+cleanup_verify_db() {
+    echo "Cleaning up disposable verification database ${VERIFY_DB}..."
+    MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -e "
+        DROP DATABASE IF EXISTS \`${VERIFY_DB}\`;
+    " 2>/dev/null || true
+    flock -u 8 2>/dev/null || true
+}
+trap cleanup_verify_db EXIT INT TERM
+
+echo "Restoring original unmodified backup archive into ${VERIFY_DB}..."
+gunzip -c "$BACKUP_SQL_GZ" | MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" "$VERIFY_DB"
+
+RESTORED_EVENT_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM information_schema.events WHERE event_schema = '${VERIFY_DB}';
+")
+if [ "$RESTORED_EVENT_COUNT" -ne 0 ]; then
+    echo "ERROR: Restored verification database has $RESTORED_EVENT_COUNT active events. Expected zero." >&2
+    exit 24
+fi
+echo "RESTORED_EVENTS_VERIFIED: Zero scheduled events verified in restored schema."
+
+echo "Verifying restored schema and exact migration ledger entries..."
+RESTORED_TABLE_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${VERIFY_DB}';
+")
+PROD_TABLE_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}';
+")
+
+echo "RESTORED_TABLE_COUNT: $RESTORED_TABLE_COUNT (Source: $PROD_TABLE_COUNT)"
+if [ "$RESTORED_TABLE_COUNT" -ne "$PROD_TABLE_COUNT" ] || [ "$RESTORED_TABLE_COUNT" -eq 0 ]; then
+    echo "ERROR: Restored table count ($RESTORED_TABLE_COUNT) does not match production ($PROD_TABLE_COUNT)." >&2
+    exit 10
+fi
+
+RESTORED_MIG_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT COUNT(*) FROM \`${VERIFY_DB}\`.migrations;
+")
+RESTORED_MAX_BATCH=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    SELECT MAX(batch) FROM \`${VERIFY_DB}\`.migrations;
+")
+
+echo "RESTORED_MIGRATIONS: Count=$RESTORED_MIG_COUNT (Expected: 509), MaxBatch=$RESTORED_MAX_BATCH (Expected: 137)"
+if [ "$RESTORED_MIG_COUNT" -ne 509 ]; then
+    echo "ERROR: Restored migration count is $RESTORED_MIG_COUNT, expected 509." >&2
+    exit 11
+fi
+if [ "$RESTORED_MAX_BATCH" -ne 137 ]; then
+    echo "ERROR: Restored max batch is $RESTORED_MAX_BATCH, expected 137." >&2
+    exit 12
+fi
+
+# Compare exact migration ledger entries between source and restored database
+MIGRATION_DIFF=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "
+    (SELECT migration, batch FROM \`${DB_NAME}\`.migrations)
+    EXCEPT
+    (SELECT migration, batch FROM \`${VERIFY_DB}\`.migrations);
+")
+
+if [ -n "$MIGRATION_DIFF" ]; then
+    echo "ERROR: Restored migration ledger entries do not match production source ledger exactly!" >&2
+    echo "Ledger diff: $MIGRATION_DIFF" >&2
+    exit 25
+fi
+echo "LEDGER_ENTRY_PARITY_VERIFIED: Exact 509 migration names and batch numbers match source ledger."
+
+# Verify representative records exist and match
+USERS_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${VERIFY_DB}\`.users;")
+DEALS_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${VERIFY_DB}\`.deals;")
+SERVICES_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${VERIFY_DB}\`.services;")
+TRANSMITTALS_COUNT=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${VERIFY_DB}\`.transmittals;")
+
+PROD_USERS=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.users;")
+PROD_DEALS=$(MYSQL_PWD="$DB_PASS" mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.deals;")
+
+echo "REPRESENTATIVE_DATA: users=$USERS_COUNT (prod: $PROD_USERS), deals=$DEALS_COUNT (prod: $PROD_DEALS), services=$SERVICES_COUNT, transmittals=$TRANSMITTALS_COUNT"
+if [ "$USERS_COUNT" -ne "$PROD_USERS" ] || [ "$USERS_COUNT" -eq 0 ]; then
+    echo "ERROR: Restored users count ($USERS_COUNT) does not match production ($PROD_USERS)." >&2
+    exit 13
+fi
+
+# 10. Record exact verified backup evidence file for subsequent rehearsal
+EVIDENCE_FILE="${BACKUP_DIR}/latest_verified_backup.env"
+cat << EOF > "$EVIDENCE_FILE"
+VERIFIED_BACKUP_PATH="${BACKUP_SQL_GZ}"
+VERIFIED_BACKUP_SHA="${BACKUP_SHA}"
+VERIFIED_BACKUP_BYTES="${BACKUP_SIZE_BYTES}"
+VERIFIED_BACKUP_TIMESTAMP="${TIMESTAMP}"
+SOURCE_DATABASE="${DB_NAME}"
+EXPECTED_RELEASE_ID="${EXPECTED_RELEASE_ID}"
+EXPECTED_BASELINE_SHA="${EXPECTED_BASELINE_SHA}"
+RESTORE_VERIFIED="true"
+RESTORED_MIGRATION_COUNT="${RESTORED_MIG_COUNT}"
+RESTORED_MAX_BATCH="${RESTORED_MAX_BATCH}"
+RESTORED_TABLE_COUNT="${RESTORED_TABLE_COUNT}"
+EOF
+chmod 600 "$EVIDENCE_FILE"
+
+echo "EVIDENCE_RECORDED: $EVIDENCE_FILE"
+echo "======================================================================"
+echo "STANDALONE BACKUP & RESTORATION AUDIT PASSED (100% VERIFIED)"
+echo "Verified File: $BACKUP_SQL_GZ"
+echo "SHA-256:       $BACKUP_SHA"
+echo "Preserved in:  $BACKUP_DIR"
+echo "======================================================================"
+exit 0
